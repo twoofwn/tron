@@ -1,15 +1,20 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../app/theme/app_colors.dart';
 import '../../../core/services/audio_service.dart';
 import '../../../shared/enums/call_interface.dart';
 import '../../../shared/widgets/screen_shell.dart';
 import '../../combo/models/combo_model.dart';
 import '../../scenario/repositories/scenario_repository.dart';
 import '../providers/call_provider.dart';
+import '../themes/call_theme.dart';
+import '../widgets/in_call_view.dart';
+import '../widgets/incoming/messenger_incoming_view.dart';
+import '../widgets/incoming/phone_incoming_view.dart';
+import '../widgets/incoming/zalo_incoming_view.dart';
 
 final callSessionProvider =
     NotifierProvider.autoDispose<CallSessionNotifier, CallStatus>(
@@ -37,9 +42,15 @@ class FakeCallScreen extends ConsumerStatefulWidget {
 
 class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
   Timer? _timer;
+  Timer? _vibration;
   DateTime? _answeredAt;
   Duration _elapsed = Duration.zero;
   bool _isMuted = false;
+  bool _isSpeaker = false;
+
+  ComboModel get _combo => widget.arguments.combo;
+  String get _dialogue => ScenarioRepository.find(_combo.scenarioId).dialogue;
+
   @override
   void initState() {
     super.initState();
@@ -49,12 +60,21 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _vibration?.cancel();
+    // Trả thanh điều hướng về màu mặc định, không để màu màn gọi dính sang trang chủ.
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(systemNavigationBarColor: Colors.black),
+    );
     super.dispose();
   }
 
   Future<void> _startRinging() async {
+    _vibration = Timer.periodic(
+      const Duration(milliseconds: 1200),
+      (_) => HapticFeedback.heavyImpact(),
+    );
     try {
-      await ref.read(audioServiceProvider).ring(widget.arguments.combo);
+      await ref.read(audioServiceProvider).ring(_combo);
     } catch (_) {
       if (mounted) {
         showMessage(context, 'Không phát được chuông trên thiết bị này.');
@@ -63,6 +83,11 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
   }
 
   Future<void> _answer() async {
+    // Chặn trả lời hai lần (ví dụ chạm nhanh hai lần) để không tạo hai đồng hồ.
+    if (ref.read(callSessionProvider) == CallStatus.inProgress) {
+      return;
+    }
+    _vibration?.cancel();
     ref.read(callSessionProvider.notifier).answer();
     if (!widget.arguments.isPreview) {
       ref.read(callProvider.notifier).answer();
@@ -73,13 +98,12 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
         setState(() => _elapsed = DateTime.now().difference(_answeredAt!));
       }
     });
+    await _playConversation();
+  }
+
+  Future<void> _playConversation() async {
     try {
-      await ref
-          .read(audioServiceProvider)
-          .conversation(
-            widget.arguments.combo,
-            ScenarioRepository.find(widget.arguments.combo.scenarioId).dialogue,
-          );
+      await ref.read(audioServiceProvider).conversation(_combo, _dialogue);
     } catch (_) {
       if (mounted) {
         showMessage(
@@ -92,6 +116,7 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
 
   Future<void> _stop() async {
     _timer?.cancel();
+    _vibration?.cancel();
     if (!widget.arguments.isPreview) {
       ref.read(callProvider.notifier).cancel();
     }
@@ -107,135 +132,106 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final combo = widget.arguments.combo;
+    final combo = _combo;
+    final theme = CallTheme.of(combo.callInterface);
     final isAnswered = ref.watch(callSessionProvider) == CallStatus.inProgress;
-    final background = switch (combo.callInterface) {
-      CallInterface.phone => const Color(0xFF171D23),
-      CallInterface.zalo => const Color(0xFF0A4B9D),
-      CallInterface.messenger => const Color(0xFF23143C),
-    };
     final caller = ScenarioRepository.find(combo.scenarioId).caller;
-    final time =
-        '${_elapsed.inMinutes.toString().padLeft(2, '0')}:${(_elapsed.inSeconds % 60).toString().padLeft(2, '0')}';
+    final name = caller.trim().isEmpty ? combo.name.trim() : caller.trim();
+    final initial = name.isEmpty ? '?' : name.characters.first.toUpperCase();
+    final Widget view;
+    if (isAnswered) {
+      view = InCallView(
+        caller: caller,
+        theme: theme,
+        elapsed: _elapsed,
+        isMuted: _isMuted,
+        isSpeaker: _isSpeaker,
+        // Như máy thật: tắt tiếng chỉ tắt mic của mình, vẫn nghe người gọi.
+        onToggleMute: () => setState(() => _isMuted = !_isMuted),
+        onToggleSpeaker: () => setState(() => _isSpeaker = !_isSpeaker),
+        onHangUp: _hangUp,
+      );
+    } else {
+      view = switch (combo.callInterface) {
+        CallInterface.phone => PhoneIncomingView(
+          caller: caller,
+          initial: initial,
+          theme: theme,
+          onAnswer: _answer,
+          onDecline: _hangUp,
+        ),
+        CallInterface.zalo => ZaloIncomingView(
+          caller: caller,
+          initial: initial,
+          theme: theme,
+          onAnswer: _answer,
+          onDecline: _hangUp,
+        ),
+        CallInterface.messenger => MessengerIncomingView(
+          caller: caller,
+          initial: initial,
+          theme: theme,
+          onAnswer: _answer,
+          onDecline: _hangUp,
+        ),
+      };
+    }
     return PopScope(
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) {
           _stop();
         }
       },
-      child: Scaffold(
-        backgroundColor: background,
-        body: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 500),
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Column(
-                  children: [
-                    if (widget.arguments.isPreview)
-                      const Text(
-                        'XEM TRƯỚC CUỘC GỌI',
-                        style: TextStyle(
-                          color: Colors.white54,
-                          letterSpacing: 2,
-                          fontSize: 10,
-                        ),
-                      ),
-                    const SizedBox(height: 28),
-                    Text(
-                      combo.callInterface.label,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const Spacer(),
-                    CircleAvatar(
-                      radius: 52,
-                      backgroundColor: Colors.white12,
-                      child: Text(
-                        combo.name.characters.first.toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 44,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      caller,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 30,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      isAnswered ? time : 'Cuộc gọi đến…',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const Spacer(),
-                    if (isAnswered) ...[
-                      IconButton.filledTonal(
-                        onPressed: () async {
-                          setState(() => _isMuted = !_isMuted);
-                          if (_isMuted) {
-                            await ref.read(audioServiceProvider).stop();
-                          } else {
-                            try {
-                              await ref
-                                  .read(audioServiceProvider)
-                                  .conversation(
-                                    combo,
-                                    ScenarioRepository.find(combo.scenarioId)
-                                        .dialogue,
-                                  );
-                            } catch (_) {
-                              if (context.mounted) {
-                                showMessage(
-                                  context,
-                                  'Không phát được âm thanh.',
-                                );
-                              }
-                            }
-                          }
-                        },
-                        icon: Icon(
-                          _isMuted
-                              ? Icons.volume_off_rounded
-                              : Icons.volume_up_rounded,
-                        ),
-                        tooltip: _isMuted ? 'Bật âm thanh' : 'Tắt âm thanh',
-                      ),
-                      const SizedBox(height: 30),
-                    ],
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      // Thanh trạng thái trong suốt để nền phủ kín màn hình như app gọi thật.
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.light.copyWith(
+          statusBarColor: Colors.transparent,
+          systemNavigationBarColor: theme.background,
+          systemNavigationBarIconBrightness: Brightness.light,
+        ),
+        child: Scaffold(
+          backgroundColor: theme.background,
+          body: DefaultTextStyle.merge(
+            style: const TextStyle(
+              fontFamily: CallTheme.fontFamily,
+              color: Colors.white,
+            ),
+            child: SafeArea(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 500),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Column(
                       children: [
-                        _CallAction(
-                          label: isAnswered ? 'Kết thúc' : 'Từ chối',
-                          color: AppColors.red,
-                          icon: Icons.call_end_rounded,
-                          onTap: _hangUp,
-                        ),
-                        if (!isAnswered)
-                          _CallAction(
-                            label: 'Trả lời',
-                            color: AppColors.green,
-                            icon: Icons.call_rounded,
-                            onTap: _answer,
+                        if (widget.arguments.isPreview)
+                          const Padding(
+                            padding: EdgeInsets.only(top: 12),
+                            child: Text(
+                              'XEM TRƯỚC CUỘC GỌI',
+                              style: TextStyle(
+                                color: Colors.white54,
+                                letterSpacing: 2,
+                                fontSize: 10,
+                              ),
+                            ),
                           ),
+                        Expanded(
+                          child: LayoutBuilder(
+                            builder: (context, constraints) =>
+                                SingleChildScrollView(
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      minHeight: constraints.maxHeight,
+                                    ),
+                                    child: IntrinsicHeight(child: view),
+                                  ),
+                                ),
+                          ),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 48),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -244,45 +240,4 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
       ),
     );
   }
-}
-
-class _CallAction extends StatelessWidget {
-  const _CallAction({
-    required this.label,
-    required this.color,
-    required this.icon,
-    required this.onTap,
-  });
-  final String label;
-  final Color color;
-  final IconData icon;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: label,
-    excludeSemantics: true,
-    child: InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(40),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: Column(
-          children: [
-            Container(
-              width: 70,
-              height: 70,
-              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-              child: Icon(icon, size: 30, color: Colors.white),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              label,
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
 }

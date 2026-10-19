@@ -184,13 +184,14 @@ void main() {
     );
     final combo = (await container.read(comboListProvider.future)).first;
     container.read(callProvider.notifier).schedule(combo, Duration.zero);
+    // Màn Zalo có vòng sáng lặp vô hạn nên không dùng pumpAndSettle ở đây.
     await tester.pump(const Duration(milliseconds: 250));
-    await tester.pumpAndSettle();
-    expect(find.text('Cuộc gọi đến…'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Cuộc gọi thoại đến…'), findsOneWidget);
     await tester.tap(find.text('Trả lời'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 1));
     expect(container.read(callProvider).status, CallStatus.inProgress);
-    await tester.tap(find.text('Kết thúc'));
+    await tester.tap(find.byIcon(Icons.call_end_rounded));
     await tester.pumpAndSettle();
     expect(container.read(callProvider).status, CallStatus.idle);
     expect(find.text('Cần lối thoát?'), findsOneWidget);

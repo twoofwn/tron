@@ -78,6 +78,18 @@ flutter:
           weight: 700
         - asset: assets/fonts/roboto-black.ttf
           weight: 900
+    # Font của màn cuộc gọi, theo bản thiết kế. Giấy phép: be_vietnam_pro_license.txt
+    - family: BeVietnamPro
+      fonts:
+        - asset: assets/fonts/be-vietnam-pro-light.ttf
+          weight: 300
+        - asset: assets/fonts/be-vietnam-pro-regular.ttf
+        - asset: assets/fonts/be-vietnam-pro-medium.ttf
+          weight: 500
+        - asset: assets/fonts/be-vietnam-pro-semibold.ttf
+          weight: 600
+        - asset: assets/fonts/be-vietnam-pro-bold.ttf
+          weight: 700
   assets:
     - assets/audio/ringtones/
     - assets/audio/backgrounds/
