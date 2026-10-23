@@ -4,7 +4,7 @@
 
 Tron (EscapeHatch) is a Flutter app intended to simulate incoming calls with reusable dialogue scenarios. The current branch implements the scenario library and detail flow.
 
-- `lib/main.dart`: application entry point and temporary demo entry for the scenario flow.
+- `lib/main.dart`: application entry point (Riverpod `TronApp`); the scenario library is opened from the combo form via `RouteNames.scenarios`.
 - `lib/features/scenarios/`: scenario models, repository, screens, widgets, and preview audio service.
 - `assets/scenarios/` and `assets/audio/`: bundled sample data and synthetic demo audio.
 - `test/features/scenarios/`: search, persistence, navigation, viewport, and preview lifecycle tests.
@@ -47,7 +47,7 @@ History currently contains only `Initial commit`, so no established commit conve
 - Các mục dưới đây lưu cả quyết định nghiệp vụ và kế hoạch ban đầu. Xem trạng thái thực tế của code và mục "Tiến độ triển khai" ở cuối trước khi làm tiếp.
 - Trước khi làm, kiểm tra lại nhánh và `git status`; dùng nhánh chức năng hiện có nếu phù hợp, giữ các thay đổi của người dùng. Không code trực tiếp trên `main`.
 - Mục đích hiểu từ mockup: Trốn/EscapeHatch mô phỏng cuộc gọi đến có kịch bản và âm nền, giúp người dùng rời tình huống khó xử. Giao diện Điện thoại/Zalo/Messenger là mô phỏng. SOS là nhánh tính năng riêng, ngoài phạm vi màn 5–6.
-- Luồng hai màn: kho kịch bản → chi tiết → nghe thử → xác nhận lựa chọn cho bản nháp combo. Màn tạo combo chưa được triển khai; `lib/main.dart` có điểm vào demo.
+- Luồng hai màn: kho kịch bản → chi tiết → nghe thử → xác nhận lựa chọn cho bản nháp combo. Màn tạo combo đã nối vào kho qua `ScenarioPickerRoute`, trả ID kịch bản về form combo.
 
 ### Tài liệu giao diện
 

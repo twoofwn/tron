@@ -85,7 +85,7 @@ class ScenarioPreviewPlayer extends ChangeNotifier {
 
   Future<void> start(
     Scenario scenario, {
-    BackgroundSound? background,
+    AmbientSound? background,
     double volume = 0.3,
   }) async {
     if (_closed) return;

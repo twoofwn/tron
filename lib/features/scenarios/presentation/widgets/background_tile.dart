@@ -22,7 +22,7 @@ class BackgroundTile extends StatelessWidget {
     required this.onTap,
   });
 
-  final BackgroundSound? sound;
+  final AmbientSound? sound;
   final bool selected;
   final VoidCallback onTap;
 

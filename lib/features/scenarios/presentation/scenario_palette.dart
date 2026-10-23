@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 
+import '../../../app/theme/app_colors.dart';
+
 class ScenarioPalette {
-  static const background = Color(0xFF101115);
-  static const card = Color(0xFF1B1D23);
-  static const outline = Color(0xFF2D303A);
-  static const muted = Color(0xFF9A9BA8);
-  static const yellow = Color(0xFFF6B83F);
+  static const background = AppColors.background;
+  static const card = AppColors.surface;
+  static const outline = AppColors.border;
+  static const muted = AppColors.muted;
+  static const yellow = AppColors.accent;
 
   static ThemeData get theme => ThemeData(
     useMaterial3: true,
+    fontFamily: 'Roboto',
     brightness: Brightness.dark,
     scaffoldBackgroundColor: background,
     colorScheme: const ColorScheme.dark(

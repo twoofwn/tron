@@ -1,11 +1,11 @@
 {
-    "name": "tron",
-    "short_name": "tron",
+    "name": "TRỐN",
+    "short_name": "TRỐN",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0D0F13",
+    "theme_color": "#0D0F13",
+    "description": "Tạo combo cuộc gọi giả và chia sẻ trên thiết bị.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

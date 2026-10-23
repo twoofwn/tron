@@ -139,8 +139,8 @@ class Scenario {
   };
 }
 
-class BackgroundSound {
-  const BackgroundSound({
+class AmbientSound {
+  const AmbientSound({
     required this.id,
     required this.title,
     required this.iconName,
@@ -154,14 +154,13 @@ class BackgroundSound {
   final String audioPath;
   final bool isCustom;
 
-  factory BackgroundSound.fromJson(Map<String, dynamic> json) =>
-      BackgroundSound(
-        id: json['id'] as String,
-        title: json['title'] as String,
-        iconName: json['iconName'] as String? ?? 'music',
-        audioPath: json['audioPath'] as String,
-        isCustom: json['isCustom'] as bool? ?? true,
-      );
+  factory AmbientSound.fromJson(Map<String, dynamic> json) => AmbientSound(
+    id: json['id'] as String,
+    title: json['title'] as String,
+    iconName: json['iconName'] as String? ?? 'music',
+    audioPath: json['audioPath'] as String,
+    isCustom: json['isCustom'] as bool? ?? true,
+  );
 
   Map<String, dynamic> toJson() => {
     'id': id,

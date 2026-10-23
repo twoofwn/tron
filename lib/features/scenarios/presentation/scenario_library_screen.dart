@@ -84,7 +84,7 @@ class _ScenarioLibraryScreenState extends State<ScenarioLibraryScreen> {
         file.name,
       );
       final name = file.name.replaceFirst(RegExp(r'\.[^.]+$'), '');
-      final sound = BackgroundSound(
+      final sound = AmbientSound(
         id: 'custom-${DateTime.now().microsecondsSinceEpoch}',
         title: name,
         iconName: 'music',
@@ -150,7 +150,7 @@ class _ScenarioLibraryScreenState extends State<ScenarioLibraryScreen> {
                       children: [
                         IconButton(
                           tooltip: 'Quay lại',
-                          onPressed: () => Navigator.of(context).pop(),
+                          onPressed: () => Navigator.of(context).maybePop(),
                           icon: const Icon(Icons.arrow_back_ios_new),
                         ),
                         const SizedBox(width: 5),

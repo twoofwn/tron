@@ -15,41 +15,41 @@ class ScenarioRepository extends ChangeNotifier {
   final Future<Directory> Function() _documentsDirectory;
   List<Scenario> _bundled = const [];
   List<Scenario> _user = const [];
-  List<BackgroundSound> _customBackgrounds = const [];
+  List<AmbientSound> _customBackgrounds = const [];
   bool isLoaded = false;
 
   static const bundledBackgrounds = [
-    BackgroundSound(
+    AmbientSound(
       id: 'car',
       title: 'Còi xe',
       iconName: 'car',
       audioPath: 'audio/ambient/car.wav',
     ),
-    BackgroundSound(
+    AmbientSound(
       id: 'television',
       title: 'Tiếng TV',
       iconName: 'tv',
       audioPath: 'audio/ambient/television.wav',
     ),
-    BackgroundSound(
+    AmbientSound(
       id: 'office',
       title: 'Văn phòng',
       iconName: 'office',
       audioPath: 'audio/ambient/office.wav',
     ),
-    BackgroundSound(
+    AmbientSound(
       id: 'rain',
       title: 'Trời mưa',
       iconName: 'rain',
       audioPath: 'audio/ambient/rain.wav',
     ),
-    BackgroundSound(
+    AmbientSound(
       id: 'dog',
       title: 'Chó sủa',
       iconName: 'dog',
       audioPath: 'audio/ambient/dog.wav',
     ),
-    BackgroundSound(
+    AmbientSound(
       id: 'cafe',
       title: 'Nhạc cà phê',
       iconName: 'cafe',
@@ -58,7 +58,7 @@ class ScenarioRepository extends ChangeNotifier {
   ];
 
   List<Scenario> get scenarios => List.unmodifiable([..._bundled, ..._user]);
-  List<BackgroundSound> get backgrounds =>
+  List<AmbientSound> get backgrounds =>
       List.unmodifiable([...bundledBackgrounds, ..._customBackgrounds]);
 
   Scenario? findScenario(String id) {
@@ -68,7 +68,7 @@ class ScenarioRepository extends ChangeNotifier {
     return null;
   }
 
-  BackgroundSound? findBackground(String? id) {
+  AmbientSound? findBackground(String? id) {
     if (id == null) return null;
     for (final background in backgrounds) {
       if (background.id == id) return background;
@@ -98,7 +98,7 @@ class ScenarioRepository extends ChangeNotifier {
         .map((entry) => Scenario.fromJson(entry))
         .toList(growable: false);
     _customBackgrounds = customBackgrounds
-        .map((entry) => BackgroundSound.fromJson(entry))
+        .map((entry) => AmbientSound.fromJson(entry))
         .toList(growable: false);
     isLoaded = true;
     notifyListeners();
@@ -154,7 +154,7 @@ class ScenarioRepository extends ChangeNotifier {
     return destination.path;
   }
 
-  Future<void> addBackground(BackgroundSound background) async {
+  Future<void> addBackground(AmbientSound background) async {
     final updated = [..._customBackgrounds, background];
     final storage = await _storageDirectory;
     await _writeList(
