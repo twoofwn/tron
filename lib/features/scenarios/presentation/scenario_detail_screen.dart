@@ -96,6 +96,7 @@ class _ScenarioDetailScreenState extends State<ScenarioDetailScreen>
     final sound = widget.repository.findBackground(
       _effectiveBackgroundId(scenario),
     );
+    final palette = ScenarioPalette.of(context);
     return Scaffold(
       body: SafeArea(
         bottom: false,
@@ -153,13 +154,13 @@ class _ScenarioDetailScreenState extends State<ScenarioDetailScreen>
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
-                      decoration: ScenarioPalette.cardDecoration(),
-                      child: const Row(
+                      decoration: palette.cardDecoration(),
+                      child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.graphic_eq, color: ScenarioPalette.yellow),
-                          SizedBox(width: 10),
-                          Expanded(
+                          Icon(Icons.graphic_eq, color: palette.yellowText),
+                          const SizedBox(width: 10),
+                          const Expanded(
                             child: Text(
                               'Bản nghe thử: sau câu chờ, hãy chạm “Tiếp tục” khi bạn đã trả lời.',
                               style: TextStyle(height: 1.4),
@@ -196,31 +197,31 @@ class _ScenarioDetailScreenState extends State<ScenarioDetailScreen>
                               CircleAvatar(
                                 radius: isSpeech ? 15 : 13,
                                 backgroundColor: active
-                                    ? ScenarioPalette.yellow
+                                    ? palette.yellow
                                     : isSpeech
-                                    ? const Color(0xFF3A301C)
-                                    : ScenarioPalette.card,
+                                    ? palette.stepBadge
+                                    : palette.card,
                                 child: isSpeech
                                     ? Text(
                                         '$number',
                                         style: TextStyle(
                                           color: active
-                                              ? ScenarioPalette.background
-                                              : ScenarioPalette.yellow,
+                                              ? palette.onYellow
+                                              : palette.yellowText,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       )
-                                    : const Icon(
+                                    : Icon(
                                         Icons.mic_none,
                                         size: 16,
-                                        color: ScenarioPalette.muted,
+                                        color: palette.muted,
                                       ),
                               ),
                               if (index < scenario.steps.length - 1)
                                 Expanded(
                                   child: Container(
                                     width: 1.5,
-                                    color: ScenarioPalette.outline,
+                                    color: palette.outline,
                                   ),
                                 ),
                             ],
@@ -237,8 +238,8 @@ class _ScenarioDetailScreenState extends State<ScenarioDetailScreen>
                                     children: [
                                       Text(
                                         '${scenario.callerName} · 0:${step.seconds.toString().padLeft(2, '0')}',
-                                        style: const TextStyle(
-                                          color: ScenarioPalette.muted,
+                                        style: TextStyle(
+                                          color: palette.muted,
                                           fontSize: 13,
                                         ),
                                       ),
@@ -252,8 +253,8 @@ class _ScenarioDetailScreenState extends State<ScenarioDetailScreen>
                                               ? FontWeight.w800
                                               : FontWeight.w500,
                                           color: active
-                                              ? ScenarioPalette.yellow
-                                              : Colors.white,
+                                              ? palette.yellowText
+                                              : palette.text,
                                         ),
                                       ),
                                     ],
@@ -262,8 +263,8 @@ class _ScenarioDetailScreenState extends State<ScenarioDetailScreen>
                                     step.text,
                                     style: TextStyle(
                                       color: active
-                                          ? ScenarioPalette.yellow
-                                          : ScenarioPalette.muted,
+                                          ? palette.yellowText
+                                          : palette.muted,
                                       fontSize: 15,
                                       fontStyle: FontStyle.italic,
                                     ),
@@ -292,8 +293,8 @@ class _ScenarioDetailScreenState extends State<ScenarioDetailScreen>
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
                     _preview.error!,
-                    style: const TextStyle(
-                      color: Colors.redAccent,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
                       fontSize: 12,
                     ),
                   ),
@@ -333,8 +334,8 @@ class _ScenarioDetailScreenState extends State<ScenarioDetailScreen>
                       label: Text(_preview.isPlaying ? 'Dừng' : 'Nghe thử'),
                       style: OutlinedButton.styleFrom(
                         minimumSize: const Size(0, 52),
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: ScenarioPalette.outline),
+                        foregroundColor: palette.text,
+                        side: BorderSide(color: palette.outline),
                       ),
                     ),
                   ),
@@ -358,25 +359,25 @@ class _ScenarioDetailScreenState extends State<ScenarioDetailScreen>
     );
   }
 
-  Widget _summaryCell(String label, String value) => Container(
-    constraints: const BoxConstraints(minHeight: 65),
-    padding: const EdgeInsets.all(13),
-    decoration: ScenarioPalette.cardDecoration(),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(color: ScenarioPalette.muted, fontSize: 12),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-      ],
-    ),
-  );
+  Widget _summaryCell(String label, String value) {
+    final palette = ScenarioPalette.of(context);
+    return Container(
+      constraints: const BoxConstraints(minHeight: 65),
+      padding: const EdgeInsets.all(13),
+      decoration: palette.cardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: TextStyle(color: palette.muted, fontSize: 12)),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
+    );
+  }
 }

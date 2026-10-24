@@ -17,16 +17,8 @@ class ScenarioCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final avatarColor = switch (scenario.category) {
-      ScenarioCategory.family => const Color(0xFF362B18),
-      ScenarioCategory.work => const Color(0xFF1C283D),
-      ScenarioCategory.personal => const Color(0xFF32213B),
-    };
-    final letterColor = switch (scenario.category) {
-      ScenarioCategory.family => ScenarioPalette.yellow,
-      ScenarioCategory.work => const Color(0xFF8EB6F8),
-      ScenarioCategory.personal => const Color(0xFFD6A4E7),
-    };
+    final palette = ScenarioPalette.of(context);
+    final (avatarColor, letterColor) = palette.category(scenario.category);
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Material(
@@ -35,7 +27,7 @@ class ScenarioCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(19),
           onTap: onTap,
           child: Ink(
-            decoration: ScenarioPalette.cardDecoration(selected: selected),
+            decoration: palette.cardDecoration(selected: selected),
             padding: const EdgeInsets.all(15),
             child: Row(
               children: [
@@ -65,10 +57,7 @@ class ScenarioCard extends StatelessWidget {
                       const SizedBox(height: 3),
                       Text(
                         '${scenario.categoryLabel} · ${scenario.speechCount} câu · ~${scenario.estimatedCallSeconds} giây',
-                        style: const TextStyle(
-                          color: ScenarioPalette.muted,
-                          fontSize: 12,
-                        ),
+                        style: TextStyle(color: palette.muted, fontSize: 12),
                       ),
                     ],
                   ),
@@ -81,20 +70,20 @@ class ScenarioCard extends StatelessWidget {
                       vertical: 6,
                     ),
                     decoration: BoxDecoration(
-                      color: ScenarioPalette.yellow,
+                      color: palette.yellow,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Text(
+                    child: Text(
                       'Đang chọn',
                       style: TextStyle(
-                        color: ScenarioPalette.background,
+                        color: palette.onYellow,
                         fontWeight: FontWeight.bold,
                         fontSize: 11,
                       ),
                     ),
                   )
                 else
-                  const Icon(Icons.chevron_right, color: ScenarioPalette.muted),
+                  Icon(Icons.chevron_right, color: palette.muted),
               ],
             ),
           ),

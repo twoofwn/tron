@@ -27,41 +27,45 @@ class BackgroundTile extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Material(
-    color: Colors.transparent,
-    child: InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      child: Ink(
-        decoration: ScenarioPalette.cardDecoration(selected: selected),
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                backgroundIcon(sound?.iconName ?? 'none'),
-                size: 23,
-                color: selected ? ScenarioPalette.yellow : Colors.white,
-              ),
-              const SizedBox(height: 5),
-              Flexible(
-                child: Text(
-                  sound?.title ?? 'Không có',
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: selected ? ScenarioPalette.yellow : Colors.white,
+  Widget build(BuildContext context) {
+    final palette = ScenarioPalette.of(context);
+    final color = selected ? palette.yellowText : palette.text;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Ink(
+          decoration: palette.cardDecoration(selected: selected),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  backgroundIcon(sound?.iconName ?? 'none'),
+                  size: 23,
+                  color: color,
+                ),
+                const SizedBox(height: 5),
+                Flexible(
+                  child: Text(
+                    sound?.title ?? 'Không có',
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: color,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tron/app/theme/app_theme.dart';
 import 'package:tron/features/scenarios/data/scenario_repository.dart';
 import 'package:tron/features/scenarios/models/scenario.dart';
 import 'package:tron/features/scenarios/presentation/scenario_library_screen.dart';
@@ -59,7 +60,7 @@ void main() {
     ScenarioSelection? selected;
     await tester.pumpWidget(
       MaterialApp(
-        theme: ScenarioPalette.theme,
+        theme: AppTheme.create(Brightness.dark),
         home: ScenarioLibraryScreen(
           repository: repository,
           initialSelection: const ScenarioSelection(
@@ -98,7 +99,7 @@ void main() {
     final repository = _FakeRepository();
     await tester.pumpWidget(
       MaterialApp(
-        theme: ScenarioPalette.theme,
+        theme: AppTheme.create(Brightness.dark),
         home: ScenarioLibraryScreen(
           repository: repository,
           initialSelection: const ScenarioSelection(
@@ -118,6 +119,49 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Dùng kịch bản này'), findsOneWidget);
     expect(tester.takeException(), isNull);
+    repository.dispose();
+  });
+  testWidgets('library and detail follow the app light theme', (tester) async {
+    final repository = _FakeRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.create(Brightness.light),
+        home: ScenarioTheme(
+          child: ScenarioLibraryScreen(
+            repository: repository,
+            initialSelection: const ScenarioSelection(
+              scenarioId: 'mother',
+              backgroundId: 'television',
+            ),
+            onSelectionChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    Color titleColor(String text) => tester
+        .widget<RichText>(
+          find.descendant(
+            of: find.text(text).last,
+            matching: find.byType(RichText),
+          ),
+        )
+        .text
+        .style!
+        .color!;
+    final library = tester.element(find.text('Kho kịch bản'));
+    expect(
+      Theme.of(library).scaffoldBackgroundColor,
+      ScenarioPalette.light.background,
+    );
+    expect(titleColor('Kho kịch bản').computeLuminance(), lessThan(0.2));
+
+    await tester.tap(find.text('Sếp báo server sập'));
+    await tester.pumpAndSettle();
+    final detail = tester.element(find.text('Dùng kịch bản này'));
+    expect(Theme.of(detail).brightness, Brightness.light);
+    expect(ScenarioPalette.of(detail), same(ScenarioPalette.light));
+    expect(titleColor('“Server sập.”'), ScenarioPalette.light.text);
     repository.dispose();
   });
 }

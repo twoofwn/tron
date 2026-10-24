@@ -56,10 +56,12 @@ class _ScenarioLibraryScreenState extends State<ScenarioLibraryScreen> {
   Future<void> _openDetail(Scenario scenario) async {
     final result = await Navigator.of(context).push<ScenarioSelection>(
       MaterialPageRoute(
-        builder: (_) => ScenarioDetailScreen(
-          repository: widget.repository,
-          scenarioId: scenario.id,
-          currentSelection: _selection,
+        builder: (_) => ScenarioTheme(
+          child: ScenarioDetailScreen(
+            repository: widget.repository,
+            scenarioId: scenario.id,
+            currentSelection: _selection,
+          ),
         ),
       ),
     );
@@ -108,20 +110,21 @@ class _ScenarioLibraryScreenState extends State<ScenarioLibraryScreen> {
 
   Widget _filterChip(ScenarioFilter filter, String label) {
     final selected = _filter == filter;
+    final palette = ScenarioPalette.of(context);
     return ChoiceChip(
       label: Text(label),
       selected: selected,
       onSelected: (_) => setState(() => _filter = filter),
       showCheckmark: false,
-      backgroundColor: ScenarioPalette.card,
-      selectedColor: const Color(0xFFF1F2F6),
+      backgroundColor: palette.card,
+      selectedColor: palette.chipSelected,
       labelStyle: TextStyle(
-        color: selected ? ScenarioPalette.background : Colors.white,
+        color: selected ? palette.onChipSelected : palette.text,
         fontWeight: FontWeight.w600,
       ),
       shape: StadiumBorder(
         side: BorderSide(
-          color: selected ? Colors.transparent : ScenarioPalette.outline,
+          color: selected ? Colors.transparent : palette.outline,
         ),
       ),
     );
@@ -135,6 +138,7 @@ class _ScenarioLibraryScreenState extends State<ScenarioLibraryScreen> {
       filter: _filter,
     );
     final backgrounds = widget.repository.backgrounds;
+    final palette = ScenarioPalette.of(context);
     return Scaffold(
       body: SafeArea(
         child: CustomScrollView(
@@ -163,8 +167,8 @@ class _ScenarioLibraryScreenState extends State<ScenarioLibraryScreen> {
                         IconButton.filled(
                           tooltip: 'Thêm kịch bản',
                           style: IconButton.styleFrom(
-                            backgroundColor: ScenarioPalette.yellow,
-                            foregroundColor: ScenarioPalette.background,
+                            backgroundColor: palette.yellow,
+                            foregroundColor: palette.onYellow,
                           ),
                           onPressed: _createScenario,
                           icon: const Icon(Icons.add, size: 29),
@@ -190,12 +194,14 @@ class _ScenarioLibraryScreenState extends State<ScenarioLibraryScreen> {
                                 icon: const Icon(Icons.close),
                               ),
                         filled: true,
-                        fillColor: ScenarioPalette.card,
+                        fillColor: palette.card,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(16),
-                          borderSide: const BorderSide(
-                            color: ScenarioPalette.outline,
-                          ),
+                          borderSide: BorderSide(color: palette.outline),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide(color: palette.outline),
                         ),
                       ),
                     ),
@@ -216,13 +222,13 @@ class _ScenarioLibraryScreenState extends State<ScenarioLibraryScreen> {
               ),
             ),
             if (scenarios.isEmpty)
-              const SliverToBoxAdapter(
+              SliverToBoxAdapter(
                 child: Padding(
-                  padding: EdgeInsets.all(32),
+                  padding: const EdgeInsets.all(32),
                   child: Center(
                     child: Text(
                       'Không tìm thấy kịch bản phù hợp.',
-                      style: TextStyle(color: ScenarioPalette.muted),
+                      style: TextStyle(color: palette.muted),
                     ),
                   ),
                 ),
@@ -249,10 +255,10 @@ class _ScenarioLibraryScreenState extends State<ScenarioLibraryScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'ÂM THANH NỀN',
                       style: TextStyle(
-                        color: ScenarioPalette.muted,
+                        color: palette.muted,
                         fontSize: 13,
                         letterSpacing: 1.5,
                         fontWeight: FontWeight.w700,
@@ -277,10 +283,8 @@ class _ScenarioLibraryScreenState extends State<ScenarioLibraryScreen> {
                             icon: const Icon(Icons.add),
                             label: const Text('Thêm'),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: ScenarioPalette.muted,
-                              side: const BorderSide(
-                                color: ScenarioPalette.outline,
-                              ),
+                              foregroundColor: palette.muted,
+                              side: BorderSide(color: palette.outline),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(16),
                               ),
@@ -304,12 +308,9 @@ class _ScenarioLibraryScreenState extends State<ScenarioLibraryScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    const Text(
+                    Text(
                       'Âm thanh mẫu được tạo để thử giao diện. Bạn có thể thêm file MP3, M4A hoặc WAV của mình.',
-                      style: TextStyle(
-                        color: ScenarioPalette.muted,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: palette.muted, fontSize: 12),
                     ),
                   ],
                 ),

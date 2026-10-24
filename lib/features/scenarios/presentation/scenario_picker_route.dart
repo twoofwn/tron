@@ -25,8 +25,7 @@ class _ScenarioPickerRouteState extends ConsumerState<ScenarioPickerRoute> {
   @override
   Widget build(BuildContext context) {
     final library = ref.watch(scenarioLibraryProvider);
-    return Theme(
-      data: ScenarioPalette.theme,
+    return ScenarioTheme(
       child: PopScope(
         canPop: false,
         onPopInvokedWithResult: (didPop, _) {

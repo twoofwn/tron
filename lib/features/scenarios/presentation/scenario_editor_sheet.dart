@@ -13,7 +13,7 @@ Future<Scenario?> showScenarioEditor(
   context: context,
   isScrollControlled: true,
   useSafeArea: true,
-  backgroundColor: ScenarioPalette.background,
+  backgroundColor: ScenarioPalette.of(context).background,
   builder: (_) => FractionallySizedBox(
     heightFactor: 0.94,
     child: ScenarioEditorSheet(repository: repository, original: original),
@@ -210,9 +210,12 @@ class _ScenarioEditorSheetState extends State<ScenarioEditorSheet> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
                 children: [
-                  const Text(
+                  Text(
                     'Mỗi câu thoại cần một file MP3, M4A hoặc WAV. Nếu sửa chữ, hãy chọn file mới khớp nội dung.',
-                    style: TextStyle(color: ScenarioPalette.muted, height: 1.4),
+                    style: TextStyle(
+                      color: ScenarioPalette.of(context).muted,
+                      height: 1.4,
+                    ),
                   ),
                   const SizedBox(height: 18),
                   TextFormField(
@@ -295,7 +298,7 @@ class _ScenarioEditorSheetState extends State<ScenarioEditorSheet> {
   Widget _lineEditor(int index, _EditableLine line) => Container(
     margin: const EdgeInsets.only(bottom: 12),
     padding: const EdgeInsets.all(13),
-    decoration: ScenarioPalette.cardDecoration(),
+    decoration: ScenarioPalette.of(context).cardDecoration(),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
