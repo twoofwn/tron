@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/activation/providers/activation_provider.dart';
 import '../features/activation/services/call_alarm_service.dart';
 import '../features/activation/services/permission_service.dart';
 import '../features/combo/providers/combo_provider.dart';
@@ -82,6 +83,8 @@ class _TronAppState extends ConsumerState<TronApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     // Tải kho kịch bản ngay khi mở app để combo và cuộc gọi dùng được ngay.
     ref.listen(scenarioLibraryProvider, (previous, next) {});
+    // Giữ cảm biến cử chỉ theo cài đặt; provider này phải luôn được watch ở gốc app.
+    ref.watch(motionActivationProvider);
     ref.listen(callProvider, (previous, next) {
       if (previous?.status != CallStatus.ringing &&
           next.status == CallStatus.ringing &&

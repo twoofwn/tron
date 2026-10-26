@@ -9,7 +9,7 @@ import 'package:tron/features/settings/screens/settings_screen.dart';
 
 Future<ProviderContainer> pumpSettings(
   WidgetTester tester, {
-  Size size = const Size(390, 1400),
+  Size size = const Size(390, 2400),
   double textScale = 1,
 }) async {
   SharedPreferences.setMockInitialValues({});

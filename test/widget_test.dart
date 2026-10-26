@@ -103,7 +103,7 @@ void main() {
     await tester.tap(find.byTooltip('Cài đặt'));
     await tester.pumpAndSettle();
     final themeSwitch = find.widgetWithText(SwitchListTile, 'Giao diện sáng');
-    tester.view.physicalSize = const Size(390, 1400);
+    tester.view.physicalSize = const Size(390, 2400);
     await tester.pumpAndSettle();
     await tester.tap(themeSwitch);
     await tester.pumpAndSettle();
