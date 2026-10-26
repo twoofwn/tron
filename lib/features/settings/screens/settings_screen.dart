@@ -9,6 +9,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/widgets/app_loading.dart';
 import '../../../core/widgets/glass_card.dart';
 import '../../../shared/widgets/screen_shell.dart';
+import '../../activation/services/permission_service.dart';
 import '../../home/widgets/delay_selector.dart';
 import '../../home/widgets/emergency_sheet.dart';
 import '../models/app_settings.dart';
@@ -32,6 +33,32 @@ class SettingsScreen extends ConsumerWidget {
         showMessage(context, 'Chưa thể lưu cài đặt. Vui lòng thử lại.');
       }
     }
+  }
+
+  /// Bật chế độ nền cần thông báo thường trực, nên hỏi quyền trước khi bật.
+  Future<void> _setBackgroundArmed(
+    BuildContext context,
+    WidgetRef ref,
+    bool on,
+  ) async {
+    if (on) {
+      final granted = (await ref.read(permissionSnapshotProvider.future))
+          .notifications;
+      if (!granted) {
+        await ref
+            .read(permissionServiceProvider)
+            .request(CallPermission.notifications);
+        ref.invalidate(permissionSnapshotProvider);
+      }
+    }
+    if (!context.mounted) {
+      return;
+    }
+    await _update(
+      context,
+      ref,
+      (current) => current.copyWith(backgroundArmed: on),
+    );
   }
 
   @override
@@ -162,6 +189,18 @@ class SettingsScreen extends ConsumerWidget {
                       ],
                     ),
                   ),
+                  if (isAndroid)
+                    SwitchListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                      ),
+                      title: const Text('Sẵn sàng khi tắt màn hình'),
+                      subtitle: const Text(
+                        'Hiện thông báo thường trực để lật máy hoặc gõ lưng vẫn hoạt động. Tốn pin hơn.',
+                      ),
+                      value: value.backgroundArmed,
+                      onChanged: (on) => _setBackgroundArmed(context, ref, on),
+                    ),
                   const Divider(height: 1),
                   _LinkRow(
                     title: 'Thử cử chỉ',

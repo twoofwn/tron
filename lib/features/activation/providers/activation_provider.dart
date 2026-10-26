@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:app_links/app_links.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,7 +9,7 @@ import '../../combo/providers/combo_provider.dart';
 import '../../fake_call/providers/call_provider.dart';
 import '../../settings/models/app_settings.dart';
 import '../../settings/providers/settings_provider.dart';
-import '../services/gesture_detectors.dart';
+import '../services/background_guard.dart';
 import '../services/motion_trigger_service.dart';
 
 /// Đang mở màn "Thử cử chỉ": cử chỉ chỉ hiển thị, không hẹn cuộc gọi.
@@ -37,13 +40,73 @@ final motionActivationProvider = Provider<void>((ref) {
       sensitivity: settings.sensitivity,
     );
   }, fireImmediately: true);
-  final subscription = service.triggers.listen(
-    (event) => _onGesture(ref, event),
-  );
+  final subscription = service.triggers.listen((_) => scheduleFromTrigger(ref));
   ref.onDispose(subscription.cancel);
 });
 
-Future<void> _onGesture(Ref ref, TriggerEvent event) async {
+/// Giữ dịch vụ nền Android đúng theo cài đặt "Sẵn sàng khi tắt màn hình".
+/// Chỉ có tác dụng khi đã bật ít nhất một cử chỉ.
+final backgroundArmingProvider = Provider<void>((ref) {
+  final guard = ref.watch(backgroundGuardProvider);
+  ref.listen<bool>(settingsProvider.select(_isArmed), (_, armed) {
+    unawaited(armed ? guard.start() : guard.stop());
+  }, fireImmediately: true);
+});
+
+bool _isArmed(AsyncValue<AppSettings> settings) {
+  final value = settings.value;
+  return value != null &&
+      value.backgroundArmed &&
+      (value.flipEnabled || value.knockEnabled);
+}
+
+/// Đường dẫn tron://trigger từ phím tắt Back Tap (iOS) hoặc liên kết khác.
+bool isTriggerLink(Uri uri) => uri.scheme == 'tron' && uri.host == 'trigger';
+
+/// Nguồn đường dẫn mở app; tách ra để test toàn app không cần kênh của app_links.
+abstract interface class DeepLinkSource {
+  Stream<Uri> get uris;
+
+  Future<Uri?> initialUri();
+}
+
+class AppLinksSource implements DeepLinkSource {
+  final _links = AppLinks();
+
+  @override
+  Stream<Uri> get uris => _links.uriLinkStream;
+
+  @override
+  Future<Uri?> initialUri() => _links.getInitialLink();
+}
+
+final deepLinkSourceProvider = Provider<DeepLinkSource>(
+  (ref) => AppLinksSource(),
+);
+
+/// Nghe đường dẫn tron://trigger, kể cả khi app được mở từ đường dẫn đó.
+final triggerLinkProvider = Provider<void>((ref) {
+  final source = ref.watch(deepLinkSourceProvider);
+  final subscription = source.uris.listen((uri) {
+    if (isTriggerLink(uri)) {
+      unawaited(scheduleFromTrigger(ref));
+    }
+  }, onError: (_) {});
+  ref.onDispose(subscription.cancel);
+  unawaited(() async {
+    try {
+      final initial = await source.initialUri();
+      if (initial != null && isTriggerLink(initial)) {
+        await scheduleFromTrigger(ref);
+      }
+    } catch (_) {
+      // Không đọc được liên kết khởi động: app vẫn mở bình thường.
+    }
+  }());
+});
+
+/// Hẹn cuộc gọi cho combo đang chọn; dùng chung cho cử chỉ và đường dẫn tron://trigger.
+Future<void> scheduleFromTrigger(Ref ref) async {
   if (ref.read(gestureTestingProvider)) {
     return;
   }

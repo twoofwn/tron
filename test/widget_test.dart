@@ -6,12 +6,21 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tron/app/app.dart';
 import 'package:tron/core/services/audio_service.dart';
 import 'package:tron/core/services/file_service.dart';
+import 'package:tron/features/activation/providers/activation_provider.dart';
 import 'package:tron/features/activation/services/permission_service.dart';
 import 'package:tron/features/combo/models/combo_model.dart';
 import 'package:tron/features/combo/providers/combo_provider.dart';
 import 'package:tron/features/fake_call/providers/call_provider.dart';
 import 'package:tron/shared/enums/call_interface.dart';
 import 'package:tron/features/sharing/repositories/sharing_repository.dart';
+
+class NoDeepLinks implements DeepLinkSource {
+  @override
+  Stream<Uri> get uris => const Stream<Uri>.empty();
+
+  @override
+  Future<Uri?> initialUri() async => null;
+}
 
 class SilentAudioService extends AudioService {
   SilentAudioService() : super(FileService());
@@ -56,6 +65,7 @@ void main() {
       ProviderScope(
         overrides: [
           audioServiceProvider.overrideWithValue(SilentAudioService()),
+          deepLinkSourceProvider.overrideWithValue(NoDeepLinks()),
           // Quyền thật phụ thuộc máy; cố định để giao diện và golden ổn định.
           permissionSnapshotProvider.overrideWith(
             (ref) => Future.value(
