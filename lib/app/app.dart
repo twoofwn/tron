@@ -85,6 +85,8 @@ class _TronAppState extends ConsumerState<TronApp> with WidgetsBindingObserver {
     ref.listen(scenarioLibraryProvider, (previous, next) {});
     // Giữ cảm biến cử chỉ theo cài đặt; provider này phải luôn được watch ở gốc app.
     ref.watch(motionActivationProvider);
+    ref.watch(backgroundArmingProvider);
+    ref.watch(triggerLinkProvider);
     ref.listen(callProvider, (previous, next) {
       if (previous?.status != CallStatus.ringing &&
           next.status == CallStatus.ringing &&
