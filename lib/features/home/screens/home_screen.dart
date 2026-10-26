@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../app/providers/theme_provider.dart';
 import '../../../app/router/route_names.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_text_styles.dart';
@@ -252,10 +251,10 @@ class HomeScreen extends ConsumerWidget {
   );
 }
 
-class HomeHeader extends ConsumerWidget {
+class HomeHeader extends StatelessWidget {
   const HomeHeader({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Row(
+  Widget build(BuildContext context) => Row(
     crossAxisAlignment: CrossAxisAlignment.center,
     children: [
       Expanded(
@@ -296,22 +295,9 @@ class HomeHeader extends ConsumerWidget {
       GlassCard(
         padding: EdgeInsets.zero,
         child: IconButton(
-          onPressed: () async {
-            try {
-              await ref.read(themeModeProvider.notifier).toggle();
-            } catch (_) {
-              if (context.mounted) {
-                showMessage(context, 'Không thể lưu giao diện.');
-              }
-            }
-          },
-          tooltip: 'Đổi giao diện sáng / tối',
-          icon: Icon(
-            Theme.of(context).brightness == Brightness.dark
-                ? Icons.light_mode_outlined
-                : Icons.dark_mode_outlined,
-            size: 21,
-          ),
+          onPressed: () => Navigator.pushNamed(context, RouteNames.settings),
+          tooltip: 'Cài đặt',
+          icon: const Icon(Icons.settings_outlined, size: 21),
         ),
       ),
     ],

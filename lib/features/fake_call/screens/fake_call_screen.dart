@@ -10,6 +10,7 @@ import '../../../shared/widgets/screen_shell.dart';
 import '../../combo/models/combo_model.dart';
 import '../../scenarios/data/scenario_lookup.dart';
 import '../../scenarios/providers/scenario_provider.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../providers/call_provider.dart';
 import '../themes/call_theme.dart';
 import '../widgets/in_call_view.dart';
@@ -74,10 +75,13 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
   }
 
   Future<void> _startRinging() async {
-    _vibration = Timer.periodic(
-      const Duration(milliseconds: 1200),
-      (_) => HapticFeedback.heavyImpact(),
-    );
+    final vibrate = ref.read(settingsProvider).value?.vibrateOnCall ?? true;
+    if (vibrate) {
+      _vibration = Timer.periodic(
+        const Duration(milliseconds: 1200),
+        (_) => HapticFeedback.heavyImpact(),
+      );
+    }
     try {
       await ref.read(audioServiceProvider).ring(_combo);
     } catch (_) {

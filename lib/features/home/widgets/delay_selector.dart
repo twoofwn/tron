@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../shared/widgets/screen_shell.dart';
 import '../../fake_call/providers/call_provider.dart';
 
 class DelaySelector extends ConsumerWidget {
@@ -32,9 +33,17 @@ class DelaySelector extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(vertical: 6),
               labelPadding: EdgeInsets.zero,
               selected: selected == AppConstants.callDelays[index],
-              onSelected: (_) => ref
-                  .read(callDelayProvider.notifier)
-                  .select(AppConstants.callDelays[index]),
+              onSelected: (_) async {
+                try {
+                  await ref
+                      .read(callDelayProvider.notifier)
+                      .select(AppConstants.callDelays[index]);
+                } catch (_) {
+                  if (context.mounted) {
+                    showMessage(context, 'Chưa thể lưu mức gọi sau.');
+                  }
+                }
+              },
             ),
           ),
         ],

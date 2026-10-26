@@ -5,4 +5,5 @@ abstract final class RouteNames {
   static const scenarios = '/scenarios';
   static const fakeCall = '/call';
   static const camouflage = '/calculator';
+  static const settings = '/settings';
 }
