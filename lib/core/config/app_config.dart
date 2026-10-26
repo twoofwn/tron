@@ -82,6 +82,9 @@ abstract final class AppConfig {
     Duration(seconds: 30),
     Duration(minutes: 1),
     Duration(minutes: 5),
+    Duration(minutes: 10),
+    Duration(minutes: 15),
+    Duration(minutes: 30),
   ];
 
   static const double defaultBackgroundVolume = 0.5;

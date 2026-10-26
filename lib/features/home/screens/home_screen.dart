@@ -359,7 +359,7 @@ class CallSchedulerCard extends ConsumerWidget {
           const SizedBox(height: 13),
           if (isScheduled) ...[
             Text(
-              '${call.combo?.name} · còn ${call.remaining.inSeconds + 1} giây',
+              '${call.combo?.name} · còn ${countdownLabel(call.remaining)}',
               style: const TextStyle(
                 color: AppColors.accent,
                 fontWeight: FontWeight.w600,
