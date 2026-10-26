@@ -113,3 +113,11 @@ Code nằm dưới `lib/features/scenarios/{models,data,presentation,services}/`
 - Đã triển khai model, repository, dữ liệu mẫu, màn 5, màn 6, chọn kịch bản, âm nền, form tạo/sửa/sao chép, nhập file MP3/M4A/WAV và nghe thử audio demo. README đã mô tả cách chạy.
 - Đã chạy `flutter analyze` và `flutter test`; build Android debug thành công. Test bao phủ tìm kiếm tiếng Việt, bộ lọc, xác nhận/hủy, lưu dữ liệu qua lần mở lại, sự tồn tại của audio mẫu, dừng player và bố cục viewport hẹp. Trước khi bàn giao cuối, chạy lại các lệnh sau thay đổi mới nhất.
 - Còn cần kiểm tra phát audio, chọn file và lưu dữ liệu trên thiết bị Android/iOS thực; nối `ScenarioSelection` vào màn tạo combo khi màn đó được triển khai; thay audio tổng hợp nếu cần chất lượng cuộc gọi đáng tin cậy.
+
+
+### Tiến độ Backend .NET & Database (2026-10-25)
+
+- Đã tạo nhánh `codex/backend-api` và triển khai toàn bộ backend ASP.NET Core 9 REST API + EF Core 9 + SQL Server 2022 trong `backend/src/Tron.Api/` theo mô hình 5 lớp: `Controllers`, `Models`, `Services`, `Repositories`, `Db`.
+- Đã tạo script `trondb.sql` (ở gốc repo và `backend/trondb.sql`) kèm `SqlScriptInitializer` nạp tự động 15 bảng, 4 kịch bản mẫu (22 bước hội thoại), 7 âm nền hợp nhất, 4 nhạc chuông và bảng ánh xạ ID cũ (`ScenarioAliases`).
+- Đã triển khai `DiskMediaStorage` lưu audio trên ổ đĩa server kèm kiểm tra magic bytes, chống trùng SHA-256, hạn mức 200 MB/user và `StorageCleanupWorker` dọn file mồ côi / gói chia sẻ hết hạn.
+- Đã nối Flutter với backend qua `ApiClient`, `AuthRepository`, `BackupService`, màn `AuthScreen`, `AccountScreen` và hỗ trợ nhập mã chia sẻ trực tuyến `EH-XXXXXX`.

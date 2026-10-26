@@ -46,3 +46,17 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+devtools_options.yaml
+
+# .NET Backend
+backend/**/bin/
+backend/**/obj/
+backend/.vs/
+backend/.data/
+backend/**/.env
+backend/**/appsettings.Local.json
+backend/**/*.user
+.vs/
+.vscode/
+/backend/publish/
+/backend/deploy/

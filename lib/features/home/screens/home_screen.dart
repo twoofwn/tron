@@ -149,22 +149,27 @@ class HomeScreen extends ConsumerWidget {
                                 ),
                               ),
                             ),
-                            TextButton(
+                            TextButton.icon(
                               onPressed: () => Navigator.pushNamed(
                                 context,
                                 RouteNames.sharing,
                               ),
                               style: TextButton.styleFrom(
-                                foregroundColor: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
+                                foregroundColor: AppColors.accent,
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8,
                                 ),
                               ),
-                              child: const Text(
+                              icon: const Icon(
+                                Icons.storefront_outlined,
+                                size: 15,
+                              ),
+                              label: const Text(
                                 'Nhập / Xuất',
-                                style: TextStyle(fontSize: 12),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                             TextButton(
@@ -222,23 +227,29 @@ class HomeScreen extends ConsumerWidget {
                         const HomeQuickActions(),
                         const SizedBox(height: 14),
                         Center(
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.shield_outlined,
-                                size: 12,
-                                color: AppColors.muted.withValues(alpha: 0.7),
-                              ),
-                              const SizedBox(width: 5),
-                              const Text(
-                                'Riêng tư trên thiết bị. An tâm là chính mình.',
-                                style: TextStyle(
-                                  color: AppColors.muted,
-                                  fontSize: 10,
+                          child: GestureDetector(
+                            onTap: () => Navigator.pushNamed(
+                              context,
+                              RouteNames.account,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.shield_outlined,
+                                  size: 12,
+                                  color: AppColors.muted.withValues(alpha: 0.7),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 5),
+                                const Text(
+                                  'Riêng tư trên thiết bị. An tâm là chính mình.',
+                                  style: TextStyle(
+                                    color: AppColors.muted,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
@@ -293,6 +304,15 @@ class HomeHeader extends ConsumerWidget {
           ],
         ),
       ),
+      GlassCard(
+        padding: EdgeInsets.zero,
+        child: IconButton(
+          onPressed: () => Navigator.pushNamed(context, RouteNames.account),
+          tooltip: 'Tài khoản & Sao lưu',
+          icon: const Icon(Icons.person_outline_rounded, size: 21),
+        ),
+      ),
+      const SizedBox(width: 8),
       GlassCard(
         padding: EdgeInsets.zero,
         child: IconButton(

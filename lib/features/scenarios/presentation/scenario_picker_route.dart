@@ -32,16 +32,35 @@ class _ScenarioPickerRouteState extends ConsumerState<ScenarioPickerRoute> {
           if (!didPop) Navigator.of(context).pop(_confirmedId);
         },
         child: library.when(
-          data: (repository) => ScenarioLibraryScreen(
-            repository: repository,
-            initialSelection: ScenarioSelection(
-              scenarioId: ScenarioLookup.canonicalId(
-                widget.selectedId ?? ScenarioLookup.bundledIds.first,
+          data: (repository) => Scaffold(
+            body: ScenarioLibraryScreen(
+              repository: repository,
+              initialSelection: ScenarioSelection(
+                scenarioId: ScenarioLookup.canonicalId(
+                  widget.selectedId ?? ScenarioLookup.bundledIds.first,
+                ),
+                backgroundId: null,
               ),
-              backgroundId: null,
+              onSelectionChanged: (selection) {
+                setState(() {
+                  _confirmedId = selection.scenarioId;
+                });
+              },
             ),
-            onSelectionChanged: (selection) =>
-                _confirmedId = selection.scenarioId,
+            bottomNavigationBar: _confirmedId != null
+                ? SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                      child: FilledButton.icon(
+                        icon: const Icon(Icons.check_circle_outline),
+                        label: const Text('Xác nhận chọn kịch bản này'),
+                        onPressed: () =>
+                            Navigator.of(context).pop(_confirmedId),
+                      ),
+                    ),
+                  )
+                : null,
           ),
           loading: () =>
               const Scaffold(body: Center(child: CircularProgressIndicator())),

@@ -1,9 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/network/api_client.dart';
 import '../data/scenario_repository.dart';
 
 final scenarioRepositoryProvider = Provider<ScenarioRepository>((ref) {
-  final repository = ScenarioRepository();
+  final repository = ScenarioRepository(api: ref.watch(apiClientProvider));
   ref.onDispose(repository.dispose);
   return repository;
 });

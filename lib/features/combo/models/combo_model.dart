@@ -55,29 +55,64 @@ class ComboModel {
     'createdAt': createdAt.toIso8601String(),
   };
   factory ComboModel.fromJson(Map<String, Object?> json) {
-    final id = json['id'] as String;
-    final name = json['name'] as String;
-    if (id.isEmpty || name.trim().isEmpty || name.length > 80) {
+    final id =
+        json['id'] as String? ??
+        'combo-${DateTime.now().microsecondsSinceEpoch}';
+    final name = (json['name'] as String? ?? 'Combo').trim();
+    if (name.isEmpty) {
       throw const FormatException('Tên combo không hợp lệ.');
     }
-    final backgrounds = (json['backgroundSoundPaths'] as List).cast<String>();
-    if (backgrounds.any(
-      (key) => !BackgroundSound.values.any((sound) => sound.name == key),
-    )) {
-      throw const FormatException('Âm thanh nền không hợp lệ.');
+
+    final rawBg = json['backgroundSoundPaths'] ?? json['backgroundSoundIds'];
+    final List<String> backgrounds = [];
+    if (rawBg is List) {
+      for (final item in rawBg) {
+        if (item != null) {
+          final s = item.toString().trim();
+          if (s.isNotEmpty) backgrounds.add(s == 'car' ? 'traffic' : s);
+        }
+      }
     }
+
+    final rawInterface = (json['callInterface'] ?? '')
+        .toString()
+        .toLowerCase()
+        .trim();
+    final callInterface =
+        CallInterface.values.cast<CallInterface?>().firstWhere(
+          (v) => v?.name.toLowerCase() == rawInterface,
+          orElse: () => CallInterface.zalo,
+        ) ??
+        CallInterface.zalo;
+
+    final rawRingtone = (json['ringtoneType'] ?? '')
+        .toString()
+        .toLowerCase()
+        .trim();
+    final ringtoneType =
+        RingtoneType.values.cast<RingtoneType?>().firstWhere(
+          (v) => v?.name.toLowerCase() == rawRingtone,
+          orElse: () => RingtoneType.interfaceDefault,
+        ) ??
+        RingtoneType.interfaceDefault;
+
+    DateTime createdAt;
+    try {
+      createdAt = DateTime.parse(json['createdAt'] as String);
+    } catch (_) {
+      createdAt = DateTime.now();
+    }
+
     return ComboModel(
       id: id,
       name: name,
-      scenarioId: json['scenarioId'] as String,
-      callInterface: CallInterface.values.byName(
-        json['callInterface'] as String,
-      ),
-      ringtoneType: RingtoneType.values.byName(json['ringtoneType'] as String),
+      scenarioId: json['scenarioId'] as String? ?? 'boss',
+      callInterface: callInterface,
+      ringtoneType: ringtoneType,
       ringtonePath: json['ringtonePath'] as String?,
       backgroundSoundPaths: List.unmodifiable(backgrounds),
       customBackgroundPath: json['customBackgroundPath'] as String?,
-      createdAt: DateTime.parse(json['createdAt'] as String),
+      createdAt: createdAt,
     );
   }
 }

@@ -28,13 +28,24 @@ class DialogueStep {
         seconds: seconds ?? this.seconds,
       );
 
-  factory DialogueStep.fromJson(Map<String, dynamic> json) => DialogueStep(
-    id: json['id'] as String,
-    type: DialogueStepType.values.byName(json['type'] as String),
-    text: json['text'] as String,
-    audioPath: json['audioPath'] as String?,
-    seconds: json['seconds'] as int? ?? 0,
-  );
+  factory DialogueStep.fromJson(Map<String, dynamic> json) {
+    final rawType = (json['type'] ?? '').toString().toLowerCase().trim();
+    final type =
+        DialogueStepType.values.cast<DialogueStepType?>().firstWhere(
+          (v) => v?.name.toLowerCase() == rawType,
+          orElse: () => DialogueStepType.speech,
+        ) ??
+        DialogueStepType.speech;
+    return DialogueStep(
+      id:
+          json['id'] as String? ??
+          'step-${DateTime.now().microsecondsSinceEpoch}',
+      type: type,
+      text: json['text'] as String? ?? '',
+      audioPath: json['audioPath'] as String?,
+      seconds: json['seconds'] as int? ?? 0,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -112,19 +123,55 @@ class Scenario {
     steps: steps ?? this.steps,
   );
 
-  factory Scenario.fromJson(Map<String, dynamic> json) => Scenario(
-    id: json['id'] as String,
-    title: json['title'] as String,
-    category: ScenarioCategory.values.byName(json['category'] as String),
-    source: ScenarioSource.values.byName(json['source'] as String),
-    callerName: json['callerName'] as String,
-    initial: json['initial'] as String,
-    estimatedSeconds: json['estimatedSeconds'] as int?,
-    defaultBackgroundId: json['defaultBackgroundId'] as String?,
-    steps: (json['steps'] as List<dynamic>)
-        .map((step) => DialogueStep.fromJson(step as Map<String, dynamic>))
-        .toList(growable: false),
-  );
+  factory Scenario.fromJson(Map<String, dynamic> json) {
+    final rawCategory = (json['category'] ?? '')
+        .toString()
+        .toLowerCase()
+        .trim();
+    final category =
+        ScenarioCategory.values.cast<ScenarioCategory?>().firstWhere(
+          (v) => v?.name.toLowerCase() == rawCategory,
+          orElse: () => ScenarioCategory.family,
+        ) ??
+        ScenarioCategory.family;
+
+    final rawSource = (json['source'] ?? '').toString().toLowerCase().trim();
+    final source =
+        ScenarioSource.values.cast<ScenarioSource?>().firstWhere(
+          (v) => v?.name.toLowerCase() == rawSource,
+          orElse: () => ScenarioSource.user,
+        ) ??
+        ScenarioSource.user;
+
+    final callerName = json['callerName'] as String? ?? 'Người gọi';
+    final initial =
+        json['initial'] as String? ??
+        (callerName.isNotEmpty
+            ? callerName.substring(0, 1).toUpperCase()
+            : 'N');
+
+    final rawSteps = json['steps'] as List<dynamic>? ?? const [];
+    final steps = rawSteps
+        .map(
+          (step) =>
+              DialogueStep.fromJson(Map<String, dynamic>.from(step as Map)),
+        )
+        .toList(growable: false);
+
+    return Scenario(
+      id:
+          json['id'] as String? ??
+          'sc-${DateTime.now().microsecondsSinceEpoch}',
+      title: json['title'] as String? ?? 'Kịch bản chưa đặt tên',
+      category: category,
+      source: source,
+      callerName: callerName,
+      initial: initial,
+      estimatedSeconds: json['estimatedSeconds'] as int?,
+      defaultBackgroundId: json['defaultBackgroundId'] as String?,
+      steps: steps,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
     'id': id,

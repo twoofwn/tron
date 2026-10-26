@@ -2,15 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/app_colors.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/services/file_service.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
-import 'import_preview.dart';
 import '../../../shared/widgets/screen_shell.dart';
+import '../../backup/services/backup_service.dart';
 import '../../combo/models/combo_model.dart';
-import '../providers/sharing_provider.dart';
 import '../models/combo_package.dart';
+import '../providers/sharing_provider.dart';
 import '../repositories/sharing_repository.dart';
+import 'import_preview.dart';
 import 'qr_scanner_screen.dart';
 
 class ImportPanel extends ConsumerStatefulWidget {
@@ -64,16 +66,46 @@ class _ImportPanelState extends ConsumerState<ImportPanel> {
     }
   }
 
-  void _readCode() {
+  Future<void> _readCode() async {
+    final text = _codeController.text.trim();
+    if (text.isEmpty) {
+      setState(() => _error = 'Vui lòng nhập mã chia sẻ để tiếp tục.');
+      return;
+    }
+
+    if (text.toUpperCase().startsWith('EH-')) {
+      setState(() {
+        _isBusy = true;
+        _error = null;
+      });
+      try {
+        final pkg = await ref
+            .read(backupServiceProvider)
+            .fetchOnlineSharePackage(text);
+        if (mounted) {
+          _preview(pkg);
+        }
+      } catch (error) {
+        if (mounted) {
+          setState(
+            () => _error = error is ApiException ? error.message : 'Không tải được mã chia sẻ trực tuyến. Vui lòng kiểm tra lại.',
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isBusy = false);
+        }
+      }
+      return;
+    }
+
     try {
-      _preview(
-        ref.read(sharingRepositoryProvider).decodeCode(_codeController.text),
-      );
+      _preview(ref.read(sharingRepositoryProvider).decodeCode(text));
     } catch (error) {
       setState(
         () => _error = error is FormatException
             ? error.message
-            : 'Không đọc được mã chia sẻ.',
+            : 'Mã chia sẻ không đúng định dạng. Hãy kiểm tra lại và nhập lại.',
       );
     }
   }
@@ -84,7 +116,7 @@ class _ImportPanelState extends ConsumerState<ImportPanel> {
     ).push<String>(MaterialPageRoute(builder: (_) => const QrScannerScreen()));
     if (result != null && mounted) {
       _codeController.text = result;
-      _readCode();
+      await _readCode();
     }
   }
 
@@ -170,23 +202,66 @@ class _ImportPanelState extends ConsumerState<ImportPanel> {
         const SizedBox(height: 10),
         AppTextField(
           controller: _codeController,
-          hint: 'Dán mã đầy đủ TRON1.…',
+          hint: 'Nhập mã EH-XXXXXX trực tuyến hoặc dán mã TRON1.…',
           maxLines: 3,
           maxLength: 40000,
         ),
         const SizedBox(height: 12),
-        AppButton(
-          label: 'Xem trước combo',
-          icon: Icons.preview_outlined,
-          isSecondary: true,
-          onPressed: _isBusy ? null : _readCode,
+        Row(
+          children: [
+            Expanded(
+              child: AppButton(
+                label: 'Xem trước combo',
+                icon: Icons.preview_outlined,
+                isSecondary: true,
+                onPressed: _isBusy ? null : _readCode,
+              ),
+            ),
+            if (_codeController.text.isNotEmpty || _error != null) ...[
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'Xóa mã để nhập lại',
+                icon: const Icon(Icons.clear_rounded, size: 20),
+                onPressed: () {
+                  setState(() {
+                    _codeController.clear();
+                    _error = null;
+                  });
+                },
+              ),
+            ],
+          ],
         ),
         if (_error != null)
           Padding(
             padding: const EdgeInsets.only(top: 14),
-            child: Text(
-              _error!,
-              style: const TextStyle(color: AppColors.red, fontSize: 12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.red.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.red.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    size: 16,
+                    color: AppColors.red,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _error!,
+                      style: const TextStyle(
+                        color: AppColors.red,
+                        fontSize: 12,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         if (_isBusy)

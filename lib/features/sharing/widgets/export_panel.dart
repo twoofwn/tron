@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-import 'share_package_card.dart';
-import 'combo_checklist.dart';
-
 import 'package:share_plus/share_plus.dart';
 
 import '../../../app/theme/app_colors.dart';
+import '../../../core/network/api_client.dart';
 import '../../../core/services/file_service.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/glass_card.dart';
 import '../../../shared/widgets/screen_shell.dart';
+import '../../backup/services/backup_service.dart';
 import '../../combo/models/combo_model.dart';
 import '../models/combo_package.dart';
 import '../repositories/sharing_repository.dart';
+import 'combo_checklist.dart';
+import 'share_package_card.dart';
 
 class ExportPanel extends ConsumerStatefulWidget {
   const ExportPanel({super.key, required this.combos, required this.onImport});
@@ -29,6 +29,7 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
   bool _includeAudio = false;
   bool _isBusy = false;
   ComboPackage? _package;
+  String? _onlineCode;
   @override
   void initState() {
     super.initState();
@@ -38,20 +39,39 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
   void _invalidate(VoidCallback change) => setState(() {
     change();
     _package = null;
+    _onlineCode = null;
   });
   Future<void> _generate() async {
     setState(() => _isBusy = true);
     try {
+      final selectedCombos = widget.combos
+          .where((combo) => _selectedIds.contains(combo.id))
+          .toList();
       final package = await ref
           .read(sharingRepositoryProvider)
-          .create(
-            widget.combos
-                .where((combo) => _selectedIds.contains(combo.id))
-                .toList(),
-            includeAudio: _includeAudio,
-          );
+          .create(selectedCombos, includeAudio: _includeAudio);
+      String? onlineCode;
+      try {
+        final api = ref.read(apiClientProvider);
+        if (await api.hasToken()) {
+          onlineCode = await ref
+              .read(backupServiceProvider)
+              .createOnlineShare(selectedCombos, includeAudio: _includeAudio);
+        }
+      } catch (_) {
+        // Fallback to local offline share code if server is unreachable
+      }
       if (mounted) {
-        setState(() => _package = package);
+        setState(() {
+          _package = onlineCode == null
+              ? package
+              : ComboPackage(
+                  id: onlineCode.replaceFirst('EH-', ''),
+                  combos: package.combos,
+                  audio: package.audio,
+                );
+          _onlineCode = onlineCode;
+        });
       }
     } catch (error) {
       if (mounted) {
@@ -122,7 +142,7 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
     final package = _package;
     final code = package == null
         ? null
-        : ref.read(sharingRepositoryProvider).code(package);
+        : (_onlineCode ?? ref.read(sharingRepositoryProvider).code(package));
     final hasQr = code != null && code.length <= 2300;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

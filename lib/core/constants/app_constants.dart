@@ -1,15 +1,12 @@
+import '../config/app_config.dart';
+
 abstract final class AppConstants {
-  static const appName = 'TRỐN';
-  static const defaultCallDelay = Duration(seconds: 30);
-  static const callDelays = [
-    Duration(seconds: 10),
-    Duration(seconds: 30),
-    Duration(minutes: 1),
-    Duration(minutes: 5),
-  ];
-  static const pagePadding = 22.0;
-  static const maxAudioBytes = 10 * 1024 * 1024;
-  static const maxPackageBytes = 25 * 1024 * 1024;
+  static const appName = AppConfig.appName;
+  static const defaultCallDelay = AppConfig.defaultCallDelay;
+  static const callDelays = AppConfig.callDelays;
+  static const pagePadding = AppConfig.pagePadding;
+  static const maxAudioBytes = AppConfig.maxAudioBytes;
+  static const maxPackageBytes = AppConfig.maxPackageBytes;
 }
 
 String delayLabel(Duration duration) => duration.inSeconds < 60

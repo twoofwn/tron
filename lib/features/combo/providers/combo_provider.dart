@@ -1,12 +1,16 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/network/api_client.dart';
 import '../../../core/services/storage_service.dart';
 import '../models/combo_model.dart';
 import '../repositories/combo_repository.dart';
 
 final comboRepositoryProvider = Provider(
-  (ref) => ComboRepository(ref.watch(storageServiceProvider)),
+  (ref) => ComboRepository(
+    ref.watch(storageServiceProvider),
+    api: ref.watch(apiClientProvider),
+  ),
 );
 final comboListProvider =
     AsyncNotifierProvider<ComboListNotifier, List<ComboModel>>(
@@ -51,12 +55,22 @@ class ComboListNotifier extends AsyncNotifier<List<ComboModel>> {
     }
     await _commit(combos);
     ref.read(selectedComboIdProvider.notifier).selectCombo(combo.id);
+    try {
+      await ref.read(comboRepositoryProvider).upsertRemote(combo);
+    } catch (_) {
+      // Keep local change even if offline
+    }
   }
 
   Future<void> deleteCombo(String id) async {
     await _commit((await future).where((combo) => combo.id != id).toList());
     if (ref.read(selectedComboIdProvider) == id) {
       ref.read(selectedComboIdProvider.notifier).selectCombo(null);
+    }
+    try {
+      await ref.read(comboRepositoryProvider).deleteRemote(id);
+    } catch (_) {
+      // Keep local change even if offline
     }
   }
 
@@ -68,20 +82,24 @@ class ComboListNotifier extends AsyncNotifier<List<ComboModel>> {
     required bool copyDuplicates,
   }) async {
     final combos = [...await future];
-    var count = 0;
+    final addedList = <ComboModel>[];
     for (final combo in incoming) {
       final exists = combos.any((item) => item.id == combo.id);
       if (exists && !copyDuplicates) {
         continue;
       }
-      combos.add(
-        exists
-            ? combo.copyWith(id: const Uuid().v4(), name: _copyName(combo.name))
-            : combo,
-      );
-      count++;
+      final toAdd = exists
+          ? combo.copyWith(id: const Uuid().v4(), name: _copyName(combo.name))
+          : combo;
+      combos.add(toAdd);
+      addedList.add(toAdd);
     }
     await _commit(combos);
-    return count;
+    for (final item in addedList) {
+      try {
+        await ref.read(comboRepositoryProvider).upsertRemote(item);
+      } catch (_) {}
+    }
+    return addedList.length;
   }
 }

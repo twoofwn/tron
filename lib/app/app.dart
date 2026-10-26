@@ -3,12 +3,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/fake_call/providers/call_provider.dart';
 import '../features/fake_call/screens/fake_call_screen.dart';
+import '../features/scenarios/providers/scenario_provider.dart';
 import '../shared/enums/call_interface.dart';
 import 'providers/theme_provider.dart';
 import 'router/app_router.dart';
-import '../features/scenarios/providers/scenario_provider.dart';
 import 'router/route_names.dart';
 import 'theme/app_theme.dart';
+
+/// Khi đặt `true` (mặc định), ứng dụng yêu cầu đăng nhập tài khoản trước khi
+/// vào màn hình chính.
+final requireAuthGateProvider = Provider<bool>((ref) {
+  return const bool.fromEnvironment('REQUIRE_AUTH', defaultValue: false);
+});
 
 class TronApp extends ConsumerStatefulWidget {
   const TronApp({super.key});

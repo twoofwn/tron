@@ -65,3 +65,20 @@ Mã nguồn nằm ở `lib/features/scenarios/` (models, data, providers, presen
 - Kịch bản cá nhân gắn với file trên máy, nên combo dùng chúng không nhập được trên thiết bị khác; gói chia sẻ chỉ chấp nhận kịch bản có sẵn.
 - Âm nền chọn trong kho chưa được lưu vào combo; combo vẫn dùng bộ chọn âm nền riêng ở form.
 - `tool/generate_demo_audio.py` tạo lại giọng thoại demo (cần macOS với giọng `Linh`).
+
+
+## Backend .NET 9 & SQL Server (`backend/`)
+
+Dự án bao gồm hệ thống backend ASP.NET Core 9 Web API kết nối SQL Server 2022 trong thư mục `backend/`:
+
+- **Kiến trúc**: Tổ chức theo mô hình 5 thư mục trong `backend/src/Tron.Api/`: `Controllers`, `Models`, `Services`, `Repositories`, `Db` (khởi tạo DB từ `trondb.sql`).
+- **Tính năng**: Đăng ký / đăng nhập (`JWT + Refresh Token xoay vòng`), quản lý danh mục kịch bản & âm nền (`Catalog`), lưu trữ file âm thanh trên ổ đĩa server (`DiskMediaStorage`), sao lưu & khôi phục dữ liệu (`PUT/GET /api/v1/backup`) và chia sẻ trực tuyến bằng mã `EH-XXXXXX` (`POST/GET /api/v1/shares`).
+- **Chạy backend**:
+  ```sh
+  cd backend
+  dotnet run --project src/Tron.Api
+  ```
+- **Chạy Flutter kèm cổng đăng nhập bắt buộc**:
+  ```sh
+  flutter run --dart-define=REQUIRE_AUTH=true --dart-define=API_BASE_URL=http://localhost:5080
+  ```

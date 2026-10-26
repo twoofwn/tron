@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/config/app_config.dart';
 import '../../../core/services/storage_service.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
@@ -15,9 +16,12 @@ final emergencyContactProvider =
 class EmergencyContactNotifier extends AsyncNotifier<String> {
   @override
   Future<String> build() async =>
-      await ref.watch(storageServiceProvider).read('tron.emergency') ?? '';
+      await ref.watch(storageServiceProvider).read(AppConfig.emergencyKey) ??
+      '';
   Future<void> save(String number) async {
-    await ref.read(storageServiceProvider).write('tron.emergency', number);
+    await ref
+        .read(storageServiceProvider)
+        .write(AppConfig.emergencyKey, number);
     state = AsyncData(number);
   }
 }
