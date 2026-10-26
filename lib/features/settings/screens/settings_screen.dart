@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -8,9 +9,11 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/widgets/app_loading.dart';
 import '../../../core/widgets/glass_card.dart';
 import '../../../shared/widgets/screen_shell.dart';
+import '../../home/widgets/delay_selector.dart';
 import '../../home/widgets/emergency_sheet.dart';
 import '../models/app_settings.dart';
 import '../providers/settings_provider.dart';
+import '../widgets/gesture_test_sheet.dart';
 import '../widgets/permission_card.dart';
 import '../widgets/phone_style_picker.dart';
 
@@ -33,6 +36,7 @@ class SettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isAndroid = defaultTargetPlatform == TargetPlatform.android;
     final settings = ref.watch(settingsProvider);
     final detected = ref.watch(resolvedPhoneStyleProvider).value;
     final isLight =
@@ -73,6 +77,102 @@ class SettingsScreen extends ConsumerWidget {
                   ref,
                   (current) => current.copyWith(phoneStyle: style),
                 ),
+              ),
+            ),
+            const SizedBox(height: 22),
+            Text('HẸN GIỜ & KÍCH HOẠT', style: AppTextStyles.section),
+            const SizedBox(height: 12),
+            GlassCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Mức gọi sau mặc định',
+                    style: AppTextStyles.cardTitle,
+                  ),
+                  const SizedBox(height: 12),
+                  const DelaySelector(),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            GlassCard(
+              padding: EdgeInsets.zero,
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    title: const Text('Lật úp máy'),
+                    subtitle: const Text(
+                      'Úp màn hình xuống khoảng 1 giây để hẹn cuộc gọi.',
+                    ),
+                    value: value.flipEnabled,
+                    onChanged: (on) => _update(
+                      context,
+                      ref,
+                      (current) => current.copyWith(flipEnabled: on),
+                    ),
+                  ),
+                  if (isAndroid)
+                    SwitchListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                      ),
+                      title: const Text('Gõ lưng 2 lần'),
+                      subtitle: const Text(
+                        'Gõ hai lần vào mặt sau máy để hẹn cuộc gọi.',
+                      ),
+                      value: value.knockEnabled,
+                      onChanged: (on) => _update(
+                        context,
+                        ref,
+                        (current) => current.copyWith(knockEnabled: on),
+                      ),
+                    )
+                  else
+                    _LinkRow(
+                      title: 'Gõ lưng 2 lần',
+                      subtitle: 'iPhone dùng Chạm vào mặt sau của hệ thống. Xem hướng dẫn.',
+                      onTap: () => _showBackTapGuide(context),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Độ nhạy'),
+                        const SizedBox(height: 8),
+                        SegmentedButton<TriggerSensitivity>(
+                          showSelectedIcon: false,
+                          segments: [
+                            for (final level in TriggerSensitivity.values)
+                              ButtonSegment(
+                                value: level,
+                                label: Text(level.label),
+                              ),
+                          ],
+                          selected: {value.sensitivity},
+                          onSelectionChanged: (selection) => _update(
+                            context,
+                            ref,
+                            (current) =>
+                                current.copyWith(sensitivity: selection.first),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  _LinkRow(
+                    title: 'Thử cử chỉ',
+                    subtitle: 'Xem máy nhận lật úp hay gõ lưng thế nào.',
+                    onTap: () => showModalBottomSheet<void>(
+                      context: context,
+                      showDragHandle: true,
+                      builder: (_) => const GestureTestSheet(),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 22),
@@ -146,16 +246,36 @@ class SettingsScreen extends ConsumerWidget {
 }
 
 class _LinkRow extends StatelessWidget {
-  const _LinkRow({required this.title, required this.onTap});
+  const _LinkRow({required this.title, required this.onTap, this.subtitle});
 
   final String title;
+  final String? subtitle;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) => ListTile(
     contentPadding: const EdgeInsets.symmetric(horizontal: 16),
     title: Text(title),
+    subtitle: subtitle == null ? null : Text(subtitle!),
     trailing: const Icon(Icons.chevron_right_rounded),
     onTap: onTap,
   );
 }
+
+Future<void> _showBackTapGuide(BuildContext context) => showDialog<void>(
+  context: context,
+  builder: (context) => AlertDialog(
+    title: const Text('Gõ lưng 2 lần trên iPhone'),
+    content: const Text(
+      '1. Mở Cài đặt → Trợ năng → Cảm ứng → Chạm vào mặt sau.\n'
+      '2. Chọn Gõ đúp và đặt là một Phím tắt.\n'
+      '3. Phím tắt mở đường dẫn tron://trigger để hẹn cuộc gọi.',
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Đã hiểu'),
+      ),
+    ],
+  ),
+);
