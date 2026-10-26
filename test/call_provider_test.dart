@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tron/app/providers/app_foreground_provider.dart';
 import 'package:tron/features/activation/services/call_alarm_service.dart';
 import 'package:tron/features/combo/models/combo_model.dart';
 import 'package:tron/features/fake_call/providers/call_provider.dart';
@@ -106,5 +107,38 @@ void main() {
     notifier.ringNow(combo);
     expect(container.read(callProvider).status, CallStatus.ringing);
     expect(events.where((event) => event == CallStatus.ringing).length, 1);
+  });
+
+  test(
+    'A ring while the app is in background keeps the system alarm',
+    () async {
+      final alarm = FakeAlarm();
+      final container = ProviderContainer(
+        overrides: [callAlarmServiceProvider.overrideWithValue(alarm)],
+      );
+      addTearDown(container.dispose);
+      container.read(appForegroundProvider.notifier).setForeground(false);
+      container
+          .read(callProvider.notifier)
+          .schedule(combo, const Duration(milliseconds: 10));
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      expect(container.read(callProvider).status, CallStatus.ringing);
+      expect(alarm.cancelled, 0);
+    },
+  );
+
+  test('Answering the call cancels the system alarm', () async {
+    final alarm = FakeAlarm();
+    final container = ProviderContainer(
+      overrides: [callAlarmServiceProvider.overrideWithValue(alarm)],
+    );
+    addTearDown(container.dispose);
+    final notifier = container.read(callProvider.notifier);
+    notifier.ringNow(combo);
+    await Future<void>.delayed(Duration.zero);
+    final before = alarm.cancelled;
+    notifier.answer();
+    await Future<void>.delayed(Duration.zero);
+    expect(alarm.cancelled, greaterThan(before));
   });
 }

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../app/providers/app_foreground_provider.dart';
 import '../../../shared/enums/call_interface.dart';
 import '../../activation/services/call_alarm_service.dart';
 import '../../combo/models/combo_model.dart';
@@ -67,7 +68,8 @@ class CallNotifier extends Notifier<CallState> {
     _timer = Timer.periodic(const Duration(milliseconds: 200), (_) {
       final remaining = deadline.difference(DateTime.now());
       if (remaining <= Duration.zero) {
-        _ring(combo);
+        // Đổ lúc app ở nền: thông báo báo thức cùng lúc hiện màn gọi, không hủy nó.
+        _ring(combo, keepAlarm: !ref.read(appForegroundProvider));
       } else {
         state = CallState(
           status: CallStatus.scheduled,
@@ -99,9 +101,11 @@ class CallNotifier extends Notifier<CallState> {
     state = const CallState();
   }
 
-  void _ring(ComboModel combo) {
+  void _ring(ComboModel combo, {bool keepAlarm = false}) {
     _timer?.cancel();
-    _cancelAlarm();
+    if (!keepAlarm) {
+      _cancelAlarm();
+    }
     state = CallState(status: CallStatus.ringing, combo: combo);
   }
 
@@ -116,6 +120,7 @@ class CallNotifier extends Notifier<CallState> {
   }
 
   void answer() {
+    _cancelAlarm();
     state = CallState(status: CallStatus.inProgress, combo: state.combo);
   }
 }
