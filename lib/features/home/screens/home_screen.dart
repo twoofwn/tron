@@ -10,6 +10,8 @@ import '../../../core/widgets/app_loading.dart';
 import '../../../core/widgets/glass_card.dart';
 import '../../../shared/enums/call_interface.dart';
 import '../../../shared/widgets/screen_shell.dart';
+import '../../activation/services/permission_service.dart';
+import '../../activation/widgets/notification_permission_sheet.dart';
 import '../../combo/models/combo_model.dart';
 import '../../combo/providers/combo_provider.dart';
 import '../../fake_call/providers/call_provider.dart';
@@ -371,7 +373,7 @@ class CallSchedulerCard extends ConsumerWidget {
             icon: Icons.timer_outlined,
             onPressed: combo == null
                 ? null
-                : () => ref.read(callProvider.notifier).schedule(combo!, delay),
+                : () => _schedule(context, ref, combo!, delay),
           ),
           if (isScheduled)
             Center(
@@ -384,13 +386,80 @@ class CallSchedulerCard extends ConsumerWidget {
               ),
             ),
           const SizedBox(height: 8),
-          const Center(
-            child: Text(
-              'Giữ ứng dụng mở trong lúc chờ cuộc gọi',
-              style: TextStyle(fontSize: 10, color: AppColors.muted),
+          Center(
+            child: _NotificationHint(
+              onRequest: () => _requestNotifications(context, ref),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Future<void> _schedule(
+    BuildContext context,
+    WidgetRef ref,
+    ComboModel combo,
+    Duration delay,
+  ) async {
+    final granted = (await ref.read(permissionSnapshotProvider.future))
+        .notifications;
+    if (!granted && context.mounted) {
+      await _requestNotifications(context, ref);
+    }
+    if (!context.mounted) {
+      return;
+    }
+    final armed = await ref.read(callProvider.notifier).schedule(combo, delay);
+    if (!armed && context.mounted) {
+      showMessage(
+        context,
+        'Chưa đặt được chuông khi khóa máy. Cuộc gọi vẫn đổ khi app đang mở.',
+      );
+    }
+  }
+
+  Future<void> _requestNotifications(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final allow = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => const NotificationPermissionSheet(),
+    );
+    if (allow != true) {
+      return;
+    }
+    await ref
+        .read(permissionServiceProvider)
+        .request(CallPermission.notifications);
+    ref.invalidate(permissionSnapshotProvider);
+  }
+}
+
+class _NotificationHint extends ConsumerWidget {
+  const _NotificationHint({required this.onRequest});
+
+  final VoidCallback onRequest;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final granted = ref.watch(permissionSnapshotProvider).value?.notifications;
+    if (granted == null) {
+      return const SizedBox.shrink();
+    }
+    if (granted) {
+      return const Text(
+        'Sẽ đổ chuông kể cả khi khóa máy',
+        style: TextStyle(fontSize: 10, color: AppColors.muted),
+      );
+    }
+    return TextButton(
+      onPressed: onRequest,
+      child: const Text(
+        'Chưa cho phép thông báo: chỉ đổ khi app mở · Cấp quyền',
+        style: TextStyle(fontSize: 10, color: AppColors.accent),
       ),
     );
   }

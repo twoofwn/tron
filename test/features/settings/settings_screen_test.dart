@@ -2,20 +2,33 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tron/features/activation/services/permission_service.dart';
 import 'package:tron/features/settings/models/app_settings.dart';
 import 'package:tron/features/settings/providers/settings_provider.dart';
 import 'package:tron/features/settings/screens/settings_screen.dart';
 
 Future<ProviderContainer> pumpSettings(
   WidgetTester tester, {
-  Size size = const Size(390, 844),
+  Size size = const Size(390, 1400),
   double textScale = 1,
 }) async {
   SharedPreferences.setMockInitialValues({});
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  final container = ProviderContainer();
+  final container = ProviderContainer(
+    overrides: [
+      permissionSnapshotProvider.overrideWith(
+        (ref) => Future.value(
+          const PermissionSnapshot(
+            notifications: true,
+            exactAlarm: true,
+            batteryUnrestricted: false,
+          ),
+        ),
+      ),
+    ],
+  );
   addTearDown(container.dispose);
   await tester.pumpWidget(
     UncontrolledProviderScope(

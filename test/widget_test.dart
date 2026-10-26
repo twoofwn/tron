@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tron/app/app.dart';
 import 'package:tron/core/services/audio_service.dart';
 import 'package:tron/core/services/file_service.dart';
+import 'package:tron/features/activation/services/permission_service.dart';
 import 'package:tron/features/combo/models/combo_model.dart';
 import 'package:tron/features/combo/providers/combo_provider.dart';
 import 'package:tron/features/fake_call/providers/call_provider.dart';
@@ -55,6 +56,16 @@ void main() {
       ProviderScope(
         overrides: [
           audioServiceProvider.overrideWithValue(SilentAudioService()),
+          // Quyền thật phụ thuộc máy; cố định để giao diện và golden ổn định.
+          permissionSnapshotProvider.overrideWith(
+            (ref) => Future.value(
+              const PermissionSnapshot(
+                notifications: true,
+                exactAlarm: true,
+                batteryUnrestricted: true,
+              ),
+            ),
+          ),
           sharingRepositoryProvider.overrideWith(
             (ref) => SharingRepository(
               ref.watch(fileServiceProvider),
@@ -91,7 +102,10 @@ void main() {
     expect(container.read(callProvider).status, CallStatus.idle);
     await tester.tap(find.byTooltip('Cài đặt'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Giao diện sáng'));
+    final themeSwitch = find.widgetWithText(SwitchListTile, 'Giao diện sáng');
+    tester.view.physicalSize = const Size(390, 1400);
+    await tester.pumpAndSettle();
+    await tester.tap(themeSwitch);
     await tester.pumpAndSettle();
     expect(
       Theme.of(tester.element(find.text('Cài đặt'))).brightness,

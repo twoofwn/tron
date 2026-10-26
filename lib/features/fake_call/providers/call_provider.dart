@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../shared/enums/call_interface.dart';
+import '../../activation/services/call_alarm_service.dart';
 import '../../combo/models/combo_model.dart';
 import '../../settings/providers/settings_provider.dart';
 
@@ -44,13 +45,17 @@ final callProvider = NotifierProvider<CallNotifier, CallState>(
 
 class CallNotifier extends Notifier<CallState> {
   Timer? _timer;
+  // Lần đặt báo thức gần nhất; phải xong trước khi hủy, nếu không báo thức có thể còn sót.
+  Future<bool>? _arming;
+
   @override
   CallState build() {
     ref.onDispose(() => _timer?.cancel());
     return const CallState();
   }
 
-  void schedule(ComboModel combo, Duration delay) {
+  /// Trả về false nếu chỉ đổ chuông được khi app đang mở (không đặt được báo thức).
+  Future<bool> schedule(ComboModel combo, Duration delay) {
     _timer?.cancel();
     final deadline = DateTime.now().add(delay);
     state = CallState(
@@ -62,8 +67,7 @@ class CallNotifier extends Notifier<CallState> {
     _timer = Timer.periodic(const Duration(milliseconds: 200), (_) {
       final remaining = deadline.difference(DateTime.now());
       if (remaining <= Duration.zero) {
-        _timer?.cancel();
-        state = CallState(status: CallStatus.ringing, combo: combo);
+        _ring(combo);
       } else {
         state = CallState(
           status: CallStatus.scheduled,
@@ -73,11 +77,42 @@ class CallNotifier extends Notifier<CallState> {
         );
       }
     });
+    final arming = ref
+        .read(callAlarmServiceProvider)
+        .scheduleCall(comboId: combo.id, fireAt: deadline);
+    _arming = arming;
+    return arming;
+  }
+
+  /// Mở app từ thông báo cuộc gọi: đổ chuông ngay, không chờ hẹn giờ nữa.
+  void ringNow(ComboModel combo) {
+    if (state.status == CallStatus.ringing ||
+        state.status == CallStatus.inProgress) {
+      return;
+    }
+    _ring(combo);
   }
 
   void cancel() {
     _timer?.cancel();
+    _cancelAlarm();
     state = const CallState();
+  }
+
+  void _ring(ComboModel combo) {
+    _timer?.cancel();
+    _cancelAlarm();
+    state = CallState(status: CallStatus.ringing, combo: combo);
+  }
+
+  void _cancelAlarm() {
+    final alarm = ref.read(callAlarmServiceProvider);
+    final arming = _arming;
+    _arming = null;
+    unawaited(() async {
+      await arming;
+      await alarm.cancel();
+    }());
   }
 
   void answer() {

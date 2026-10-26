@@ -11,6 +11,7 @@ import '../../../shared/widgets/screen_shell.dart';
 import '../../home/widgets/emergency_sheet.dart';
 import '../models/app_settings.dart';
 import '../providers/settings_provider.dart';
+import '../widgets/permission_card.dart';
 import '../widgets/phone_style_picker.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -74,6 +75,10 @@ class SettingsScreen extends ConsumerWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 22),
+            Text('QUYỀN TRUY CẬP', style: AppTextStyles.section),
+            const SizedBox(height: 12),
+            const PermissionCard(),
             const SizedBox(height: 22),
             GlassCard(
               padding: EdgeInsets.zero,
