@@ -2,10 +2,17 @@ import 'package:flutter/material.dart';
 
 import '../../../core/widgets/app_button.dart';
 
-/// Giải thích trước khi hỏi quyền thông báo, để người dùng hiểu vì sao cần.
-/// Trả về true nếu người dùng đồng ý cho hỏi quyền hệ thống.
-class NotificationPermissionSheet extends StatelessWidget {
-  const NotificationPermissionSheet({super.key});
+/// Giải thích trước khi hỏi quyền hệ thống, để người dùng hiểu vì sao cần.
+/// Trả về true nếu người dùng đồng ý để app hỏi quyền.
+class PermissionRequestSheet extends StatelessWidget {
+  const PermissionRequestSheet({
+    super.key,
+    required this.title,
+    required this.message,
+  });
+
+  final String title;
+  final String message;
 
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -15,15 +22,9 @@ class NotificationPermissionSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Cho phép thông báo để đổ chuông đúng giờ',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          Text(title, style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 10),
-          const Text(
-            'TRỐN dùng thông báo để cuộc gọi đổ đúng giờ kể cả khi máy đang khóa. '
-            'Nếu không cho phép, cuộc gọi chỉ đổ khi app đang mở.',
-          ),
+          Text(message),
           const SizedBox(height: 18),
           AppButton(
             label: 'Cho phép',

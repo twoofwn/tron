@@ -11,6 +11,7 @@ import '../features/fake_call/providers/call_provider.dart';
 import '../features/fake_call/screens/fake_call_screen.dart';
 import '../features/scenarios/providers/scenario_provider.dart';
 import '../shared/enums/call_interface.dart';
+import 'providers/app_foreground_provider.dart';
 import 'providers/theme_provider.dart';
 import 'router/app_router.dart';
 import 'router/route_names.dart';
@@ -48,6 +49,9 @@ class _TronAppState extends ConsumerState<TronApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    ref
+        .read(appForegroundProvider.notifier)
+        .setForeground(state == AppLifecycleState.resumed);
     // Người dùng có thể vừa đổi quyền trong cài đặt hệ thống.
     if (state == AppLifecycleState.resumed) {
       ref.invalidate(permissionSnapshotProvider);

@@ -11,7 +11,7 @@ import '../../../core/widgets/glass_card.dart';
 import '../../../shared/enums/call_interface.dart';
 import '../../../shared/widgets/screen_shell.dart';
 import '../../activation/services/permission_service.dart';
-import '../../activation/widgets/notification_permission_sheet.dart';
+import '../../activation/widgets/permission_request_sheet.dart';
 import '../../combo/models/combo_model.dart';
 import '../../combo/providers/combo_provider.dart';
 import '../../fake_call/providers/call_provider.dart';
@@ -403,10 +403,14 @@ class CallSchedulerCard extends ConsumerWidget {
     ComboModel combo,
     Duration delay,
   ) async {
-    final granted = (await ref.read(permissionSnapshotProvider.future))
-        .notifications;
-    if (!granted && context.mounted) {
+    // Đọc lại quyền mỗi lần hẹn: người dùng có thể vừa đổi quyền trong cài đặt hệ thống.
+    ref.invalidate(permissionSnapshotProvider);
+    final permissions = await ref.read(permissionSnapshotProvider.future);
+    if (!permissions.notifications && context.mounted) {
       await _requestNotifications(context, ref);
+    }
+    if (!permissions.exactAlarm && context.mounted) {
+      await _requestExactAlarm(context, ref);
     }
     if (!context.mounted) {
       return;
@@ -423,18 +427,45 @@ class CallSchedulerCard extends ConsumerWidget {
   Future<void> _requestNotifications(
     BuildContext context,
     WidgetRef ref,
-  ) async {
+  ) => _requestPermission(
+    context,
+    ref,
+    permission: CallPermission.notifications,
+    title: 'Cho phép thông báo để đổ chuông đúng giờ',
+    message:
+        'TRỐN dùng thông báo để cuộc gọi đổ đúng giờ kể cả khi máy đang khóa. '
+        'Nếu không cho phép, cuộc gọi chỉ đổ khi app đang mở.',
+  );
+
+  Future<void> _requestExactAlarm(
+    BuildContext context,
+    WidgetRef ref,
+  ) => _requestPermission(
+    context,
+    ref,
+    permission: CallPermission.exactAlarm,
+    title: 'Cho phép báo thức chính xác',
+    message:
+        'Để chuông đổ đúng thời điểm đã hẹn. Máy sẽ mở trang cài đặt báo thức '
+        'để bạn bật quyền này, rồi quay lại TRỐN.',
+  );
+
+  Future<void> _requestPermission(
+    BuildContext context,
+    WidgetRef ref, {
+    required CallPermission permission,
+    required String title,
+    required String message,
+  }) async {
     final allow = await showModalBottomSheet<bool>(
       context: context,
       showDragHandle: true,
-      builder: (_) => const NotificationPermissionSheet(),
+      builder: (_) => PermissionRequestSheet(title: title, message: message),
     );
     if (allow != true) {
       return;
     }
-    await ref
-        .read(permissionServiceProvider)
-        .request(CallPermission.notifications);
+    await ref.read(permissionServiceProvider).request(permission);
     ref.invalidate(permissionSnapshotProvider);
   }
 }
