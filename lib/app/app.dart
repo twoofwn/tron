@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/activation/services/call_alarm_service.dart';
+import '../features/activation/services/permission_service.dart';
+import '../features/combo/providers/combo_provider.dart';
 import '../features/fake_call/providers/call_provider.dart';
 import '../features/fake_call/screens/fake_call_screen.dart';
 import '../shared/enums/call_interface.dart';
@@ -16,8 +21,57 @@ class TronApp extends ConsumerStatefulWidget {
   ConsumerState<TronApp> createState() => _TronAppState();
 }
 
-class _TronAppState extends ConsumerState<TronApp> {
+class _TronAppState extends ConsumerState<TronApp> with WidgetsBindingObserver {
   final _navigatorKey = GlobalKey<NavigatorState>();
+  StreamSubscription<String>? _alarmTaps;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startAlarms());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _alarmTaps?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Người dùng có thể vừa đổi quyền trong cài đặt hệ thống.
+    if (state == AppLifecycleState.resumed) {
+      ref.invalidate(permissionSnapshotProvider);
+    }
+  }
+
+  Future<void> _startAlarms() async {
+    final alarm = ref.read(callAlarmServiceProvider);
+    try {
+      _alarmTaps = alarm.taps.listen(_ringFromAlarm);
+      await alarm.init();
+      final comboId = await alarm.launchComboId();
+      if (comboId != null) {
+        await _ringFromAlarm(comboId);
+      }
+    } catch (_) {
+      // Báo thức là phần bổ sung: lỗi ở đây không được làm app dừng.
+    }
+  }
+
+  Future<void> _ringFromAlarm(String comboId) async {
+    final combos = await ref.read(comboListProvider.future);
+    if (!mounted) {
+      return;
+    }
+    final combo = combos.where((item) => item.id == comboId).firstOrNull;
+    if (combo != null) {
+      ref.read(callProvider.notifier).ringNow(combo);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Tải kho kịch bản ngay khi mở app để combo và cuộc gọi dùng được ngay.
