@@ -89,10 +89,12 @@ void main() {
     await tester.tap(find.text('Hủy cuộc gọi chờ'));
     await tester.pump();
     expect(container.read(callProvider).status, CallStatus.idle);
-    await tester.tap(find.byTooltip('Đổi giao diện sáng / tối'));
+    await tester.tap(find.byTooltip('Cài đặt'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Giao diện sáng'));
     await tester.pumpAndSettle();
     expect(
-      Theme.of(tester.element(find.text('Cần lối thoát?'))).brightness,
+      Theme.of(tester.element(find.text('Cài đặt'))).brightness,
       Brightness.light,
     );
     expect(tester.takeException(), isNull);

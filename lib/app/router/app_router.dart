@@ -10,6 +10,7 @@ import '../../features/fake_call/screens/fake_call_screen.dart';
 import '../../features/home/screens/camouflage_screen.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/scenarios/presentation/scenario_picker_route.dart';
+import '../../features/settings/screens/settings_screen.dart';
 import '../../features/sharing/screens/sharing_screen.dart';
 import '../app.dart';
 import 'route_names.dart';
@@ -50,6 +51,7 @@ abstract final class AppRouter {
       RouteNames.camouflage => const CamouflageScreen(),
       RouteNames.auth => const AuthScreen(),
       RouteNames.account => const AccountScreen(),
+      RouteNames.settings => const SettingsScreen(),
       _ => const _HomeOrAuthGate(),
     },
   );

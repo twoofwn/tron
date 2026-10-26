@@ -7,4 +7,5 @@ abstract final class RouteNames {
   static const camouflage = '/calculator';
   static const auth = '/auth';
   static const account = '/account';
+  static const settings = '/settings';
 }

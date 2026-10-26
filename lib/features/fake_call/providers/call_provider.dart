@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../shared/enums/call_interface.dart';
 import '../../combo/models/combo_model.dart';
+import '../../settings/providers/settings_provider.dart';
 
 class CallState {
   const CallState({
@@ -25,8 +26,16 @@ final callDelayProvider = NotifierProvider<CallDelayNotifier, Duration>(
 
 class CallDelayNotifier extends Notifier<Duration> {
   @override
-  Duration build() => AppConstants.defaultCallDelay;
-  void select(Duration duration) => state = duration;
+  Duration build() =>
+      ref.watch(settingsProvider).value?.lastDelay ??
+      AppConstants.defaultCallDelay;
+
+  Future<void> select(Duration duration) async {
+    state = duration;
+    await ref
+        .read(settingsProvider.notifier)
+        .modify((current) => current.copyWith(lastDelay: duration));
+  }
 }
 
 final callProvider = NotifierProvider<CallNotifier, CallState>(
