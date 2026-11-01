@@ -32,21 +32,20 @@ class SharingRepository {
     final audio = <String, Uint8List>{};
     if (includeAudio) {
       for (final combo in combos) {
-        for (final path in [
-          combo.ringtonePath,
-          combo.customBackgroundPath,
-        ].whereType<String>()) {
+        for (final path in combo.customAudioPaths) {
           audio[path] = await files.readAudio(path);
         }
       }
     }
     final package = ComboPackage(
       id: _createId(),
-      combos: includeAudio
-          ? combos
-          : combos
-                .map((combo) => combo.copyWith(stripCustomAudio: true))
-                .toList(),
+      combos: combos
+          .map(
+            (combo) => includeAudio
+                ? combo.withoutSync()
+                : combo.copyWith(stripCustomAudio: true),
+          )
+          .toList(),
       audio: audio,
     );
     if (encode(package).length > AppConstants.maxPackageBytes) {
@@ -125,10 +124,7 @@ class SharingRepository {
         if (!ScenarioLookup.isShareableId(combo.scenarioId)) {
           throw const FormatException();
         }
-        for (final path in [
-          combo.ringtonePath,
-          combo.customBackgroundPath,
-        ].whereType<String>()) {
+        for (final path in combo.customAudioPaths) {
           if (!audio.containsKey(path)) {
             throw const FormatException();
           }
@@ -155,10 +151,7 @@ class SharingRepository {
         .toList();
     final paths = <String, String>{};
     for (final combo in selected) {
-      for (final path in [
-        combo.ringtonePath,
-        combo.customBackgroundPath,
-      ].whereType<String>()) {
+      for (final path in combo.customAudioPaths) {
         if (!paths.containsKey(path)) {
           paths[path] = await files.storeAudio(
             package.audio[path]!,
@@ -169,10 +162,13 @@ class SharingRepository {
     }
     return selected
         .map(
-          (combo) => combo.copyWith(
-            ringtonePath: paths[combo.ringtonePath],
-            customBackgroundPath: paths[combo.customBackgroundPath],
-          ),
+          (combo) => combo
+              .copyWith(
+                ringtonePath: paths[combo.ringtonePath],
+                customBackgroundPath: paths[combo.customBackgroundPath],
+                voicePath: paths[combo.voicePath],
+              )
+              .withoutSync(),
         )
         .toList();
   }

@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../app/providers/theme_provider.dart';
 import '../../../core/config/app_config.dart';
@@ -11,6 +12,7 @@ import '../../../shared/enums/call_interface.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../combo/models/combo_model.dart';
 import '../../combo/providers/combo_provider.dart';
+import '../../combo/repositories/combo_repository.dart';
 import '../../scenarios/models/scenario.dart';
 import '../../scenarios/providers/scenario_provider.dart';
 import '../../sharing/models/combo_package.dart';
@@ -67,7 +69,7 @@ class BackupService {
   }
 
   /// Uploads any missing local audio files and saves a full backup snapshot on the server.
-  Future<BackupStatusInfo> performBackup() async {
+  Future<BackupStatusInfo> performBackup({bool reuseVoiceIds = true}) async {
     final api = ref.read(apiClientProvider);
     if (!await api.hasToken()) {
       throw const FormatException('Chưa đăng nhập tài khoản.');
@@ -134,6 +136,11 @@ class BackupService {
         combo.customBackgroundPath,
         'Ambient',
       );
+      // Không có giọng → báo server xoá; tải lên lỗi → null để server giữ bản cũ.
+      final voiceMediaId = combo.voicePath == null
+          ? ComboRepository.clearVoiceId
+          : (reuseVoiceIds ? combo.voiceMediaId : null) ??
+                await ensureUploaded(combo.voicePath, 'Voice');
 
       comboPayloads.add({
         'id': combo.id,
@@ -147,6 +154,7 @@ class BackupService {
         'ringtoneMediaId': ringMediaId,
         'backgroundSoundIds': combo.backgroundSoundPaths,
         'customBackgroundMediaId': bgMediaId,
+        'voiceMediaId': voiceMediaId,
         'backgroundVolume': 0.3,
         'backgroundOverridden': false,
         'createdAt': combo.createdAt.toUtc().toIso8601String(),
@@ -194,14 +202,26 @@ class BackupService {
         )
         .toList();
 
-    final statusJson = await api.putJson('/backup', {
-      'deviceName': 'TRỐN Flutter App',
-      'appVersion': '1.0.0',
-      'settings': {'themeMode': themeMode.name, 'defaultCallDelaySeconds': 30},
-      'customAmbientSounds': ambientPayloads,
-      'customScenarios': scenarioPayloads,
-      'combos': comboPayloads,
-    });
+    final Map<String, dynamic> statusJson;
+    try {
+      statusJson = await api.putJson('/backup', {
+        'deviceName': 'TRỐN Flutter App',
+        'appVersion': '1.0.0',
+        'settings': {
+          'themeMode': themeMode.name,
+          'defaultCallDelaySeconds': 30,
+        },
+        'customAmbientSounds': ambientPayloads,
+        'customScenarios': scenarioPayloads,
+        'combos': comboPayloads,
+      });
+    } on ApiException catch (error) {
+      // Id giọng lưu trên máy đã bị server dọn: tải giọng lên lại rồi thử một lần nữa.
+      if (reuseVoiceIds && error.errorCode == 'MEDIA_NOT_FOUND') {
+        return performBackup(reuseVoiceIds: false);
+      }
+      rethrow;
+    }
 
     await ref.read(authStateProvider.notifier).refreshProfile();
     return BackupStatusInfo.fromJson(statusJson);
@@ -255,6 +275,11 @@ class BackupService {
       final customBgPath = await downloadMedia(
         map['customBackgroundMediaId'] as String?,
       );
+      final rawVoiceId = map['voiceMediaId'] as String?;
+      final voiceMediaId = rawVoiceId == ComboRepository.clearVoiceId
+          ? null
+          : rawVoiceId;
+      final voicePath = await downloadMedia(voiceMediaId);
       final bgList = ((map['backgroundSoundIds'] as List?) ?? const [])
           .map((e) => e.toString())
           .where(
@@ -276,6 +301,8 @@ class BackupService {
           ringtonePath: ringPath,
           backgroundSoundPaths: bgList,
           customBackgroundPath: customBgPath,
+          voicePath: voicePath,
+          voiceMediaId: voicePath == null ? null : voiceMediaId,
           createdAt:
               DateTime.tryParse(map['createdAt'] as String? ?? '') ??
               DateTime.now(),
@@ -301,29 +328,35 @@ class BackupService {
     }
     await performBackup();
 
-    final comboDtos = selectedCombos
-        .map(
-          (c) => {
-            'id': c.id,
-            'name': c.name,
-            'scenarioId': c.scenarioId,
-            'callInterface': c.callInterface.name,
-            'ringtoneType': c.ringtoneType.name,
-            'ringtoneMediaId': null,
-            'backgroundSoundIds': c.backgroundSoundPaths,
-            'customBackgroundMediaId': null,
-            'backgroundVolume': 0.3,
-            'backgroundOverridden': false,
-            'createdAt': c.createdAt.toUtc().toIso8601String(),
-          },
-        )
-        .toList();
+    final repository = ref.read(comboRepositoryProvider);
+    final comboDtos = <Map<String, dynamic>>[];
+    for (final c in selectedCombos) {
+      // Kèm giọng tự thu khi người dùng chọn chia sẻ cả âm thanh.
+      final voicePath = c.voicePath;
+      final voiceMediaId = !includeAudio || voicePath == null
+          ? null
+          : c.voiceMediaId ?? await repository.uploadVoice(voicePath);
+      comboDtos.add({
+        'id': c.id,
+        'name': c.name,
+        'scenarioId': c.scenarioId,
+        'callInterface': c.callInterface.name,
+        'ringtoneType': c.ringtoneType.name,
+        'ringtoneMediaId': null,
+        'backgroundSoundIds': c.backgroundSoundPaths,
+        'customBackgroundMediaId': null,
+        'voiceMediaId': voiceMediaId,
+        'backgroundVolume': 0.3,
+        'backgroundOverridden': false,
+        'createdAt': c.createdAt.toUtc().toIso8601String(),
+      });
+    }
 
     final res = await api.postJson('/shares', {
       'combos': comboDtos,
       'customScenarios': const <Map<String, dynamic>>[],
       'customAmbientSounds': const <Map<String, dynamic>>[],
-      'includeAudio': false,
+      'includeAudio': includeAudio,
       'expiresInDays': 7,
     });
 
@@ -333,35 +366,55 @@ class BackupService {
   /// Fetches an online share package by `EH-XXXXXX` code and converts it into a local `ComboPackage`.
   Future<ComboPackage> fetchOnlineSharePackage(String code) async {
     final api = ref.read(apiClientProvider);
-    final res = await api.postJson('/shares/${code.trim()}/import', {});
+    final shareCode = code.trim();
+    final res = await api.postJson('/shares/$shareCode/import', {});
     final rawCombos = (res['combos'] as List?) ?? const [];
-    final combos = rawCombos.map((raw) {
+    final audio = <String, Uint8List>{};
+    final combos = <ComboModel>[];
+    for (final raw in rawCombos) {
       final map = Map<String, dynamic>.from(raw as Map);
+      // Giọng tự thu đi kèm gói: tải về, gói nhập sẽ lưu thành file trên máy.
+      String? voicePath;
+      final voiceId = map['voiceMediaId'] as String?;
+      if (voiceId != null && voiceId != ComboRepository.clearVoiceId) {
+        try {
+          final bytes = await api.getBytes('/shares/$shareCode/media/$voiceId');
+          voicePath = 'media:${const Uuid().v4()}.wav';
+          audio[voicePath] = bytes;
+        } catch (_) {
+          // Không tải được giọng: combo dùng giọng máy đọc.
+        }
+      }
       final bgList = ((map['backgroundSoundIds'] as List?) ?? const [])
           .map((e) => e.toString())
           .where(
             (key) => BackgroundSound.values.any((sound) => sound.name == key),
           )
           .toList();
-      return ComboModel(
-        id: map['id'] as String,
-        name: map['name'] as String,
-        scenarioId: map['scenarioId'] as String,
-        callInterface: CallInterface.values.byName(
-          map['callInterface'] as String,
+      combos.add(
+        ComboModel(
+          id: map['id'] as String,
+          name: map['name'] as String,
+          scenarioId: map['scenarioId'] as String,
+          callInterface: CallInterface.values.byName(
+            map['callInterface'] as String,
+          ),
+          ringtoneType: RingtoneType.values.byName(
+            map['ringtoneType'] as String,
+          ),
+          backgroundSoundPaths: bgList,
+          voicePath: voicePath,
+          createdAt:
+              DateTime.tryParse(map['createdAt'] as String? ?? '') ??
+              DateTime.now(),
         ),
-        ringtoneType: RingtoneType.values.byName(map['ringtoneType'] as String),
-        backgroundSoundPaths: bgList,
-        createdAt:
-            DateTime.tryParse(map['createdAt'] as String? ?? '') ??
-            DateTime.now(),
       );
-    }).toList();
+    }
 
     return ComboPackage(
       id: (res['code'] as String? ?? 'EH-ONLINE').replaceFirst('EH-', ''),
       combos: combos,
-      audio: const {},
+      audio: audio,
     );
   }
 }

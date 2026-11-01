@@ -43,6 +43,9 @@ public class BackupRepository(TronDbContext db)
 
     public void AddUserSettings(UserSettings settings) => db.UserSettings.Add(settings);
 
+    public Task<Dictionary<Guid, Guid?>> GetComboVoiceIdsAsync(Guid userId, CancellationToken ct = default) =>
+        db.Combos.Where(c => c.OwnerId == userId).ToDictionaryAsync(c => c.Id, c => c.VoiceMediaId, ct);
+
     public async Task ClearUserSnapshotEntitiesAsync(Guid userId, CancellationToken ct = default)
     {
         var oldCombos = await db.Combos.Where(c => c.OwnerId == userId).ToListAsync(ct);

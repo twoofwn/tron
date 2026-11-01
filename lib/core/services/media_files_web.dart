@@ -26,3 +26,15 @@ Future<String> mediaFileUri(String name) async => Uri.dataFromBytes(
   await readMediaFile(name),
   mimeType: name.endsWith('.mp3') ? 'audio/mpeg' : 'audio/wav',
 ).toString();
+
+/// Trên web, thư viện thu âm tự giữ bản thu và trả về blob URL.
+Future<String> tempRecordingPath(String name) async => '';
+
+/// Blob URL do trình duyệt quản lý, không có file tạm để xoá.
+Future<void> deleteTempFile(String path) async {}
+
+Future<bool> mediaFileExists(String name) async =>
+    (await SharedPreferences.getInstance()).containsKey('tron.audio.$name');
+
+Future<void> deleteMediaFile(String name) async =>
+    (await SharedPreferences.getInstance()).remove('tron.audio.$name');

@@ -71,6 +71,24 @@ public class BackupAndShareService(
             settings.UpdatedAt = DateTime.UtcNow;
         }
 
+        // Kiểm tra file của combo TRƯỚC khi xoá dữ liệu cũ, để request bị từ chối không làm mất gì.
+        var comboMediaIds = request.Combos
+            .SelectMany(c => new[] { c.RingtoneMediaId, c.CustomBackgroundMediaId, c.VoiceMediaId })
+            .Where(id => id.HasValue && id.Value != Guid.Empty)
+            .Select(id => id!.Value)
+            .ToHashSet();
+        if (comboMediaIds.Count > 0)
+        {
+            var owned = await mediaRepo.GetOwnedMediaIdsAsync(userId, comboMediaIds, ct);
+            if (owned.Count != comboMediaIds.Count)
+            {
+                throw new ApiDomainException("MEDIA_NOT_FOUND", "File âm thanh không tồn tại hoặc không thuộc tài khoản này.");
+            }
+        }
+
+        // App bản cũ (hoặc khi tải giọng lên lỗi) không gửi voiceMediaId: giữ giọng đang có trên server.
+        var previousVoices = await backupRepo.GetComboVoiceIdsAsync(userId, ct);
+
         // 2. Replace existing custom Combos, Scenarios, AmbientSounds for this user
         await backupRepo.ClearUserSnapshotEntitiesAsync(userId, ct);
 
@@ -168,8 +186,19 @@ public class BackupAndShareService(
             {
                 referencedMediaIds.Add(dto.CustomBackgroundMediaId.Value);
             }
-
             var comboId = dto.Id == Guid.Empty ? Guid.NewGuid() : dto.Id;
+            var voiceMediaId = dto.VoiceMediaId switch
+            {
+                null => previousVoices.GetValueOrDefault(comboId),
+                var id when id == Guid.Empty => null,
+                var id => id,
+            };
+            if (voiceMediaId.HasValue)
+            {
+                // Kể cả giọng được giữ lại, để bước dưới không đánh dấu nó là mồ côi.
+                referencedMediaIds.Add(voiceMediaId.Value);
+            }
+
             var combo = new Combo
             {
                 Id = comboId,
@@ -180,6 +209,7 @@ public class BackupAndShareService(
                 RingtoneType = ParseRingtone(dto.RingtoneType),
                 RingtoneMediaId = dto.RingtoneMediaId,
                 CustomBackgroundMediaId = dto.CustomBackgroundMediaId,
+                VoiceMediaId = voiceMediaId,
                 BackgroundVolume = Math.Clamp(dto.BackgroundVolume, 0m, 1m),
                 BackgroundOverridden = dto.BackgroundOverridden,
                 SortOrder = comboOrder++,
@@ -313,7 +343,8 @@ public class BackupAndShareService(
                 c.CustomBackgroundMediaId,
                 c.BackgroundVolume,
                 c.BackgroundOverridden,
-                c.CreatedAt)).ToList(),
+                c.CreatedAt,
+                c.VoiceMediaId)).ToList(),
             mediaFiles.Select(m => new MediaCheckItemDto(m.Sha256, m.Id, m.Extension, m.SizeBytes)).ToList());
     }
 
@@ -339,6 +370,7 @@ public class BackupAndShareService(
             {
                 if (c.RingtoneMediaId.HasValue) mediaIds.Add(c.RingtoneMediaId.Value);
                 if (c.CustomBackgroundMediaId.HasValue) mediaIds.Add(c.CustomBackgroundMediaId.Value);
+                if (c.VoiceMediaId.HasValue) mediaIds.Add(c.VoiceMediaId.Value);
             }
             foreach (var s in request.CustomScenarios)
             {

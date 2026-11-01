@@ -22,6 +22,9 @@ public static class DbInitializer
             Log.Warning(ex, "EnsureCreated encountered a warning/notice (database schema may already exist). Proceeding with data seed check.");
         }
 
+        // EnsureCreated không sửa bảng đã có, nên database tạo trước đó cần được bổ sung cột mới.
+        await EnsureComboVoiceColumnAsync(db, ct);
+
         // Seed seed data if missing
         await SeedAmbientSoundsAsync(db, ct);
         await SeedRingtonesAsync(db, ct);
@@ -30,6 +33,37 @@ public static class DbInitializer
         await SeedMarketPackagesAsync(db, ct);
 
         Log.Information("Database initialization and seed complete.");
+    }
+
+    /// <summary>
+    /// Thêm cột Combos.VoiceMediaId (giọng người gọi tự thu) vào database cũ. Chạy lại nhiều lần vẫn an toàn.
+    /// </summary>
+    private static async Task EnsureComboVoiceColumnAsync(TronDbContext db, CancellationToken ct)
+    {
+        const string sql = """
+            IF COL_LENGTH(N'dbo.Combos', N'VoiceMediaId') IS NULL
+            BEGIN
+                ALTER TABLE [dbo].[Combos] ADD [VoiceMediaId] UNIQUEIDENTIFIER NULL;
+            END;
+            IF OBJECT_ID(N'[dbo].[FK_Combos_MediaFiles_VoiceMediaId]', N'F') IS NULL
+            BEGIN
+                EXEC(N'ALTER TABLE [dbo].[Combos] ADD CONSTRAINT [FK_Combos_MediaFiles_VoiceMediaId]
+                    FOREIGN KEY ([VoiceMediaId]) REFERENCES [dbo].[MediaFiles] ([Id])');
+            END;
+            IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Combos_VoiceMediaId' AND object_id = OBJECT_ID(N'dbo.Combos'))
+            BEGIN
+                EXEC(N'CREATE INDEX [IX_Combos_VoiceMediaId] ON [dbo].[Combos] ([VoiceMediaId])');
+            END;
+            """;
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(sql, ct);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Could not add Combos.VoiceMediaId. Run the ALTER block in trondb.sql manually.");
+            throw;
+        }
     }
 
     private static async Task SeedAmbientSoundsAsync(TronDbContext db, CancellationToken ct)

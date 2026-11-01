@@ -146,6 +146,8 @@ public class Combo
     public RingtoneType RingtoneType { get; set; } = RingtoneType.InterfaceDefault;
     public Guid? RingtoneMediaId { get; set; }
     public Guid? CustomBackgroundMediaId { get; set; }
+    /// <summary>Giọng người gọi do người dùng tự thu; null thì app đọc kịch bản bằng TTS.</summary>
+    public Guid? VoiceMediaId { get; set; }
     public decimal BackgroundVolume { get; set; } = 0.30m;
     public bool BackgroundOverridden { get; set; }
     public int SortOrder { get; set; }
@@ -155,6 +157,7 @@ public class Combo
     public User? Owner { get; set; }
     public MediaFile? RingtoneMedia { get; set; }
     public MediaFile? CustomBackgroundMedia { get; set; }
+    public MediaFile? VoiceMedia { get; set; }
     public ICollection<ComboBackground> Backgrounds { get; set; } = new List<ComboBackground>();
 }
 

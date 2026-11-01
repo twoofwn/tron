@@ -91,7 +91,9 @@ public record BackupComboDto(
     Guid? CustomBackgroundMediaId,
     decimal BackgroundVolume,
     bool BackgroundOverridden,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    // Đặt cuối và mặc định null để app bản cũ (không gửi trường này) vẫn dùng được.
+    Guid? VoiceMediaId = null);
 
 public record BackupSnapshotRequest(
     string? DeviceName,

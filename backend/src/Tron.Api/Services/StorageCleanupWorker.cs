@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Tron.Api.Db;
 using Tron.Api.Models;
+using Tron.Api.Repositories;
 
 namespace Tron.Api.Services;
 
@@ -69,14 +70,41 @@ public class StorageCleanupWorker(
                 continue;
             }
 
-            await mediaStorage.DeleteAsync(media.StorageKey, ct);
-            db.MediaFiles.Remove(media);
-            removedCount++;
-        }
+            try
+            {
+                // Bị đánh dấu nhầm nhưng vẫn đang được dùng: bỏ dấu mồ côi, không xoá.
+                if (await MediaRepository.IsMediaReferencedAsync(db, media.Id, ct))
+                {
+                    media.OrphanedAt = null;
+                    await db.SaveChangesAsync(ct);
+                    continue;
+                }
 
-        if (removedCount > 0)
-        {
-            await db.SaveChangesAsync(ct);
+                // Xoá dòng DB trước; chỉ xoá file khi DB xoá được, để không còn dòng trỏ tới file đã mất.
+                db.MediaFiles.Remove(media);
+                await db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateException ex)
+            {
+                // Vừa có combo dùng lại file này (ví dụ qua /media/check): giữ file.
+                logger.LogWarning(ex, "Keep media {MediaId}: still referenced", media.Id);
+                db.Entry(media).State = EntityState.Unchanged;
+                media.OrphanedAt = null;
+                await db.SaveChangesAsync(ct);
+                continue;
+            }
+
+            try
+            {
+                await mediaStorage.DeleteAsync(media.StorageKey, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Dòng DB đã xoá; file còn sót chỉ tốn chỗ, không làm hỏng cả lượt dọn.
+                logger.LogWarning(ex, "Could not delete stored file {StorageKey}", media.StorageKey);
+            }
+
+            removedCount++;
         }
 
         return removedCount;

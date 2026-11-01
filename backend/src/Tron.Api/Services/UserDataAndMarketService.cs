@@ -7,7 +7,8 @@ namespace Tron.Api.Services;
 
 public class UserDataService(
     UserDataRepository userDataRepo,
-    UserRepository userRepo)
+    UserRepository userRepo,
+    MediaRepository mediaRepo)
 {
     public async Task<IReadOnlyList<BackupComboDto>> GetCombosAsync(Guid userId, CancellationToken ct = default)
     {
@@ -40,6 +41,12 @@ public class UserDataService(
         var existing = await userDataRepo.FindUserComboWithBackgroundsAsync(userId, comboId, ct);
         var prefix = $"u_{userId:N}_";
 
+        // Chỉ nhận file thuộc chính người dùng. Guid.Empty ở trường giọng nghĩa là xoá giọng.
+        var ringtoneMediaId = await ResolveOwnedMediaAsync(userId, dto.RingtoneMediaId, ct);
+        var customBackgroundMediaId = await ResolveOwnedMediaAsync(userId, dto.CustomBackgroundMediaId, ct);
+        var voiceMediaId = await ResolveOwnedMediaAsync(userId, dto.VoiceMediaId, ct);
+        var previousVoiceMediaId = existing?.VoiceMediaId;
+
         if (existing is null)
         {
             var count = await userDataRepo.CountUserCombosAsync(userId, ct);
@@ -56,8 +63,9 @@ public class UserDataService(
                 ScenarioId = dto.ScenarioId,
                 CallInterface = ParseCallInterface(dto.CallInterface),
                 RingtoneType = ParseRingtone(dto.RingtoneType),
-                RingtoneMediaId = dto.RingtoneMediaId,
-                CustomBackgroundMediaId = dto.CustomBackgroundMediaId,
+                RingtoneMediaId = ringtoneMediaId,
+                CustomBackgroundMediaId = customBackgroundMediaId,
+                VoiceMediaId = voiceMediaId,
                 BackgroundVolume = Math.Clamp(dto.BackgroundVolume <= 0 ? 0.3m : dto.BackgroundVolume, 0m, 1m),
                 BackgroundOverridden = dto.BackgroundOverridden,
                 SortOrder = count + 1,
@@ -88,8 +96,13 @@ public class UserDataService(
             existing.ScenarioId = dto.ScenarioId;
             existing.CallInterface = ParseCallInterface(dto.CallInterface);
             existing.RingtoneType = ParseRingtone(dto.RingtoneType);
-            existing.RingtoneMediaId = dto.RingtoneMediaId;
-            existing.CustomBackgroundMediaId = dto.CustomBackgroundMediaId;
+            existing.RingtoneMediaId = ringtoneMediaId;
+            existing.CustomBackgroundMediaId = customBackgroundMediaId;
+            // Không gửi trường này (app bản cũ) thì giữ nguyên; Guid.Empty nghĩa là người dùng đã xoá giọng.
+            if (dto.VoiceMediaId.HasValue)
+            {
+                existing.VoiceMediaId = voiceMediaId;
+            }
             existing.BackgroundVolume = Math.Clamp(dto.BackgroundVolume <= 0 ? 0.3m : dto.BackgroundVolume, 0m, 1m);
             existing.BackgroundOverridden = dto.BackgroundOverridden;
             existing.UpdatedAt = DateTime.UtcNow;
@@ -115,7 +128,30 @@ public class UserDataService(
         }
 
         await userDataRepo.SaveChangesAsync(ct);
+
+        // Giọng cũ bị thay hoặc xoá: đánh dấu để dọn, khỏi chiếm hạn mức.
+        if (previousVoiceMediaId.HasValue && previousVoiceMediaId != existing.VoiceMediaId)
+        {
+            await mediaRepo.OrphanIfUnreferencedAsync(userId, previousVoiceMediaId.Value, ct);
+        }
+
         return MapComboDto(existing, prefix);
+    }
+
+    /// <summary>
+    /// null hoặc Guid.Empty → null. Id khác phải là file của chính người dùng (bỏ dấu mồ côi nếu có), nếu không thì báo lỗi 400.
+    /// </summary>
+    private async Task<Guid?> ResolveOwnedMediaAsync(Guid userId, Guid? mediaId, CancellationToken ct)
+    {
+        if (mediaId is null || mediaId == Guid.Empty)
+        {
+            return null;
+        }
+
+        var media = await mediaRepo.FindOwnedMediaTrackedAsync(userId, mediaId.Value, ct)
+            ?? throw new ApiDomainException("MEDIA_NOT_FOUND", "File âm thanh không tồn tại hoặc không thuộc tài khoản này.");
+        media.OrphanedAt = null;
+        return media.Id;
     }
 
     public async Task DeleteComboAsync(Guid userId, Guid comboId, CancellationToken ct = default)
@@ -126,8 +162,13 @@ public class UserDataService(
             return;
         }
 
+        var voiceMediaId = existing.VoiceMediaId;
         userDataRepo.RemoveCombo(existing);
         await userDataRepo.SaveChangesAsync(ct);
+        if (voiceMediaId.HasValue)
+        {
+            await mediaRepo.OrphanIfUnreferencedAsync(userId, voiceMediaId.Value, ct);
+        }
     }
 
     public async Task<UserScenariosBundleDto> GetUserScenariosBundleAsync(Guid userId, CancellationToken ct = default)
@@ -399,7 +440,8 @@ public class UserDataService(
             c.CustomBackgroundMediaId,
             c.BackgroundVolume,
             c.BackgroundOverridden,
-            c.CreatedAt);
+            c.CreatedAt,
+            c.VoiceMediaId);
 
     internal static ScenarioDto MapScenarioDto(Scenario s, string prefix) =>
         new(
@@ -620,10 +662,14 @@ public class MarketService(
         {
             try
             {
+                // File âm thanh riêng thuộc người bán: người mua không dùng được, dùng chuông/giọng mặc định.
                 var newComboDto = combo with
                 {
                     Id = Guid.NewGuid(),
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    RingtoneMediaId = null,
+                    CustomBackgroundMediaId = null,
+                    VoiceMediaId = null
                 };
                 var savedCombo = await userDataService.UpsertComboAsync(userId, newComboDto, ct);
                 addedCombos.Add(savedCombo);

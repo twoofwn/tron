@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../../../shared/enums/call_interface.dart';
 
 class ComboModel {
@@ -11,6 +13,9 @@ class ComboModel {
     this.ringtonePath,
     this.backgroundSoundPaths = const [],
     this.customBackgroundPath,
+    this.voicePath,
+    this.voiceMediaId,
+    this.syncPending = false,
   });
   final String id;
   final String name;
@@ -20,6 +25,18 @@ class ComboModel {
   final String? ringtonePath;
   final List<String> backgroundSoundPaths;
   final String? customBackgroundPath;
+
+  /// Giọng người gọi do người dùng tự thu (`media:UUID.wav`). Có giọng này thì
+  /// cuộc gọi phát nó thay cho giọng máy đọc kịch bản.
+  final String? voicePath;
+
+  /// Id trên server của giọng đang dùng, lần đồng bộ gần nhất trên máy này.
+  /// Chỉ có nghĩa với tài khoản đang đăng nhập; không đi theo khi chia sẻ.
+  final String? voiceMediaId;
+
+  /// Combo đã đổi trên máy (kể cả giọng) nhưng server chưa nhận, ví dụ do mất
+  /// mạng. Khi còn cờ này, bản trên máy được ưu tiên và app gửi lại lên server.
+  final bool syncPending;
   final DateTime createdAt;
 
   ComboModel copyWith({
@@ -27,6 +44,11 @@ class ComboModel {
     String? name,
     String? ringtonePath,
     String? customBackgroundPath,
+    String? voicePath,
+    String? voiceMediaId,
+    bool? syncPending,
+    bool clearVoice = false,
+    bool clearVoiceMediaId = false,
     bool stripCustomAudio = false,
   }) => ComboModel(
     id: id ?? this.id,
@@ -42,7 +64,34 @@ class ComboModel {
     customBackgroundPath: stripCustomAudio
         ? null
         : customBackgroundPath ?? this.customBackgroundPath,
+    voicePath: stripCustomAudio || clearVoice
+        ? null
+        : voicePath ?? this.voicePath,
+    voiceMediaId: stripCustomAudio || clearVoice || clearVoiceMediaId
+        ? null
+        : voiceMediaId ?? this.voiceMediaId,
+    syncPending: stripCustomAudio ? false : syncPending ?? this.syncPending,
   );
+
+  /// Bỏ thông tin đồng bộ của tài khoản này (khi chia sẻ, nhập, sao chép):
+  /// combo nhận về sẽ tự tải giọng lên tài khoản của người nhận.
+  ComboModel withoutSync() =>
+      copyWith(clearVoiceMediaId: true, syncPending: true);
+
+  /// So nội dung combo, bỏ qua thông tin đồng bộ.
+  bool sameContentAs(ComboModel other) {
+    Map<String, Object?> content(ComboModel combo) => combo.toJson()
+      ..remove('voiceMediaId')
+      ..remove('syncPending');
+    return jsonEncode(content(this)) == jsonEncode(content(other));
+  }
+
+  /// Mọi file âm thanh riêng của combo: chuông, âm nền và giọng thu.
+  List<String> get customAudioPaths => [
+    ?ringtonePath,
+    ?customBackgroundPath,
+    ?voicePath,
+  ];
   Map<String, Object?> toJson() => {
     'id': id,
     'name': name,
@@ -52,6 +101,9 @@ class ComboModel {
     'ringtonePath': ringtonePath,
     'backgroundSoundPaths': backgroundSoundPaths,
     'customBackgroundPath': customBackgroundPath,
+    'voicePath': voicePath,
+    'voiceMediaId': voiceMediaId,
+    'syncPending': syncPending,
     'createdAt': createdAt.toIso8601String(),
   };
   factory ComboModel.fromJson(Map<String, Object?> json) {
@@ -112,6 +164,9 @@ class ComboModel {
       ringtonePath: json['ringtonePath'] as String?,
       backgroundSoundPaths: List.unmodifiable(backgrounds),
       customBackgroundPath: json['customBackgroundPath'] as String?,
+      voicePath: json['voicePath'] as String?,
+      voiceMediaId: json['voiceMediaId'] as String?,
+      syncPending: json['syncPending'] as bool? ?? false,
       createdAt: createdAt,
     );
   }

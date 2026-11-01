@@ -10,6 +10,7 @@ import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/glass_card.dart';
 import '../../../shared/widgets/screen_shell.dart';
 import '../../backup/services/backup_service.dart';
+import '../../combo/providers/combo_provider.dart';
 import '../providers/auth_provider.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
@@ -58,6 +59,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         await notifier.login(_emailController.text, _passwordController.text);
       }
 
+      // Tải lại danh sách combo của tài khoản (kèm giọng tự thu) ngay sau khi đăng nhập.
+      ref.invalidate(comboListProvider);
       if (mounted && Navigator.of(context).canPop()) {
         Navigator.of(context).pop();
       }

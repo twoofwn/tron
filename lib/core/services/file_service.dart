@@ -45,6 +45,25 @@ class FileService {
 
   Future<Uint8List> readAudio(String path) => media.readMediaFile(_name(path));
   Future<String> audioUri(String path) => media.mediaFileUri(_name(path));
+
+  /// File âm thanh riêng còn trên máy không.
+  Future<bool> hasAudio(String path) async {
+    try {
+      return await media.mediaFileExists(_name(path));
+    } on FormatException {
+      return false;
+    }
+  }
+
+  /// Xoá file âm thanh riêng không còn combo nào dùng.
+  Future<void> deleteAudio(String path) async {
+    try {
+      await media.deleteMediaFile(_name(path));
+    } on FormatException {
+      // Không phải file của app: bỏ qua.
+    }
+  }
+
   Future<Uint8List?> pickPackage() async {
     final file = await FilePicker.pickFile(
       type: FileType.custom,

@@ -1,0 +1,412 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:crypto/crypto.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tron/core/config/app_config.dart';
+import 'package:tron/core/network/api_client.dart';
+import 'package:tron/core/services/file_service.dart';
+import 'package:tron/core/services/storage_service.dart';
+import 'package:tron/features/combo/models/combo_model.dart';
+import 'package:tron/features/combo/providers/combo_provider.dart';
+import 'package:tron/features/combo/repositories/combo_repository.dart';
+import 'package:tron/features/sharing/repositories/sharing_repository.dart';
+import 'package:tron/shared/enums/call_interface.dart';
+
+Uint8List wav(int fill) => Uint8List.fromList(List.filled(44 + 22050, fill));
+
+/// Âm thanh lưu trong bộ nhớ thay cho thư mục của app.
+class MemoryFiles extends FileService {
+  final audio = <String, Uint8List>{};
+  final deleted = <String>[];
+  var _next = 0;
+  @override
+  Future<Uint8List> readAudio(String path) async =>
+      audio[path] ?? (throw StateError('missing $path'));
+  @override
+  Future<String> storeAudio(Uint8List bytes, String extension) async {
+    final path = 'media:local-${_next++}.$extension';
+    audio[path] = bytes;
+    return path;
+  }
+
+  @override
+  Future<bool> hasAudio(String path) async => audio.containsKey(path);
+  @override
+  Future<void> deleteAudio(String path) async {
+    audio.remove(path);
+    deleted.add(path);
+  }
+}
+
+/// Server giả: giữ combo và file âm thanh của một tài khoản.
+class FakeServer {
+  final combos = <String, Map<String, dynamic>>{};
+  final media = <String, Uint8List>{};
+  final posted = <Map<String, dynamic>>[];
+  var uploads = 0;
+  var downloads = 0;
+  var listCalls = 0;
+  var failDownloads = false;
+  var offline = false;
+  var _next = 1;
+
+  String addMedia(Uint8List bytes) {
+    final id =
+        'aaaaaaaa-0000-0000-0000-${(_next++).toString().padLeft(12, '0')}';
+    media[id] = bytes;
+    return id;
+  }
+
+  http.Response _json(Object body, [int status = 200]) => http.Response(
+    jsonEncode(body),
+    status,
+    headers: {'content-type': 'application/json; charset=utf-8'},
+  );
+
+  late final client = MockClient((request) async {
+    if (offline) {
+      throw http.ClientException('offline');
+    }
+    final path = request.url.path.replaceFirst('/api/v1', '');
+    if (path == '/combos' && request.method == 'GET') {
+      listCalls++;
+      return _json(combos.values.toList());
+    }
+    if (path == '/combos' && request.method == 'POST') {
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      posted.add(body);
+      final voice = body['voiceMediaId'] as String?;
+      if (voice != null &&
+          voice != ComboRepository.clearVoiceId &&
+          !media.containsKey(voice)) {
+        return _json({'errorCode': 'MEDIA_NOT_FOUND'}, 400);
+      }
+      final previousVoice = combos[body['id']]?['voiceMediaId'];
+      final String? storedVoice;
+      if (!body.containsKey('voiceMediaId')) {
+        storedVoice = previousVoice as String?;
+      } else if (voice == ComboRepository.clearVoiceId) {
+        storedVoice = null;
+      } else {
+        storedVoice = voice;
+      }
+      combos[body['id'] as String] = {...body, 'voiceMediaId': storedVoice};
+      return _json(combos[body['id']]!);
+    }
+    if (path == '/media/check') {
+      final hashes = (jsonDecode(request.body)['sha256List'] as List)
+          .cast<String>();
+      final existing = [
+        for (final entry in media.entries)
+          if (hashes.contains(sha256.convert(entry.value).toString()))
+            {'mediaId': entry.key},
+      ];
+      return _json({'existing': existing});
+    }
+    if (path == '/media' && request.method == 'POST') {
+      uploads++;
+      return _json({'mediaId': addMedia(wav(uploads))});
+    }
+    if (path.startsWith('/media/')) {
+      downloads++;
+      final bytes = media[path.substring('/media/'.length)];
+      if (failDownloads || bytes == null) {
+        return _json({'errorCode': 'MEDIA_NOT_FOUND'}, 404);
+      }
+      return http.Response.bytes(bytes, 200);
+    }
+    return _json({'errorCode': 'NOT_FOUND'}, 404);
+  });
+}
+
+void main() {
+  late StorageService storage;
+  late MemoryFiles files;
+  late FakeServer server;
+  late ComboRepository repository;
+  final id = ComboRepository.ensureGuid('c');
+
+  ComboModel combo({
+    String? voicePath,
+    String? voiceMediaId,
+    bool pending = false,
+  }) => ComboModel(
+    id: id,
+    name: 'Mẹ',
+    scenarioId: 'mother',
+    callInterface: CallInterface.phone,
+    createdAt: DateTime(2026),
+    voicePath: voicePath,
+    voiceMediaId: voiceMediaId,
+    syncPending: pending,
+  );
+
+  void serverHas(String? voiceMediaId) => server.combos[id] = {
+    ...ComboRepository.toServerMap(combo()),
+    'voiceMediaId': voiceMediaId,
+  };
+
+  Future<void> deviceHas(ComboModel value) async =>
+      ComboRepository(storage).save([value]);
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues({AppConfig.accessTokenKey: 'token'});
+    storage = StorageService();
+    files = MemoryFiles();
+    server = FakeServer();
+    repository = ComboRepository(
+      storage,
+      api: ApiClient(
+        storage: storage,
+        httpClient: server.client,
+        baseUrl: 'http://x',
+      ),
+      files: files,
+    );
+  });
+
+  test('Data saved by an older app version (no sync fields) still loads', () {
+    final legacy = ComboModel.fromJson({
+      'id': id,
+      'name': 'Mẹ',
+      'scenarioId': 'mother',
+      'callInterface': 'phone',
+      'voicePath': 'media:0f0f.wav',
+      'createdAt': '2026-01-01T00:00:00.000',
+    });
+    expect(legacy.voicePath, 'media:0f0f.wav');
+    expect(legacy.voiceMediaId, isNull);
+    expect(legacy.syncPending, isFalse);
+  });
+
+  test('A voice recorded before this update is kept and uploaded', () async {
+    files.audio['media:old.wav'] = wav(9);
+    await deviceHas(combo(voicePath: 'media:old.wav'));
+    serverHas(null);
+    final loaded = (await repository.load()).single;
+    expect(loaded.voicePath, 'media:old.wav');
+    expect(loaded.syncPending, isFalse);
+    expect(server.uploads, 1);
+    expect(server.combos[id]!['voiceMediaId'], loaded.voiceMediaId);
+  });
+
+  test('Unchanged voice is kept and not downloaded again', () async {
+    final remoteId = server.addMedia(wav(1));
+    files.audio['media:mine.wav'] = wav(1);
+    await deviceHas(combo(voicePath: 'media:mine.wav', voiceMediaId: remoteId));
+    serverHas(remoteId);
+    final loaded = (await repository.load()).single;
+    expect(loaded.voicePath, 'media:mine.wav');
+    expect(server.downloads, 0);
+  });
+
+  test(
+    'Voice deleted on another device is removed here, file deleted',
+    () async {
+      final remoteId = server.addMedia(wav(1));
+      files.audio['media:mine.wav'] = wav(1);
+      await deviceHas(
+        combo(voicePath: 'media:mine.wav', voiceMediaId: remoteId),
+      );
+      serverHas(null);
+      final loaded = (await repository.load()).single;
+      expect(loaded.voicePath, isNull);
+      expect(files.deleted, ['media:mine.wav']);
+    },
+  );
+
+  test('Voice re-recorded on another device replaces the one here', () async {
+    final oldId = server.addMedia(wav(1));
+    final newId = server.addMedia(wav(2));
+    files.audio['media:mine.wav'] = wav(1);
+    await deviceHas(combo(voicePath: 'media:mine.wav', voiceMediaId: oldId));
+    serverHas(newId);
+    final loaded = (await repository.load()).single;
+    expect(loaded.voiceMediaId, newId);
+    expect(files.audio[loaded.voicePath], wav(2));
+    expect(files.deleted, ['media:mine.wav']);
+  });
+
+  test('Voice deleted here while offline is not brought back', () async {
+    final remoteId = server.addMedia(wav(1));
+    await deviceHas(combo(pending: true));
+    serverHas(remoteId);
+    final loaded = (await repository.load()).single;
+    expect(loaded.voicePath, isNull);
+    expect(loaded.syncPending, isFalse);
+    expect(server.posted.last['voiceMediaId'], ComboRepository.clearVoiceId);
+    expect(server.combos[id]!['voiceMediaId'], isNull);
+    expect(server.downloads, 0);
+  });
+
+  test('Voice re-recorded here while offline wins over the server', () async {
+    final remoteId = server.addMedia(wav(1));
+    files.audio['media:new.wav'] = wav(5);
+    await deviceHas(combo(voicePath: 'media:new.wav', pending: true));
+    serverHas(remoteId);
+    final loaded = (await repository.load()).single;
+    expect(loaded.voicePath, 'media:new.wav');
+    expect(loaded.voiceMediaId, isNot(remoteId));
+    expect(server.combos[id]!['voiceMediaId'], loaded.voiceMediaId);
+  });
+
+  test('A lost local file is downloaded again', () async {
+    final remoteId = server.addMedia(wav(3));
+    await deviceHas(combo(voicePath: 'media:gone.wav', voiceMediaId: remoteId));
+    serverHas(remoteId);
+    final loaded = (await repository.load()).single;
+    expect(files.audio[loaded.voicePath], wav(3));
+  });
+
+  test('A failed download keeps the current voice and retries later', () async {
+    final oldId = server.addMedia(wav(1));
+    final newId = server.addMedia(wav(2));
+    files.audio['media:mine.wav'] = wav(1);
+    await deviceHas(combo(voicePath: 'media:mine.wav', voiceMediaId: oldId));
+    serverHas(newId);
+    server.failDownloads = true;
+    final first = (await repository.load()).single;
+    expect(first.voicePath, 'media:mine.wav');
+    expect(first.voiceMediaId, oldId);
+    server.failDownloads = false;
+    final second = (await repository.load()).single;
+    expect(second.voiceMediaId, newId);
+  });
+
+  test(
+    'Saving a synced voice reuses its id; a missing server copy is re-uploaded',
+    () async {
+      final remoteId = server.addMedia(wav(1));
+      files.audio['media:mine.wav'] = wav(1);
+      final synced = await repository.upsertRemote(
+        combo(voicePath: 'media:mine.wav', voiceMediaId: remoteId),
+      );
+      expect(server.uploads, 0);
+      expect(synced!.voiceMediaId, remoteId);
+
+      server.media.remove(remoteId);
+      final again = await repository.upsertRemote(
+        combo(voicePath: 'media:mine.wav', voiceMediaId: remoteId),
+      );
+      expect(server.uploads, 1);
+      expect(again!.voiceMediaId, isNot(remoteId));
+      expect(server.combos[id]!['voiceMediaId'], again.voiceMediaId);
+    },
+  );
+
+  test(
+    'A failed upload leaves the server voice untouched and stays pending',
+    () async {
+      final remoteId = server.addMedia(wav(1));
+      serverHas(remoteId);
+      final result = await repository.upsertRemote(
+        combo(voicePath: 'media:unreadable.wav', pending: true),
+      );
+      expect(result, isNull);
+      expect(server.posted.last.containsKey('voiceMediaId'), isFalse);
+      expect(server.combos[id]!['voiceMediaId'], remoteId);
+    },
+  );
+
+  test(
+    'Saving the list deletes voice files no combo uses, keeps shared ones',
+    () async {
+      files.audio['media:a.wav'] = wav(1);
+      files.audio['media:b.wav'] = wav(2);
+      final local = ComboRepository(storage, files: files);
+      final a = combo(voicePath: 'media:a.wav');
+      final copy = a.copyWith(id: 'copy');
+      final b = combo(voicePath: 'media:b.wav').copyWith(id: 'b');
+      await local.save([a, copy, b]);
+      await local.save([copy, b.copyWith(clearVoice: true)]);
+      expect(files.audio.containsKey('media:a.wav'), isTrue);
+      expect(files.deleted, ['media:b.wav']);
+    },
+  );
+
+  test('Shared packages never carry this account sync ids', () async {
+    files.audio['media:a.wav'] = wav(1);
+    final sharing = SharingRepository(files);
+    final package = await sharing.create([
+      combo(
+        voicePath: 'media:a.wav',
+        voiceMediaId: 'aaaaaaaa-0000-0000-0000-000000000009',
+      ),
+    ], includeAudio: true);
+    final json = jsonDecode(utf8.decode(sharing.encode(package))) as Map;
+    expect((json['combos'] as List).single['voiceMediaId'], isNull);
+    final imported = (await sharing.materialize(package, {id})).single;
+    expect(imported.voiceMediaId, isNull);
+    expect(imported.syncPending, isTrue);
+  });
+
+  test('Saving through the app records the synced id on the combo', () async {
+    files.audio['media:a.wav'] = wav(4);
+    final container = ProviderContainer(
+      overrides: [comboRepositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+    await container.read(comboListProvider.future);
+    await container
+        .read(comboListProvider.notifier)
+        .saveCombo(combo(voicePath: 'media:a.wav', pending: true));
+    final saved = (await container.read(comboListProvider.future))
+        .firstWhere((item) => item.id == id);
+    expect(saved.syncPending, isFalse);
+    expect(saved.voiceMediaId, server.combos[id]!['voiceMediaId']);
+  });
+
+  test('Offline save keeps the change pending for the next load', () async {
+    files.audio['media:a.wav'] = wav(4);
+    server.offline = true;
+    final container = ProviderContainer(
+      overrides: [comboRepositoryProvider.overrideWithValue(repository)],
+    );
+    addTearDown(container.dispose);
+    await container.read(comboListProvider.future);
+    await container
+        .read(comboListProvider.notifier)
+        .saveCombo(combo(voicePath: 'media:a.wav', pending: true));
+    final saved = (await container.read(comboListProvider.future))
+        .firstWhere((item) => item.id == id);
+    expect(saved.syncPending, isTrue);
+    server.offline = false;
+    final reloaded = (await repository.load()).firstWhere(
+      (item) => item.id == id,
+    );
+    expect(reloaded.syncPending, isFalse);
+    expect(server.combos[id]!['voiceMediaId'], reloaded.voiceMediaId);
+  });
+
+  test(
+    'A combo dropped only because the server lacks it keeps its voice file',
+    () async {
+      // Ví dụ: sao lưu lúc đăng ký bị lỗi, server chỉ có combo mặc định.
+      files.audio['media:mine.wav'] = wav(1);
+      await deviceHas(
+        combo(
+          voicePath: 'media:mine.wav',
+          voiceMediaId: 'aaaaaaaa-0000-0000-0000-000000000077',
+        ),
+      );
+      final loaded = await repository.load();
+      expect(loaded, isEmpty);
+      expect(files.audio.containsKey('media:mine.wav'), isTrue);
+      expect(files.deleted, isEmpty);
+    },
+  );
+
+  test('Overlapping loads share one request so an old load cannot overwrite a newer list', () async {
+    serverHas(null);
+    final results = await Future.wait([repository.load(), repository.load()]);
+    expect(server.listCalls, 1);
+    expect(identical(results[0], results[1]), isTrue);
+    await repository.load();
+    expect(server.listCalls, 2);
+  });
+}
