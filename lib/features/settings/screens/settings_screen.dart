@@ -11,7 +11,6 @@ import '../../../core/widgets/glass_card.dart';
 import '../../../shared/widgets/screen_shell.dart';
 import '../../activation/services/permission_service.dart';
 import '../../home/widgets/delay_selector.dart';
-import '../../home/widgets/emergency_sheet.dart';
 import '../models/app_settings.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/gesture_test_sheet.dart';
@@ -267,12 +266,8 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                   _LinkRow(
                     title: 'SOS khẩn cấp',
-                    onTap: () => showModalBottomSheet<void>(
-                      context: context,
-                      isScrollControlled: true,
-                      showDragHandle: true,
-                      builder: (_) => const EmergencySheet(),
-                    ),
+                    subtitle: 'Người liên hệ, tin nhắn, hẹn giờ báo an toàn',
+                    onTap: () => Navigator.pushNamed(context, RouteNames.sos),
                   ),
                 ],
               ),

@@ -127,6 +127,7 @@ class AuthRepository {
     if (clearLocalUserData) {
       await prefs.remove(AppConfig.combosKey);
       await prefs.remove(AppConfig.emergencyKey);
+      await prefs.remove(AppConfig.sosKey);
     }
   }
 }

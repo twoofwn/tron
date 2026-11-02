@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 /// Nút tròn của màn cuộc gọi, có nhãn bên dưới (có thể ẩn nhãn).
@@ -15,7 +16,12 @@ class CallButton extends StatelessWidget {
     this.labelSize = 14,
     this.showLabel = true,
     this.toggled,
+    this.onHold,
   });
+
+  /// Giữ nút bao lâu thì gọi [onHold].
+  static const holdDuration = Duration(seconds: 2);
+
   final String label;
   final IconData icon;
   final Color color;
@@ -30,8 +36,29 @@ class CallButton extends StatelessWidget {
   /// Trạng thái bật / tắt cho trình đọc màn hình; `null` nếu không phải nút bật tắt.
   final bool? toggled;
 
+  /// Thao tác ẩn khi giữ nút [holdDuration] (nút gác máy: gửi SOS).
+  /// Giữ đủ lâu thì không tính là bấm.
+  final VoidCallback? onHold;
+
   @override
-  Widget build(BuildContext context) => Semantics(
+  Widget build(BuildContext context) {
+    final button = _button();
+    if (onHold == null) {
+      return button;
+    }
+    return RawGestureDetector(
+      gestures: {
+        LongPressGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+              () => LongPressGestureRecognizer(duration: holdDuration),
+              (recognizer) => recognizer.onLongPress = onHold,
+            ),
+      },
+      child: button,
+    );
+  }
+
+  Widget _button() => Semantics(
     button: true,
     label: label,
     toggled: toggled,

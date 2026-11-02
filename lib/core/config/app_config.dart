@@ -104,7 +104,10 @@ abstract final class AppConfig {
   static const String refreshTokenKey = 'tron.auth.refreshToken';
   static const String userKey = 'tron.auth.user';
   static const String combosKey = 'tron.combos.v1';
+
+  /// Số "người bạn tin cậy" của bản cũ; chỉ còn đọc để chuyển sang [sosKey].
   static const String emergencyKey = 'tron.emergency';
+  static const String sosKey = 'tron.sos.v1';
   static const String themeKey = 'tron.theme';
   static const String userScenariosKey = 'tron.scenarios.user.v1';
   static const String backgroundsKey = 'tron.scenarios.backgrounds.v1';

@@ -12,6 +12,8 @@ import '../../features/home/screens/home_screen.dart';
 import '../../features/scenarios/presentation/scenario_picker_route.dart';
 import '../../features/settings/screens/settings_screen.dart';
 import '../../features/sharing/screens/sharing_screen.dart';
+import '../../features/sos/screens/sos_alert_screen.dart';
+import '../../features/sos/screens/sos_setup_screen.dart';
 import '../app.dart';
 import 'route_names.dart';
 
@@ -52,6 +54,8 @@ abstract final class AppRouter {
       RouteNames.auth => const AuthScreen(),
       RouteNames.account => const AccountScreen(),
       RouteNames.settings => const SettingsScreen(),
+      RouteNames.sos => const SosSetupScreen(),
+      RouteNames.sosAlert => const SosAlertScreen(),
       _ => const _HomeOrAuthGate(),
     },
   );
