@@ -214,10 +214,9 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
     if (!mounted) {
       return;
     }
-    // Gọi video có video người gọi: video tự phát tiếng, chỉ tắt chuông.
-    await _playConversation(
-      withVoice: !(_combo.isVideoCall && _combo.videoPath != null),
-    );
+    // Gọi video không có thoại: có video thì video tự phát tiếng; không có
+    // hoặc video hỏng thì người gọi "tắt camera" và im. Chỉ tắt chuông.
+    await _playConversation(withVoice: !_combo.isVideoCall);
   }
 
   Future<void> _playConversation({bool withVoice = true}) async {

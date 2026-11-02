@@ -124,7 +124,7 @@ Code nằm dưới `lib/features/scenarios/{models,data,presentation,services}/`
 ### Tiến độ gọi video (2026-11-02)
 
 - Nhánh `codex/video-call`. Combo có `callType` (`voice`/`video`) và `videoPath` (`media:UUID.mp4`) + `videoMediaId`. Màn quay `VideoRecordScreen` (camera trước, tối đa 60 s, ~1,3 Mbps), thẻ `VideoRecorderCard` (quay / chọn MP4 / xem lại / xoá), `CallTypeSelector` trong form. Gọi thoại giữ nguyên.
-- Màn gọi: chuông và màn đến đổi chữ sang "video", trả lời mở `VideoInCallView` (video người gọi phủ kín + khung camera trước chỉ xem). Không có video hoặc video lỗi → avatar "Camera đang tắt" và phát giọng như gọi thoại. Có video thì không phát âm nền/giọng (video đã có tiếng, phát chồng gây ồn). Khung camera bản thân kéo được, thả ra dính góc gần nhất, không che hàng nút.
+- Màn gọi: chuông và màn đến đổi chữ sang "video", trả lời mở `VideoInCallView` (video người gọi phủ kín + khung camera trước chỉ xem). Gọi video không bao giờ phát giọng hay âm nền: có video thì video tự có tiếng; không có video hoặc video lỗi → avatar "Camera đang tắt", im lặng (video lỗi thì báo lỗi). Khung camera bản thân kéo được, thả ra dính góc gần nhất, không che hàng nút.
 - Đồng bộ: `ComboRepository` dùng enum `MediaTrack` (voice, video) cho cả gộp danh sách, tải lên/tải về và dọn file; quy ước server giữ như giọng. Chia sẻ `.ehc`/`EH-` và sao lưu mang theo video khi chọn kèm âm thanh.
 - Backend: `CallType`, `MediaKind.Video`, cột `Combos.CallType`/`VideoMediaId` (+ `EnsureComboVideoColumnsAsync`, mục 1.10c trong `trondb.sql`), MP4 tối đa 20 MB, upload giới hạn 22 MB.
 - Đã chạy: `flutter analyze` sạch; `flutter test` — mọi test xanh trừ "Primary screen visual snapshots" (lỗi có sẵn: thiếu `test/goldens/`); `dotnet build` sạch.
