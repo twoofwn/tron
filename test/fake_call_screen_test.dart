@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tron/app/providers/app_foreground_provider.dart';
@@ -9,6 +12,7 @@ import 'package:tron/features/activation/services/call_alarm_service.dart';
 import 'package:tron/features/combo/models/combo_model.dart';
 import 'package:tron/features/fake_call/providers/call_provider.dart';
 import 'package:tron/features/fake_call/screens/fake_call_screen.dart';
+import 'package:tron/features/fake_call/services/call_device_service.dart';
 import 'package:tron/features/settings/models/app_settings.dart';
 import 'package:tron/features/settings/providers/settings_provider.dart';
 import 'package:tron/shared/enums/call_interface.dart';
@@ -43,8 +47,31 @@ class RecordingAudioService extends AudioService {
   @override
   Future<void> conversation(ComboModel combo, String dialogue) async =>
       events.add('conversation');
+  final preparedSpeech = <String>[];
+  @override
+  Future<void> prepareSpeech(String dialogue) async =>
+      preparedSpeech.add(dialogue);
   @override
   void dispose() {}
+}
+
+class FakeCallDevice extends CallDeviceService {
+  FakeCallDevice() : super(const MethodChannel('test/call'));
+  final calls = <String>[];
+  final _keys = StreamController<void>.broadcast();
+  void pressVolumeKey() => _keys.add(null);
+  @override
+  Stream<void> get volumeKeyPresses => _keys.stream;
+  @override
+  Future<void> setSilenceKeys(bool enabled) async =>
+      calls.add('silenceKeys:$enabled');
+  @override
+  Future<void> startCallAudio({required bool speaker}) async =>
+      calls.add('start:$speaker');
+  @override
+  Future<void> setSpeaker(bool on) async => calls.add('speaker:$on');
+  @override
+  Future<void> endCallAudio() async => calls.add('end');
 }
 
 void main() {
@@ -53,6 +80,7 @@ void main() {
     CallInterface callInterface, {
     Size size = const Size(390, 844),
     double textScale = 1,
+    FakeCallDevice? device,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -66,6 +94,9 @@ void main() {
         key: ValueKey(callInterface),
         overrides: [
           audioServiceProvider.overrideWithValue(audio),
+          callDeviceServiceProvider.overrideWithValue(
+            device ?? FakeCallDevice(),
+          ),
           resolvedPhoneStyleProvider.overrideWith(
             (ref) async => PhoneStyle.iphone,
           ),
@@ -131,6 +162,67 @@ void main() {
     }
   });
 
+  testWidgets('A volume key silences the ringing but keeps the call', (
+    tester,
+  ) async {
+    final device = FakeCallDevice();
+    final audio = await open(tester, CallInterface.phone, device: device);
+    expect(device.calls, ['silenceKeys:true']);
+    expect(audio.events, ['ring:phone']);
+    expect(audio.preparedSpeech, hasLength(1));
+
+    device.pressVolumeKey();
+    await tester.pump();
+    expect(audio.events, ['ring:phone', 'stop']);
+    // Bấm thêm lần nữa không làm gì.
+    device.pressVolumeKey();
+    await tester.pump();
+    expect(audio.events, ['ring:phone', 'stop']);
+    expect(find.text('Trả lời'), findsOneWidget);
+
+    await tester.tap(find.text('Trả lời'));
+    await tester.pump();
+    expect(audio.events.last, 'conversation');
+    expect(device.calls, [
+      'silenceKeys:true',
+      'silenceKeys:false',
+      'start:false',
+    ]);
+  });
+
+  testWidgets('The speaker button switches between earpiece and speaker', (
+    tester,
+  ) async {
+    final device = FakeCallDevice();
+    await open(tester, CallInterface.zalo, device: device);
+    await tester.tap(find.text('Trả lời'));
+    await tester.pump();
+    expect(device.calls.last, 'start:false');
+
+    await tester.tap(find.text('loa'));
+    await tester.pump();
+    expect(device.calls.last, 'speaker:true');
+    await tester.tap(find.text('loa'));
+    await tester.pump();
+    expect(device.calls.last, 'speaker:false');
+
+    await tester.tap(find.byIcon(Icons.call_end_rounded));
+    await tester.pump();
+    // Kết thúc cuộc gọi thì trả âm thanh của máy về bình thường.
+    expect(device.calls.last, 'end');
+  });
+
+  testWidgets('Declining before answering leaves call audio untouched', (
+    tester,
+  ) async {
+    final device = FakeCallDevice();
+    await open(tester, CallInterface.messenger, device: device);
+    await tester.tap(find.text('Nhắn tin'));
+    await tester.pump();
+    expect(device.calls, isNot(contains('end')));
+    expect(device.calls.last, 'silenceKeys:false');
+  });
+
   testWidgets('Ringtone follows the phone style from settings', (tester) async {
     final audio = await open(tester, CallInterface.phone);
     expect(audio.phoneStyles, [PhoneStyle.iphone]);
@@ -145,6 +237,7 @@ void main() {
       overrides: [
         audioServiceProvider.overrideWithValue(audio),
         callAlarmServiceProvider.overrideWithValue(alarm),
+        callDeviceServiceProvider.overrideWithValue(FakeCallDevice()),
         resolvedPhoneStyleProvider.overrideWith(
           (ref) async => PhoneStyle.huawei,
         ),

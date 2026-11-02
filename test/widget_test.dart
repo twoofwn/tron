@@ -11,6 +11,7 @@ import 'package:tron/features/activation/services/permission_service.dart';
 import 'package:tron/features/combo/models/combo_model.dart';
 import 'package:tron/features/combo/providers/combo_provider.dart';
 import 'package:tron/features/fake_call/providers/call_provider.dart';
+import 'package:tron/features/fake_call/services/call_device_service.dart';
 import 'package:tron/features/settings/models/app_settings.dart';
 import 'package:tron/shared/enums/call_interface.dart';
 import 'package:tron/features/sharing/repositories/sharing_repository.dart';
@@ -37,7 +38,22 @@ class SilentAudioService extends AudioService {
   @override
   Future<void> speak(String dialogue) async {}
   @override
+  Future<void> prepareSpeech(String dialogue) async {}
+  @override
   void dispose() {}
+}
+
+/// Kênh Android thật không trả lời trong test, nên thay bằng bản không làm gì.
+class SilentCallDevice extends CallDeviceService {
+  SilentCallDevice() : super(const MethodChannel('test/call'));
+  @override
+  Future<void> setSilenceKeys(bool enabled) async {}
+  @override
+  Future<void> startCallAudio({required bool speaker}) async {}
+  @override
+  Future<void> setSpeaker(bool on) async {}
+  @override
+  Future<void> endCallAudio() async {}
 }
 
 void main() {
@@ -69,6 +85,7 @@ void main() {
       ProviderScope(
         overrides: [
           audioServiceProvider.overrideWithValue(SilentAudioService()),
+          callDeviceServiceProvider.overrideWithValue(SilentCallDevice()),
           deepLinkSourceProvider.overrideWithValue(NoDeepLinks()),
           // Quyền thật phụ thuộc máy; cố định để giao diện và golden ổn định.
           permissionSnapshotProvider.overrideWith(

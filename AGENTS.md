@@ -135,3 +135,9 @@ Code nằm dưới `lib/features/scenarios/{models,data,presentation,services}/`
 - Android khi khóa máy: mỗi chuông một kênh thông báo `incoming_calls_<tên>` (xóa kênh cũ `incoming_calls`), chuông lặp bằng FLAG_INSISTENT, theo âm lượng nhạc chuông, tự tắt sau 60 giây. Khi app ở nền, màn gọi không phát chuông; lúc app lên màn hình thì hủy thông báo rồi app phát chuông. Quá 60 giây thì coi như cuộc gọi nhỡ. Chuông cá nhân chỉ phát khi app mở; lúc khóa máy dùng chuông theo giao diện.
 - Seed `Ringtones` ở backend (3 file SQL và `DbInitializer`) đồng bộ lại mỗi lần chạy.
 - Kiểm tra: `flutter analyze` sạch; `flutter test` 107 test đạt, 1 lỗi có sẵn (`Primary screen visual snapshots` thiếu `test/goldens/`, bị xóa ở commit `5502781`). Build APK chưa chạy được ở máy agent (Gradle lỗi loopback). Chưa thử trên máy thật. iOS chưa đổi chuông thông báo.
+
+### Tiến độ phím âm lượng và loa trong/ngoài (2026-11-02)
+
+- Cùng nhánh `codex/ringtone-mp3`. `MainActivity.kt` mở kênh `tron/call`; Dart dùng qua `CallDeviceService` (`lib/features/fake_call/services/`). Khi đổ chuông, phím tăng/giảm âm lượng tắt chuông và rung, màn gọi vẫn chờ trả lời; ngoài lúc đổ chuông phím hoạt động bình thường.
+- Trả lời thì máy vào chế độ cuộc gọi, tiếng ra loa trong (hoặc tai nghe); nút "loa" chuyển loa ngoài. Kết thúc thì trả về chế độ thường. Giọng và âm nền người gọi dùng kiểu âm thanh cuộc gọi (`audio_session`). Giọng đọc tự động được tạo thành file WAV trong lúc đổ chuông rồi phát như giọng thu; tạo file lỗi thì đọc trực tiếp ra loa ngoài.
+- Kiểm tra: `flutter analyze` sạch; `flutter test` 113 đạt, 1 lỗi có sẵn (golden). Build APK vẫn lỗi Gradle loopback ở máy agent nên Kotlin chưa biên dịch thử. Chưa thử trên máy thật. iOS chưa làm.
