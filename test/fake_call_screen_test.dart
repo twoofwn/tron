@@ -11,6 +11,9 @@ import 'package:tron/core/services/file_service.dart';
 import 'package:tron/core/services/video_recorder.dart';
 import 'package:tron/features/activation/services/call_alarm_service.dart';
 import 'package:tron/features/combo/models/combo_model.dart';
+import 'package:tron/features/fake_call/models/call_script.dart';
+import 'package:tron/features/fake_call/services/call_script_runner.dart';
+import 'package:tron/features/fake_call/services/reply_listener.dart';
 import 'package:tron/features/fake_call/providers/call_provider.dart';
 import 'package:tron/features/fake_call/screens/fake_call_screen.dart';
 import 'package:tron/features/fake_call/services/call_device_service.dart';
@@ -18,6 +21,8 @@ import 'package:tron/features/fake_call/widgets/video_in_call_view.dart';
 import 'package:tron/features/settings/models/app_settings.dart';
 import 'package:tron/features/settings/providers/settings_provider.dart';
 import 'package:tron/shared/enums/call_interface.dart';
+
+import 'features/fake_call/fake_reply_listener.dart';
 
 class CountingAlarm extends CallAlarmService {
   int cancelled = 0;
@@ -49,13 +54,19 @@ class RecordingAudioService extends AudioService {
   @override
   Future<void> conversation(
     ComboModel combo,
-    String dialogue, {
+    CallScript script, {
     bool withVoice = true,
-  }) async => events.add(withVoice ? 'conversation' : 'conversation:silent');
-  final preparedSpeech = <String>[];
+    ReplyWaiter? waitForReply,
+  }) async {
+    waiter = waitForReply;
+    events.add(withVoice ? 'conversation' : 'conversation:silent');
+  }
+
+  ReplyWaiter? waiter;
+  final preparedSpeech = <CallScript>[];
   @override
-  Future<void> prepareSpeech(String dialogue) async =>
-      preparedSpeech.add(dialogue);
+  Future<void> prepareSpeech(CallScript script) async =>
+      preparedSpeech.add(script);
   @override
   void dispose() {}
 }
@@ -96,6 +107,8 @@ void main() {
     String? videoPath,
     String? callerName,
     FakeCallDevice? device,
+    FakeReplyListener? replies,
+    String? voicePath,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -117,6 +130,9 @@ void main() {
           callDeviceServiceProvider.overrideWithValue(
             device ?? FakeCallDevice(),
           ),
+          replyListenerProvider.overrideWithValue(
+            replies ?? FakeReplyListener(),
+          ),
           resolvedPhoneStyleProvider.overrideWith(
             (ref) async => PhoneStyle.iphone,
           ),
@@ -133,6 +149,7 @@ void main() {
                 callType: callType,
                 videoPath: videoPath,
                 callerName: callerName,
+                voicePath: voicePath,
               ),
             ),
           ),
@@ -261,6 +278,7 @@ void main() {
         audioServiceProvider.overrideWithValue(audio),
         callAlarmServiceProvider.overrideWithValue(alarm),
         callDeviceServiceProvider.overrideWithValue(FakeCallDevice()),
+        replyListenerProvider.overrideWithValue(FakeReplyListener()),
         resolvedPhoneStyleProvider.overrideWith(
           (ref) async => PhoneStyle.huawei,
         ),
@@ -411,5 +429,49 @@ void main() {
     await tester.pump();
     expect(find.byType(VideoInCallView), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('The caller waits for the user to finish speaking', (
+    tester,
+  ) async {
+    final replies = FakeReplyListener();
+    final audio = await open(tester, CallInterface.phone, replies: replies);
+    await tester.tap(find.text('Trả lời'));
+    await tester.pump();
+    // Bản xem thử được hỏi quyền micro.
+    expect(replies.events, ['open:true']);
+    final waiter = audio.waiter;
+    expect(waiter, isNotNull);
+    expect(find.text('Đang nghe bạn…'), findsOneWidget);
+
+    var replied = false;
+    unawaited(waiter!(const Duration(seconds: 3)).then((_) => replied = true));
+    await tester.pump();
+    expect(replies.isWaiting, isTrue);
+    expect(replied, isFalse);
+    replies.reply();
+    await tester.pump();
+    expect(replied, isTrue);
+
+    await tester.tap(find.byIcon(Icons.call_end_rounded));
+    await tester.pumpAndSettle();
+    expect(replies.events, contains('close'));
+  });
+
+  testWidgets('A single recorded voice file plays without listening', (
+    tester,
+  ) async {
+    final replies = FakeReplyListener();
+    final audio = await open(
+      tester,
+      CallInterface.zalo,
+      replies: replies,
+      voicePath: 'media:voice.wav',
+    );
+    await tester.tap(find.text('Trả lời'));
+    await tester.pump();
+    expect(audio.events.last, 'conversation');
+    expect(audio.waiter, isNull);
+    expect(replies.events, isEmpty);
   });
 }

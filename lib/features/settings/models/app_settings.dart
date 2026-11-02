@@ -32,6 +32,7 @@ class AppSettings {
     this.knockEnabled = false,
     this.sensitivity = TriggerSensitivity.medium,
     this.backgroundArmed = false,
+    this.waitForReply = true,
   });
 
   factory AppSettings.fromJson(Map<String, dynamic> json) => AppSettings(
@@ -50,6 +51,7 @@ class AppSettings {
       TriggerSensitivity.medium,
     ),
     backgroundArmed: _bool(json['backgroundArmed'], false),
+    waitForReply: _bool(json['waitForReply'], true),
   );
 
   final PhoneStyle phoneStyle;
@@ -60,6 +62,9 @@ class AppSettings {
   final TriggerSensitivity sensitivity;
   final bool backgroundArmed;
 
+  /// Người gọi chờ người dùng nói xong (nghe qua micro) rồi mới nói câu tiếp.
+  final bool waitForReply;
+
   Map<String, Object> toJson() => {
     'phoneStyle': phoneStyle.name,
     'vibrateOnCall': vibrateOnCall,
@@ -68,6 +73,7 @@ class AppSettings {
     'knockEnabled': knockEnabled,
     'sensitivity': sensitivity.name,
     'backgroundArmed': backgroundArmed,
+    'waitForReply': waitForReply,
   };
 
   AppSettings copyWith({
@@ -78,6 +84,7 @@ class AppSettings {
     bool? knockEnabled,
     TriggerSensitivity? sensitivity,
     bool? backgroundArmed,
+    bool? waitForReply,
   }) => AppSettings(
     phoneStyle: phoneStyle ?? this.phoneStyle,
     vibrateOnCall: vibrateOnCall ?? this.vibrateOnCall,
@@ -86,6 +93,7 @@ class AppSettings {
     knockEnabled: knockEnabled ?? this.knockEnabled,
     sensitivity: sensitivity ?? this.sensitivity,
     backgroundArmed: backgroundArmed ?? this.backgroundArmed,
+    waitForReply: waitForReply ?? this.waitForReply,
   );
 }
 

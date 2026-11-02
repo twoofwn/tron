@@ -55,16 +55,20 @@ class VoiceRecorder {
 
   /// Dừng thu và lưu bản thu. Trả về `media:...wav`, hoặc `null` nếu không có gì.
   Future<String?> stop() async {
+    final bytes = await stopBytes();
+    return bytes == null ? null : files.storeAudio(bytes, 'wav');
+  }
+
+  /// Dừng thu, trả về dữ liệu WAV để nơi gọi tự lưu (ví dụ câu thoại của kịch
+  /// bản), hoặc `null` nếu bản thu trống. Xoá file tạm.
+  Future<Uint8List?> stopBytes() async {
     final output = await _recorder.stop();
     if (output == null || output.isEmpty) {
       return null;
     }
     try {
       final bytes = await XFile(output).readAsBytes();
-      if (!hasAudio(bytes)) {
-        return null;
-      }
-      return await files.storeAudio(bytes, 'wav');
+      return hasAudio(bytes) ? bytes : null;
     } finally {
       await media.deleteTempFile(output);
     }
