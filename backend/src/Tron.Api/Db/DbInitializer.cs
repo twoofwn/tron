@@ -134,19 +134,40 @@ public static class DbInitializer
 
     private static async Task SeedRingtonesAsync(TronDbContext db, CancellationToken ct)
     {
-        if (await db.Ringtones.AnyAsync(ct))
+        Ringtone[] defaults =
+        [
+            new Ringtone { Id = "iphone", Title = "Chuông iPhone", AssetAudioPath = "assets/audio/ringtones/iphone.mp3", SortOrder = 1 },
+            new Ringtone { Id = "samsung", Title = "Chuông Samsung", AssetAudioPath = "assets/audio/ringtones/samsung.mp3", SortOrder = 2 },
+            new Ringtone { Id = "huawei", Title = "Chuông Huawei", AssetAudioPath = "assets/audio/ringtones/huawei.mp3", SortOrder = 3 },
+            new Ringtone { Id = "zalo", Title = "Chuông Zalo", AssetAudioPath = "assets/audio/ringtones/zalo.mp3", SortOrder = 4 },
+            new Ringtone { Id = "messenger", Title = "Chuông Messenger", AssetAudioPath = "assets/audio/ringtones/messenger.mp3", SortOrder = 5 },
+            new Ringtone { Id = "classic", Title = "Chuông cổ điển", AssetAudioPath = "assets/audio/ringtones/classic_ring.wav", SortOrder = 6 },
+        ];
+
+        // Đồng bộ mỗi lần chạy để DB cũ cũng bỏ chuông WAV cũ và nhận chuông MP3 mới.
+        var existing = await db.Ringtones.ToListAsync(ct);
+        var defaultIds = defaults.Select(r => r.Id).ToHashSet();
+        db.Ringtones.RemoveRange(existing.Where(r => !defaultIds.Contains(r.Id)));
+        foreach (var ringtone in defaults)
         {
-            return;
+            var current = existing.FirstOrDefault(r => r.Id == ringtone.Id);
+            if (current is null)
+            {
+                db.Ringtones.Add(ringtone);
+            }
+            else
+            {
+                current.Title = ringtone.Title;
+                current.AssetAudioPath = ringtone.AssetAudioPath;
+                current.SortOrder = ringtone.SortOrder;
+            }
         }
 
-        Log.Information("Seeding default Ringtones...");
-        db.Ringtones.AddRange(
-            new Ringtone { Id = "phone", Title = "Chuông Điện thoại", AssetAudioPath = "assets/audio/ringtones/phone_ring.wav", SortOrder = 1 },
-            new Ringtone { Id = "zalo", Title = "Chuông Zalo", AssetAudioPath = "assets/audio/ringtones/zalo_ring.wav", SortOrder = 2 },
-            new Ringtone { Id = "messenger", Title = "Chuông Messenger", AssetAudioPath = "assets/audio/ringtones/messenger_ring.wav", SortOrder = 3 },
-            new Ringtone { Id = "classic", Title = "Chuông cổ điển", AssetAudioPath = "assets/audio/ringtones/classic_ring.wav", SortOrder = 4 }
-        );
-        await db.SaveChangesAsync(ct);
+        if (db.ChangeTracker.HasChanges())
+        {
+            Log.Information("Syncing default Ringtones...");
+            await db.SaveChangesAsync(ct);
+        }
     }
 
     private static async Task SeedScenarioAliasesAsync(TronDbContext db, CancellationToken ct)

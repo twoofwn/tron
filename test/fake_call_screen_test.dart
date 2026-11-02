@@ -1,28 +1,61 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tron/app/providers/app_foreground_provider.dart';
+import 'package:tron/core/constants/built_in_ringtone.dart';
 import 'package:tron/core/services/audio_service.dart';
 import 'package:tron/core/services/file_service.dart';
 import 'package:tron/core/services/video_recorder.dart';
+import 'package:tron/features/activation/services/call_alarm_service.dart';
 import 'package:tron/features/combo/models/combo_model.dart';
+import 'package:tron/features/fake_call/providers/call_provider.dart';
 import 'package:tron/features/fake_call/screens/fake_call_screen.dart';
+import 'package:tron/features/fake_call/services/call_device_service.dart';
 import 'package:tron/features/fake_call/widgets/video_in_call_view.dart';
+import 'package:tron/features/settings/models/app_settings.dart';
+import 'package:tron/features/settings/providers/settings_provider.dart';
 import 'package:tron/shared/enums/call_interface.dart';
+
+class CountingAlarm extends CallAlarmService {
+  int cancelled = 0;
+  @override
+  Future<bool> scheduleCall({
+    required String comboId,
+    required DateTime fireAt,
+    required BuiltInRingtone ringtone,
+  }) async => true;
+  @override
+  Future<void> cancel() async => cancelled++;
+}
 
 class RecordingAudioService extends AudioService {
   RecordingAudioService() : super(FileService());
   final events = <String>[];
+  final phoneStyles = <PhoneStyle>[];
   @override
   Future<void> stop() async => events.add('stop');
   @override
-  Future<void> ring(ComboModel combo) async =>
-      events.add('ring:${combo.callInterface.name}');
+  Future<void> ring(
+    ComboModel combo, {
+    PhoneStyle phoneStyle = PhoneStyle.samsung,
+  }) async {
+    phoneStyles.add(phoneStyle);
+    events.add('ring:${combo.callInterface.name}');
+  }
+
   @override
   Future<void> conversation(
     ComboModel combo,
     String dialogue, {
     bool withVoice = true,
   }) async => events.add(withVoice ? 'conversation' : 'conversation:silent');
+  final preparedSpeech = <String>[];
+  @override
+  Future<void> prepareSpeech(String dialogue) async =>
+      preparedSpeech.add(dialogue);
   @override
   void dispose() {}
 }
@@ -34,6 +67,25 @@ class BrokenVideoFiles extends FileService {
       throw StateError('Không có video.');
 }
 
+class FakeCallDevice extends CallDeviceService {
+  FakeCallDevice() : super(const MethodChannel('test/call'));
+  final calls = <String>[];
+  final _keys = StreamController<void>.broadcast();
+  void pressVolumeKey() => _keys.add(null);
+  @override
+  Stream<void> get volumeKeyPresses => _keys.stream;
+  @override
+  Future<void> setSilenceKeys(bool enabled) async =>
+      calls.add('silenceKeys:$enabled');
+  @override
+  Future<void> startCallAudio({required bool speaker}) async =>
+      calls.add('start:$speaker');
+  @override
+  Future<void> setSpeaker(bool on) async => calls.add('speaker:$on');
+  @override
+  Future<void> endCallAudio() async => calls.add('end');
+}
+
 void main() {
   Future<RecordingAudioService> open(
     WidgetTester tester,
@@ -43,6 +95,7 @@ void main() {
     CallType callType = CallType.voice,
     String? videoPath,
     String? callerName,
+    FakeCallDevice? device,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -60,6 +113,12 @@ void main() {
           // Máy test không có camera: khung camera của mình hiện như đang tắt.
           videoRecorderProvider.overrideWithValue(
             VideoRecorder(FileService(), listCameras: () async => const []),
+          ),
+          callDeviceServiceProvider.overrideWithValue(
+            device ?? FakeCallDevice(),
+          ),
+          resolvedPhoneStyleProvider.overrideWith(
+            (ref) async => PhoneStyle.iphone,
           ),
         ],
         child: MaterialApp(
@@ -124,6 +183,121 @@ void main() {
       expect(find.byIcon(Icons.call_end_rounded), findsOneWidget);
       expect(tester.takeException(), isNull, reason: callInterface.name);
     }
+  });
+
+  testWidgets('A volume key silences the ringing but keeps the call', (
+    tester,
+  ) async {
+    final device = FakeCallDevice();
+    final audio = await open(tester, CallInterface.phone, device: device);
+    expect(device.calls, ['silenceKeys:true']);
+    expect(audio.events, ['ring:phone']);
+    expect(audio.preparedSpeech, hasLength(1));
+
+    device.pressVolumeKey();
+    await tester.pump();
+    expect(audio.events, ['ring:phone', 'stop']);
+    // Bấm thêm lần nữa không làm gì.
+    device.pressVolumeKey();
+    await tester.pump();
+    expect(audio.events, ['ring:phone', 'stop']);
+    expect(find.text('Trả lời'), findsOneWidget);
+
+    await tester.tap(find.text('Trả lời'));
+    await tester.pump();
+    expect(audio.events.last, 'conversation');
+    expect(device.calls, [
+      'silenceKeys:true',
+      'silenceKeys:false',
+      'start:false',
+    ]);
+  });
+
+  testWidgets('The speaker button switches between earpiece and speaker', (
+    tester,
+  ) async {
+    final device = FakeCallDevice();
+    await open(tester, CallInterface.zalo, device: device);
+    await tester.tap(find.text('Trả lời'));
+    await tester.pump();
+    expect(device.calls.last, 'start:false');
+
+    await tester.tap(find.text('loa'));
+    await tester.pump();
+    expect(device.calls.last, 'speaker:true');
+    await tester.tap(find.text('loa'));
+    await tester.pump();
+    expect(device.calls.last, 'speaker:false');
+
+    await tester.tap(find.byIcon(Icons.call_end_rounded));
+    await tester.pump();
+    // Kết thúc cuộc gọi thì trả âm thanh của máy về bình thường.
+    expect(device.calls.last, 'end');
+  });
+
+  testWidgets('Declining before answering leaves call audio untouched', (
+    tester,
+  ) async {
+    final device = FakeCallDevice();
+    await open(tester, CallInterface.messenger, device: device);
+    await tester.tap(find.text('Nhắn tin'));
+    await tester.pump();
+    expect(device.calls, isNot(contains('end')));
+    expect(device.calls.last, 'silenceKeys:false');
+  });
+
+  testWidgets('Ringtone follows the phone style from settings', (tester) async {
+    final audio = await open(tester, CallInterface.phone);
+    expect(audio.phoneStyles, [PhoneStyle.iphone]);
+  });
+
+  testWidgets('Locked phone lets the notification ring until the app opens', (
+    tester,
+  ) async {
+    final audio = RecordingAudioService();
+    final alarm = CountingAlarm();
+    final container = ProviderContainer(
+      overrides: [
+        audioServiceProvider.overrideWithValue(audio),
+        callAlarmServiceProvider.overrideWithValue(alarm),
+        callDeviceServiceProvider.overrideWithValue(FakeCallDevice()),
+        resolvedPhoneStyleProvider.overrideWith(
+          (ref) async => PhoneStyle.huawei,
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    final combo = ComboModel(
+      id: 'c',
+      name: 'Combo',
+      scenarioId: 'boss',
+      callInterface: CallInterface.phone,
+      createdAt: DateTime(2026),
+    );
+    container.read(appForegroundProvider.notifier).setForeground(false);
+    container.read(callProvider.notifier).ringNow(combo);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: FakeCallScreen(
+            arguments: FakeCallArguments(combo, isPreview: false),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    // Chỉ thông báo hệ thống đổ chuông, app chưa phát gì.
+    expect(audio.events, isEmpty);
+    final cancelledBefore = alarm.cancelled;
+
+    container.read(appForegroundProvider.notifier).setForeground(true);
+    await tester.pump();
+    await tester.pump();
+    expect(audio.events, ['ring:phone']);
+    expect(audio.phoneStyles, [PhoneStyle.huawei]);
+    // Thông báo bị tắt để không phát chồng hai chuông.
+    expect(alarm.cancelled, greaterThan(cancelledBefore));
   });
 
   testWidgets('Phone and Messenger message buttons decline the call', (

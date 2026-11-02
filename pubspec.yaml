@@ -43,6 +43,8 @@ dependencies:
   qr_flutter: ^4.1.0
   mobile_scanner: ^7.4.2
   just_audio: ^0.10.6
+  # Kiểu âm thanh cuộc gọi cho giọng người gọi (loa trong / loa ngoài).
+  audio_session: ^0.2.4
   flutter_tts: ^4.2.5
   path_provider: ^2.1.6
   url_launcher: ^6.3.3
