@@ -19,8 +19,11 @@ class CallTypeSelector extends StatelessWidget {
       for (final type in CallType.values) ...[
         if (type != CallType.values.first) const SizedBox(width: 9),
         Expanded(
-          child: _CallTypeOption(
-            type: type,
+          child: OptionTile(
+            icon: type == CallType.video
+                ? Icons.videocam_rounded
+                : Icons.call_rounded,
+            label: type.label,
             isSelected: type == selected,
             onTap: () => onChanged(type),
           ),
@@ -30,13 +33,17 @@ class CallTypeSelector extends StatelessWidget {
   );
 }
 
-class _CallTypeOption extends StatelessWidget {
-  const _CallTypeOption({
-    required this.type,
+/// Ô lựa chọn một trong nhiều (biểu tượng + nhãn) dùng chung cho form combo.
+class OptionTile extends StatelessWidget {
+  const OptionTile({
+    super.key,
+    required this.icon,
+    required this.label,
     required this.isSelected,
     required this.onTap,
   });
-  final CallType type;
+  final IconData icon;
+  final String label;
   final bool isSelected;
   final VoidCallback onTap;
 
@@ -48,7 +55,7 @@ class _CallTypeOption extends StatelessWidget {
       selected: isSelected,
       button: true,
       inMutuallyExclusiveGroup: true,
-      label: type.label,
+      label: label,
       excludeSemantics: true,
       child: Material(
         color: isSelected
@@ -68,17 +75,11 @@ class _CallTypeOption extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Icon(
-                  type == CallType.video
-                      ? Icons.videocam_rounded
-                      : Icons.call_rounded,
-                  color: color,
-                  size: 20,
-                ),
+                Icon(icon, color: color, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    type.label,
+                    label,
                     style: TextStyle(
                       color: color,
                       fontSize: 13,

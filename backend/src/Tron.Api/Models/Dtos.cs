@@ -97,7 +97,11 @@ public record BackupComboDto(
     // "voice" hoặc "video"; null (app bản cũ) thì giữ loại đang có, combo mới là gọi thoại.
     string? CallType = null,
     // Cùng quy ước với VoiceMediaId: null = giữ nguyên, Guid.Empty = xoá video.
-    Guid? VideoMediaId = null);
+    Guid? VideoMediaId = null,
+    // Tên người gọi và cách kết thúc của cuộc gọi video. App bản cũ không gửi
+    // VideoEndAction: khi đó server giữ nguyên cả hai trường.
+    string? CallerName = null,
+    string? VideoEndAction = null);
 
 public record BackupSnapshotRequest(
     string? DeviceName,

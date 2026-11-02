@@ -152,6 +152,10 @@ public class Combo
     public Guid? VoiceMediaId { get; set; }
     /// <summary>Video người gọi do người dùng tự quay (MP4); null thì cuộc gọi video hiện như người gọi tắt camera.</summary>
     public Guid? VideoMediaId { get; set; }
+    /// <summary>Tên người gọi của cuộc gọi video (gọi video không dùng kịch bản thoại).</summary>
+    public string? CallerName { get; set; }
+    /// <summary>Hết video thì tắt máy hay phát lại.</summary>
+    public VideoEndAction VideoEndAction { get; set; } = VideoEndAction.HangUp;
     public decimal BackgroundVolume { get; set; } = 0.30m;
     public bool BackgroundOverridden { get; set; }
     public int SortOrder { get; set; }

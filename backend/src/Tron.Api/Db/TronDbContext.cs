@@ -168,6 +168,8 @@ public class TronDbContext(DbContextOptions<TronDbContext> options) : DbContext(
             b.Property(x => x.ScenarioId).HasMaxLength(64).IsRequired();
             b.Property(x => x.CallInterface).HasConversion<string>().HasMaxLength(20);
             b.Property(x => x.CallType).HasConversion<string>().HasMaxLength(20);
+            b.Property(x => x.CallerName).HasMaxLength(40);
+            b.Property(x => x.VideoEndAction).HasConversion<string>().HasMaxLength(20);
             b.Property(x => x.RingtoneType).HasConversion<string>().HasMaxLength(20);
             b.Property(x => x.BackgroundVolume).HasPrecision(4, 2);
             b.HasOne(x => x.Owner)

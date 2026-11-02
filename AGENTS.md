@@ -132,6 +132,16 @@ Code nằm dưới `lib/features/scenarios/{models,data,presentation,services}/`
 - Build APK debug lần đầu lỗi không resolve được `camera`/`video_player` (có thể do chạy cùng lúc với `flutter test`); chưa build lại.
 - Chưa kiểm tra trên thiết bị thật: quay video, quyền camera/micro, khung camera khi gọi, phát video, dung lượng thực tế của bản quay trên từng máy. `backend/trondb.sql` là bản cũ (chưa có cả cột giọng), chỉ cập nhật `trondb.sql` gốc và bản trong `backend/src/Tron.Api/`.
 
+### Gọi video chỉ cần tên người gọi (2026-11-02)
+
+- Nhánh `codex/video-call-name-only`. Combo gọi video không dùng kịch bản thoại: form ẩn chọn kịch bản, thu giọng và âm nền; thay bằng ô "Tên người gọi" (bắt buộc), thẻ video (bắt buộc khi lưu) và "Khi video kết thúc" (`VideoEndAction.hangUp` tắt máy / `loop` lặp lại). `scenarioId` cũ vẫn được giữ để đổi lại gọi thoại không mất lựa chọn.
+- `ComboModel.callerName`, `videoEndAction`, `displayCaller()`; đồng bộ qua `toServerMap`/`fromServerMap`, sao lưu, chia sẻ `.ehc`/`EH-`. Server cũ không trả `callerName` thì giữ bản trên máy.
+- Màn gọi video không còn phát giọng kịch bản khi video lỗi/thiếu (chỉ báo lỗi và hiện avatar). Hết video không lặp thì tự kết thúc cuộc gọi.
+- Backend: cột `Combos.CallerName` (NVARCHAR 40) và `VideoEndAction` (mặc định `HangUp`), mục 1.10d trong `trondb.sql` + `EnsureComboVideoColumnsAsync`. App cũ không gửi `videoEndAction` thì server giữ nguyên hai trường.
+- Đã chạy: `flutter analyze` sạch, `flutter test` xanh trừ golden có sẵn; `dotnet build` sạch. Chưa kiểm tra trên máy thật việc phát hết video → tắt máy / lặp.
+- Web (2026-11-02): file âm thanh/video chuyển từ base64 trong localStorage (~5 MB, video làm đầy và các lần lưu combo sau đó lỗi) sang IndexedDB (`media_files_web.dart`, DB `tron_media`); file cũ tự chuyển khi đọc. Test chạy bằng `flutter test --platform chrome test/media_files_web_test.dart`.
+- `flutter run -d chrome` dùng hồ sơ Chrome tạm, dữ liệu chỉ được chép về `.dart_tool/chrome-device` khi Chrome thoát êm nên combo mới hay mất sau khi chạy lại. Dùng cấu hình VS Code "Flutter (Web server, giữ dữ liệu)" rồi mở http://localhost:5173 bằng Chrome thường.
+
 ### Tiến độ phần D: hẹn giờ và kích hoạt (2026-10-26)
 
 - Nhánh `codex/timer-triggers`. Đã có: màn Cài đặt (loại điện thoại, quyền, hẹn giờ, rung, sáng/tối), báo thức hệ thống khi hẹn giờ, xin quyền thông báo, lật máy và gõ lưng (Android), dịch vụ "Sẵn sàng khi tắt màn hình" (Android, `ArmedService`), deep link `tron://trigger` (Android và iOS).

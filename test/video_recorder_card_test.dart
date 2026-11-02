@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:tron/core/services/file_service.dart';
 import 'package:tron/core/services/video_recorder.dart';
 import 'package:tron/features/combo/models/combo_model.dart';
+import 'package:tron/features/combo/repositories/combo_repository.dart';
 import 'package:tron/features/combo/widgets/call_type_selector.dart';
+import 'package:tron/features/combo/widgets/video_end_action_selector.dart';
 import 'package:tron/features/combo/widgets/video_recorder_card.dart';
 import 'package:tron/shared/enums/call_interface.dart';
 
@@ -136,5 +138,63 @@ void main() {
     );
     expect(legacy.callType, CallType.voice);
     expect(legacy.videoPath, isNull);
+  });
+
+  test('Caller name and video end action survive save, sync and load', () {
+    final combo = ComboModel(
+      id: 'c',
+      name: 'Mẹ gọi video',
+      scenarioId: 'boss',
+      callInterface: CallInterface.zalo,
+      createdAt: DateTime(2026),
+      callType: CallType.video,
+      callerName: 'Mẹ',
+      videoEndAction: VideoEndAction.loop,
+    );
+    for (final restored in [
+      ComboModel.fromJson(combo.toJson()),
+      ComboRepository.fromServerMap(ComboRepository.toServerMap(combo)),
+    ]) {
+      expect(restored.callerName, 'Mẹ');
+      expect(restored.videoEndAction, VideoEndAction.loop);
+    }
+    // Gọi video dùng tên đã nhập; gọi thoại dùng tên trong kịch bản.
+    expect(combo.displayCaller('Anh Minh · Công việc'), 'Mẹ');
+    expect(
+      combo
+          .copyWith(callType: CallType.voice)
+          .displayCaller('Anh Minh · Công việc'),
+      'Anh Minh · Công việc',
+    );
+    // Dữ liệu cũ: chưa có tên người gọi, hết video thì tắt máy.
+    final legacy = ComboModel.fromJson(
+      combo.toJson()
+        ..remove('callerName')
+        ..remove('videoEndAction'),
+    );
+    expect(legacy.callerName, isNull);
+    expect(legacy.videoEndAction, VideoEndAction.hangUp);
+    expect(legacy.displayCaller(''), 'Mẹ gọi video');
+  });
+
+  testWidgets('Video end selector switches between hang up and loop', (
+    tester,
+  ) async {
+    var selected = VideoEndAction.hangUp;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) => VideoEndActionSelector(
+              selected: selected,
+              onChanged: (value) => setState(() => selected = value),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Lặp lại video'));
+    await tester.pump();
+    expect(selected, VideoEndAction.loop);
   });
 }

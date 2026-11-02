@@ -160,6 +160,8 @@ class BackupService {
         'customBackgroundMediaId': bgMediaId,
         'voiceMediaId': voiceMediaId,
         'callType': combo.callType.name,
+        'callerName': combo.callerName,
+        'videoEndAction': combo.videoEndAction.name,
         'videoMediaId': videoMediaId,
         'backgroundVolume': 0.3,
         'backgroundOverridden': false,
@@ -315,6 +317,8 @@ class BackupService {
           voicePath: voicePath,
           voiceMediaId: voicePath == null ? null : voiceMediaId,
           callType: _callType(map['callType']),
+          callerName: ComboModel.cleanCallerName(map['callerName']),
+          videoEndAction: VideoEndAction.parse(map['videoEndAction']),
           videoPath: videoPath,
           videoMediaId: videoPath == null ? null : videoMediaId,
           createdAt:
@@ -371,6 +375,8 @@ class BackupService {
         'customBackgroundMediaId': null,
         'voiceMediaId': voiceMediaId,
         'callType': c.callType.name,
+        'callerName': c.callerName,
+        'videoEndAction': c.videoEndAction.name,
         'videoMediaId': videoMediaId,
         'backgroundVolume': 0.3,
         'backgroundOverridden': false,
@@ -443,6 +449,8 @@ class BackupService {
           backgroundSoundPaths: bgList,
           voicePath: voicePath,
           callType: _callType(map['callType']),
+          callerName: ComboModel.cleanCallerName(map['callerName']),
+          videoEndAction: VideoEndAction.parse(map['videoEndAction']),
           videoPath: videoPath,
           createdAt:
               DateTime.tryParse(map['createdAt'] as String? ?? '') ??

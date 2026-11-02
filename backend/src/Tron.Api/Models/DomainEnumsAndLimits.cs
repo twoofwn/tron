@@ -8,6 +8,7 @@ public enum ScenarioSource { BuiltIn, SampleUser, User }
 public enum DialogueStepType { Speech, Wait }
 public enum CallInterface { Phone, Zalo, Messenger }
 public enum CallType { Voice, Video }
+public enum VideoEndAction { HangUp, Loop }
 public enum RingtoneType { InterfaceDefault, Classic, Custom }
 public enum MediaKind { Voice, Ambient, Ringtone, Video }
 public enum ThemePreference { Dark, Light }

@@ -50,3 +50,6 @@ Future<void> deleteMediaFile(String name) async => deleteTempFile(
 Future<int> mediaFileSize(String name) async =>
     File('${(await getApplicationDocumentsDirectory()).path}/tron_audio/$name')
         .length();
+
+/// Máy thật lưu file trong thư mục app, không có dữ liệu cũ cần chuyển.
+Future<void> releaseLegacyMediaStorage() async {}

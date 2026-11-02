@@ -19,6 +19,21 @@
             ]
         },
         {
+            // Chrome của "Flutter (Chrome Web)" dùng hồ sơ tạm, dữ liệu (combo,
+            // đăng nhập) chỉ được chép lại khi Chrome thoát êm nên dễ mất sau mỗi
+            // lần chạy. Cấu hình này chỉ chạy server: mở http://localhost:5173
+            // bằng Chrome thường của bạn, dữ liệu được giữ giữa các lần chạy.
+            "name": "Flutter (Web server, giữ dữ liệu)",
+            "request": "launch",
+            "type": "dart",
+            "deviceId": "web-server",
+            "args": [
+                "--no-web-resources-cdn",
+                "--web-port",
+                "5173"
+            ]
+        },
+        {
             "name": "Flutter (Windows Desktop)",
             "request": "launch",
             "type": "dart",

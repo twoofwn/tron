@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tron/app/app.dart';
 import 'package:tron/core/services/audio_service.dart';
 import 'package:tron/core/services/file_service.dart';
+import 'package:tron/core/services/video_recorder.dart';
 import 'package:tron/features/activation/providers/activation_provider.dart';
 import 'package:tron/features/activation/services/permission_service.dart';
 import 'package:tron/features/combo/models/combo_model.dart';
@@ -40,6 +42,12 @@ class SilentAudioService extends AudioService {
   void dispose() {}
 }
 
+/// Chọn video luôn trả về một file có sẵn, không mở hộp thoại hệ thống.
+class PickedVideoFiles extends FileService {
+  @override
+  Future<String?> pickVideo() async => 'media:0f0f.mp4';
+}
+
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
@@ -58,6 +66,7 @@ void main() {
     WidgetTester tester, {
     Size size = const Size(390, 844),
     double textScale = 1,
+    List<Override> overrides = const [],
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -86,6 +95,7 @@ void main() {
               createId: () => '7c2a1000-0000-4000-a000-000000000000',
             ),
           ),
+          ...overrides,
         ],
         child: const RepaintBoundary(
           key: ValueKey('app-preview'),
@@ -125,6 +135,73 @@ void main() {
       Theme.of(tester.element(find.text('Cài đặt'))).brightness,
       Brightness.light,
     );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Video combo asks for a caller name instead of a scenario', (
+    tester,
+  ) async {
+    await start(
+      tester,
+      overrides: [
+        fileServiceProvider.overrideWithValue(PickedVideoFiles()),
+        videoRecorderProvider.overrideWithValue(
+          VideoRecorder(
+            PickedVideoFiles(),
+            probeDuration: (_) async => const Duration(seconds: 30),
+          ),
+        ),
+      ],
+    );
+    await tester.tap(find.text('+ Tạo combo'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tên người gọi'), findsNothing);
+    await tester.tap(find.text('Gọi video'));
+    await tester.pumpAndSettle();
+    // Gọi video: không chọn kịch bản, không âm nền; chỉ cần tên người gọi.
+    expect(find.text('Tên người gọi'), findsOneWidget);
+    expect(find.text('Kịch bản', skipOffstage: false), findsNothing);
+    expect(
+      find.text('Âm nền & nhạc nền trong cuộc gọi', skipOffstage: false),
+      findsNothing,
+    );
+    await tester.scrollUntilVisible(
+      find.text('Khi video kết thúc'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Lặp lại video'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Tên combo'),
+      -200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.enterText(find.byType(TextFormField).first, 'Mẹ gọi video');
+    await tester.tap(find.text('Lưu combo'));
+    await tester.pumpAndSettle();
+    expect(find.text('Nhập tên hiện trên cuộc gọi video'), findsOneWidget);
+    await tester.enterText(find.byType(TextFormField).at(1), 'Mẹ');
+    await tester.tap(find.text('Lưu combo'));
+    await tester.pump();
+    // Không có kịch bản thoại thì phải có video.
+    expect(find.text('Hãy quay hoặc chọn video người gọi.'), findsOneWidget);
+    ScaffoldMessenger.of(tester.element(find.text('Lưu combo')))
+        .removeCurrentSnackBar();
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byTooltip('Chọn video MP4 có sẵn'));
+    await tester.tap(find.byTooltip('Chọn video MP4 có sẵn'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Lưu combo'));
+    await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(TronApp)),
+    );
+    final saved = (await container.read(comboListProvider.future))
+        .firstWhere((combo) => combo.name == 'Mẹ gọi video');
+    expect(saved.callType, CallType.video);
+    expect(saved.callerName, 'Mẹ');
+    expect(saved.videoPath, 'media:0f0f.mp4');
+    expect(find.text('Mẹ gọi video'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

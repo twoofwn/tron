@@ -224,6 +224,8 @@ BEGIN
         [CustomBackgroundMediaId] UNIQUEIDENTIFIER NULL,
         [VoiceMediaId]            UNIQUEIDENTIFIER NULL,
         [VideoMediaId]            UNIQUEIDENTIFIER NULL,
+        [CallerName]              NVARCHAR(40)     NULL,
+        [VideoEndAction]          NVARCHAR(20)     NOT NULL CONSTRAINT [DF_Combos_VideoEndAction] DEFAULT (N'HangUp'),
         [BackgroundVolume]        DECIMAL(4, 2)    NOT NULL DEFAULT (0.30),
         [BackgroundOverridden]    BIT              NOT NULL DEFAULT (0),
         [SortOrder]               INT              NOT NULL DEFAULT (0),
@@ -288,6 +290,19 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Combos_VideoMediaId' AND object_id = OBJECT_ID(N'dbo.Combos'))
 BEGIN
     CREATE INDEX [IX_Combos_VideoMediaId] ON [dbo].[Combos] ([VideoMediaId]);
+END
+GO
+
+-- 1.10d Nâng cấp database cũ: tên người gọi và cách kết thúc của cuộc gọi video
+IF COL_LENGTH(N'dbo.Combos', N'CallerName') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Combos] ADD [CallerName] NVARCHAR(40) NULL;
+END
+GO
+IF COL_LENGTH(N'dbo.Combos', N'VideoEndAction') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Combos] ADD [VideoEndAction] NVARCHAR(20) NOT NULL
+        CONSTRAINT [DF_Combos_VideoEndAction] DEFAULT (N'HangUp');
 END
 GO
 

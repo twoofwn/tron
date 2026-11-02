@@ -18,6 +18,8 @@ class ComboModel {
     this.callType = CallType.voice,
     this.videoPath,
     this.videoMediaId,
+    this.callerName,
+    this.videoEndAction = VideoEndAction.hangUp,
     this.syncPending = false,
   });
   final String id;
@@ -48,6 +50,13 @@ class ComboModel {
   /// Id trên server của video đang dùng, giống [voiceMediaId].
   final String? videoMediaId;
 
+  /// Tên người gọi của cuộc gọi video. Gọi video không dùng kịch bản thoại nên
+  /// tên này thay cho tên người gọi trong kịch bản.
+  final String? callerName;
+
+  /// Hết video thì tắt máy hay phát lại (chỉ dùng cho gọi video).
+  final VideoEndAction videoEndAction;
+
   /// Combo đã đổi trên máy (kể cả giọng) nhưng server chưa nhận, ví dụ do mất
   /// mạng. Khi còn cờ này, bản trên máy được ưu tiên và app gửi lại lên server.
   final bool syncPending;
@@ -63,6 +72,8 @@ class ComboModel {
     CallType? callType,
     String? videoPath,
     String? videoMediaId,
+    String? callerName,
+    VideoEndAction? videoEndAction,
     bool? syncPending,
     bool clearVoice = false,
     bool clearVoiceMediaId = false,
@@ -96,6 +107,8 @@ class ComboModel {
     videoMediaId: stripCustomAudio || clearVideo || clearVideoMediaId
         ? null
         : videoMediaId ?? this.videoMediaId,
+    callerName: callerName ?? this.callerName,
+    videoEndAction: videoEndAction ?? this.videoEndAction,
     syncPending: stripCustomAudio ? false : syncPending ?? this.syncPending,
   );
 
@@ -128,6 +141,14 @@ class ComboModel {
   List<String> get recordedMediaPaths => [?voicePath, ?videoPath];
 
   bool get isVideoCall => callType == CallType.video;
+
+  /// Tên hiện trên màn gọi: gọi video dùng [callerName], gọi thoại dùng tên
+  /// người gọi của kịch bản; thiếu thì dùng tên combo.
+  String displayCaller(String scenarioCaller) {
+    final caller = (isVideoCall ? callerName : scenarioCaller)?.trim() ?? '';
+    return caller.isEmpty ? name.trim() : caller;
+  }
+
   Map<String, Object?> toJson() => {
     'id': id,
     'name': name,
@@ -142,6 +163,8 @@ class ComboModel {
     'callType': callType.name,
     'videoPath': videoPath,
     'videoMediaId': videoMediaId,
+    'callerName': callerName,
+    'videoEndAction': videoEndAction.name,
     'syncPending': syncPending,
     'createdAt': createdAt.toIso8601String(),
   };
@@ -213,8 +236,16 @@ class ComboModel {
       callType: callType,
       videoPath: json['videoPath'] as String?,
       videoMediaId: json['videoMediaId'] as String?,
+      callerName: cleanCallerName(json['callerName']),
+      videoEndAction: VideoEndAction.parse(json['videoEndAction']),
       syncPending: json['syncPending'] as bool? ?? false,
       createdAt: createdAt,
     );
+  }
+
+  /// Tên người gọi đọc từ JSON/server: bỏ khoảng trắng, rỗng thì coi như không có.
+  static String? cleanCallerName(Object? raw) {
+    final name = raw is String ? raw.trim() : '';
+    return name.isEmpty ? null : name;
   }
 }

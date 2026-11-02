@@ -68,7 +68,7 @@ public static class DbInitializer
     }
 
     /// <summary>
-    /// Thêm cột Combos.CallType và Combos.VideoMediaId (cuộc gọi video) vào database cũ. Chạy lại nhiều lần vẫn an toàn.
+    /// Thêm cột Combos.CallType, VideoMediaId, CallerName, VideoEndAction (cuộc gọi video) vào database cũ. Chạy lại nhiều lần vẫn an toàn.
     /// </summary>
     private static async Task EnsureComboVideoColumnsAsync(TronDbContext db, CancellationToken ct)
     {
@@ -91,6 +91,15 @@ public static class DbInitializer
             BEGIN
                 EXEC(N'CREATE INDEX [IX_Combos_VideoMediaId] ON [dbo].[Combos] ([VideoMediaId])');
             END;
+            IF COL_LENGTH(N'dbo.Combos', N'CallerName') IS NULL
+            BEGIN
+                ALTER TABLE [dbo].[Combos] ADD [CallerName] NVARCHAR(40) NULL;
+            END;
+            IF COL_LENGTH(N'dbo.Combos', N'VideoEndAction') IS NULL
+            BEGIN
+                ALTER TABLE [dbo].[Combos] ADD [VideoEndAction] NVARCHAR(20) NOT NULL
+                    CONSTRAINT [DF_Combos_VideoEndAction] DEFAULT (N'HangUp');
+            END;
             """;
         try
         {
@@ -98,7 +107,7 @@ public static class DbInitializer
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Could not add Combos.CallType/VideoMediaId. Run the ALTER block in trondb.sql manually.");
+            Log.Error(ex, "Could not add Combos video columns. Run the ALTER block in trondb.sql manually.");
             throw;
         }
     }

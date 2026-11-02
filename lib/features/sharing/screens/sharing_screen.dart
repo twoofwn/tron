@@ -382,7 +382,7 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Giao diện: ${(c['callInterface'] as String? ?? 'phone').toUpperCase()} · Kịch bản: ${c['scenarioId']}',
+                                  'Giao diện: ${(c['callInterface'] as String? ?? 'phone').toUpperCase()} · ${c['callType'] == 'video' ? 'Gọi video: ${c['callerName'] ?? ''}' : 'Kịch bản: ${c['scenarioId']}'}',
                                   style: const TextStyle(
                                     fontSize: 11,
                                     color: AppColors.muted,
@@ -924,7 +924,10 @@ class _PublishPackageSheetState extends ConsumerState<_PublishPackageSheet> {
       final seenScenarioIds = <String>{};
       if (scenarioRepo != null) {
         for (final c in selectedCombos) {
-          final sc = scenarioRepo.findScenario(c.scenarioId);
+          // Gọi video không dùng kịch bản: không gửi kèm kịch bản cá nhân.
+          final sc = c.isVideoCall
+              ? null
+              : scenarioRepo.findScenario(c.scenarioId);
           if (sc != null &&
               sc.source == ScenarioSource.user &&
               seenScenarioIds.add(sc.id)) {
@@ -1088,7 +1091,11 @@ class _PublishPackageSheetState extends ConsumerState<_PublishPackageSheet> {
                 contentPadding: EdgeInsets.zero,
                 value: _selectedIds.contains(combo.id),
                 title: Text(combo.name),
-                subtitle: Text('Kịch bản: ${combo.scenarioId}'),
+                subtitle: Text(
+                  combo.isVideoCall
+                      ? 'Gọi video: ${combo.callerName ?? ''}'
+                      : 'Kịch bản: ${combo.scenarioId}',
+                ),
                 onChanged: (checked) {
                   setState(() {
                     if (checked == true) {

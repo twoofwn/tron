@@ -165,7 +165,9 @@ class SharingRepository {
         audio[entry.key] = data;
       }
       for (final combo in combos) {
-        if (!ScenarioLookup.isShareableId(combo.scenarioId)) {
+        // Gọi video không dùng kịch bản nên không cần kiểm tra ID kịch bản.
+        if (!combo.isVideoCall &&
+            !ScenarioLookup.isShareableId(combo.scenarioId)) {
           throw const FormatException();
         }
         for (final path in combo.customMediaPaths) {

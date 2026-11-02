@@ -42,6 +42,7 @@ void main() {
     double textScale = 1,
     CallType callType = CallType.voice,
     String? videoPath,
+    String? callerName,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -72,6 +73,7 @@ void main() {
                 createdAt: DateTime(2026),
                 callType: callType,
                 videoPath: videoPath,
+                callerName: callerName,
               ),
             ),
           ),
@@ -146,17 +148,26 @@ void main() {
     testWidgets('${callInterface.name} video call without video shows avatar', (
       tester,
     ) async {
-      final audio = await open(tester, callInterface, callType: CallType.video);
+      final audio = await open(
+        tester,
+        callInterface,
+        callType: CallType.video,
+        callerName: 'Mẹ yêu',
+      );
       expect(find.text(ringing), findsOneWidget);
+      // Gọi video dùng tên người gọi của combo, không dùng kịch bản.
+      expect(find.textContaining('Mẹ yêu'), findsWidgets);
+      expect(find.textContaining('Anh Minh'), findsNothing);
       expect(find.byIcon(Icons.videocam_rounded), findsOneWidget);
       await tester.tap(find.text('Trả lời'));
       await tester.pump();
       await tester.pump();
-      // Người gọi "tắt camera": phát giọng như gọi thoại.
+      // Người gọi "tắt camera"; gọi video không có thoại nên không phát giọng.
       expect(find.byType(VideoInCallView), findsOneWidget);
+      expect(find.text('Mẹ yêu'), findsOneWidget);
       expect(find.text('Camera đang tắt'), findsOneWidget);
       expect(find.text('tắt camera'), findsOneWidget);
-      expect(audio.events.last, 'conversation');
+      expect(audio.events.last, 'conversation:silent');
       await tester.tap(find.text('tắt camera'));
       await tester.pump();
       await tester.tap(find.byIcon(Icons.call_end_rounded));
@@ -166,7 +177,9 @@ void main() {
     });
   }
 
-  testWidgets('Video that cannot play falls back to the voice', (tester) async {
+  testWidgets('Video that cannot play shows the avatar without a voice', (
+    tester,
+  ) async {
     final audio = await open(
       tester,
       CallInterface.messenger,
@@ -177,11 +190,16 @@ void main() {
     await tester.pump();
     // Có video: không phát âm nền hay giọng, tiếng nằm trong video.
     expect(audio.events, contains('conversation:silent'));
-    // Video không mở được → quay về giọng.
+    // Video không mở được: báo lỗi, không phát giọng kịch bản.
     await tester.pump();
     await tester.pump();
-    expect(audio.events.last, 'conversation');
+    expect(audio.events.last, 'conversation:silent');
+    expect(audio.events, isNot(contains('conversation')));
     expect(find.text('Camera đang tắt'), findsOneWidget);
+    expect(
+      find.text('Không phát được video người gọi trên thiết bị này.'),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 

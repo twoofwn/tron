@@ -108,10 +108,8 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
         setState(() => _elapsed = DateTime.now().difference(_answeredAt!));
       }
     });
-    // Gọi video có video người gọi: video tự phát tiếng, chỉ tắt chuông.
-    await _playConversation(
-      withVoice: !(_combo.isVideoCall && _combo.videoPath != null),
-    );
+    // Gọi video không có kịch bản thoại: video tự phát tiếng, chỉ tắt chuông.
+    await _playConversation(withVoice: !_combo.isVideoCall);
   }
 
   Future<void> _playConversation({bool withVoice = true}) async {
@@ -150,12 +148,15 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
     final combo = _combo;
     final theme = CallTheme.of(combo.callInterface);
     final isAnswered = ref.watch(callSessionProvider) == CallStatus.inProgress;
-    final caller = ScenarioLookup.resolve(
-      combo.scenarioId,
-      ref.watch(scenarioLibraryProvider).value,
-    ).caller;
-    final name = caller.trim().isEmpty ? combo.name.trim() : caller.trim();
-    final initial = name.isEmpty ? '?' : name.characters.first.toUpperCase();
+    final caller = combo.displayCaller(
+      ScenarioLookup.resolve(
+        combo.scenarioId,
+        ref.watch(scenarioLibraryProvider).value,
+      ).caller,
+    );
+    final initial = caller.isEmpty
+        ? '?'
+        : caller.characters.first.toUpperCase();
     final isVideo = combo.isVideoCall;
     // Đang gọi video: video người gọi phủ kín màn hình, không đóng khung như gọi thoại.
     if (isAnswered && isVideo) {
@@ -168,11 +169,16 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
           theme: theme,
           elapsed: _elapsed,
           videoPath: combo.videoPath,
+          loop: combo.videoEndAction == VideoEndAction.loop,
           isMuted: _isMuted,
           onToggleMute: () => setState(() => _isMuted = !_isMuted),
           onHangUp: _hangUp,
-          // Video hỏng: phát giọng như gọi thoại để cuộc gọi không im lặng.
-          onVideoUnavailable: _playConversation,
+          // Hết video (khi không lặp): người gọi gác máy.
+          onVideoEnded: _hangUp,
+          onVideoUnavailable: () => showMessage(
+            context,
+            'Không phát được video người gọi trên thiết bị này.',
+          ),
         ),
       );
     }

@@ -70,6 +70,8 @@ public class UserDataService(
                 VoiceMediaId = voiceMediaId,
                 CallType = ParseCallType(dto.CallType) ?? CallType.Voice,
                 VideoMediaId = videoMediaId,
+                CallerName = CleanCallerName(dto.CallerName),
+                VideoEndAction = ParseVideoEndAction(dto.VideoEndAction) ?? VideoEndAction.HangUp,
                 BackgroundVolume = Math.Clamp(dto.BackgroundVolume <= 0 ? 0.3m : dto.BackgroundVolume, 0m, 1m),
                 BackgroundOverridden = dto.BackgroundOverridden,
                 SortOrder = count + 1,
@@ -112,6 +114,12 @@ public class UserDataService(
             if (dto.VideoMediaId.HasValue)
             {
                 existing.VideoMediaId = videoMediaId;
+            }
+            // App bản mới luôn gửi VideoEndAction (kể cả khi tên người gọi rỗng).
+            if (ParseVideoEndAction(dto.VideoEndAction) is { } endAction)
+            {
+                existing.VideoEndAction = endAction;
+                existing.CallerName = CleanCallerName(dto.CallerName);
             }
             existing.BackgroundVolume = Math.Clamp(dto.BackgroundVolume <= 0 ? 0.3m : dto.BackgroundVolume, 0m, 1m);
             existing.BackgroundOverridden = dto.BackgroundOverridden;
@@ -462,7 +470,9 @@ public class UserDataService(
             c.CreatedAt,
             c.VoiceMediaId,
             MapCallTypeString(c.CallType),
-            c.VideoMediaId);
+            c.VideoMediaId,
+            c.CallerName,
+            MapVideoEndActionString(c.VideoEndAction));
 
     internal static ScenarioDto MapScenarioDto(Scenario s, string prefix) =>
         new(
@@ -525,6 +535,28 @@ public class UserDataService(
 
     internal static string MapCallTypeString(CallType type) =>
         type == CallType.Video ? "video" : "voice";
+
+    /// <summary>null khi app không gửi (bản cũ), để nơi gọi giữ nguyên giá trị đang có.</summary>
+    internal static VideoEndAction? ParseVideoEndAction(string? raw) =>
+        raw?.Trim().ToLowerInvariant() switch
+        {
+            null or "" => null,
+            "loop" => VideoEndAction.Loop,
+            _ => VideoEndAction.HangUp
+        };
+
+    internal static string MapVideoEndActionString(VideoEndAction action) =>
+        action == VideoEndAction.Loop ? "loop" : "hangUp";
+
+    internal static string? CleanCallerName(string? raw)
+    {
+        var name = raw?.Trim();
+        if (string.IsNullOrEmpty(name))
+        {
+            return null;
+        }
+        return name.Length > DomainLimits.MaxCallerNameLength ? name[..DomainLimits.MaxCallerNameLength] : name;
+    }
 
     internal static RingtoneType ParseRingtone(string? raw) =>
         raw?.ToLowerInvariant() switch

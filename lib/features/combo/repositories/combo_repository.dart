@@ -111,6 +111,13 @@ class ComboRepository {
       if (mine != null && !map.containsKey('callType')) {
         remote = remote.copyWith(callType: mine.callType);
       }
+      // Server bản cũ chưa có tên người gọi / cách kết thúc video: giữ bản trên máy.
+      if (mine != null && !map.containsKey('callerName')) {
+        remote = remote.copyWith(
+          callerName: mine.callerName,
+          videoEndAction: mine.videoEndAction,
+        );
+      }
       for (final track in MediaTrack.values) {
         remote = await _mergeTrack(
           track,
@@ -392,6 +399,8 @@ class ComboRepository {
     'scenarioId': combo.scenarioId,
     'callInterface': combo.callInterface.name,
     'callType': combo.callType.name,
+    'callerName': combo.callerName,
+    'videoEndAction': combo.videoEndAction.name,
     'ringtoneType': combo.ringtoneType == RingtoneType.custom
         ? RingtoneType.interfaceDefault.name
         : combo.ringtoneType.name,
@@ -438,6 +447,8 @@ class ComboRepository {
       callInterface: callInterface,
       ringtoneType: ringtoneType,
       callType: callType,
+      callerName: ComboModel.cleanCallerName(map['callerName']),
+      videoEndAction: VideoEndAction.parse(map['videoEndAction']),
       backgroundSoundPaths: bgList,
       createdAt:
           DateTime.tryParse(map['createdAt'] as String? ?? '') ??

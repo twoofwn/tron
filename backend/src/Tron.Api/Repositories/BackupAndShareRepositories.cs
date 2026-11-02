@@ -46,10 +46,10 @@ public class BackupRepository(TronDbContext db)
     public Task<Dictionary<Guid, Guid?>> GetComboVoiceIdsAsync(Guid userId, CancellationToken ct = default) =>
         db.Combos.Where(c => c.OwnerId == userId).ToDictionaryAsync(c => c.Id, c => c.VoiceMediaId, ct);
 
-    public Task<Dictionary<Guid, (CallType CallType, Guid? VideoMediaId)>> GetComboVideosAsync(Guid userId, CancellationToken ct = default) =>
+    public Task<Dictionary<Guid, (CallType CallType, Guid? VideoMediaId, string? CallerName, VideoEndAction VideoEndAction)>> GetComboVideosAsync(Guid userId, CancellationToken ct = default) =>
         db.Combos.Where(c => c.OwnerId == userId)
-            .Select(c => new { c.Id, c.CallType, c.VideoMediaId })
-            .ToDictionaryAsync(c => c.Id, c => (c.CallType, c.VideoMediaId), ct);
+            .Select(c => new { c.Id, c.CallType, c.VideoMediaId, c.CallerName, c.VideoEndAction })
+            .ToDictionaryAsync(c => c.Id, c => (c.CallType, c.VideoMediaId, c.CallerName, c.VideoEndAction), ct);
 
     public async Task ClearUserSnapshotEntitiesAsync(Guid userId, CancellationToken ct = default)
     {

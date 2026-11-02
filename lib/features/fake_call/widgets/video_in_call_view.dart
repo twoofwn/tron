@@ -14,8 +14,9 @@ import 'call_action_button.dart';
 
 /// 8b — Màn đang gọi video: video người gọi phủ kín màn hình, khung nhỏ góc trên
 /// là camera trước của người dùng (chỉ xem, không quay, không thu tiếng).
-/// Không có video thì hiện như người gọi tắt camera; video lỗi thì báo thêm
-/// [onVideoUnavailable] để màn gọi phát giọng thay thế.
+/// Không có video hoặc video lỗi thì hiện như người gọi tắt camera; video lỗi
+/// thì báo thêm [onVideoUnavailable]. Hết video thì lặp lại nếu [loop], không
+/// thì gọi [onVideoEnded] để kết thúc cuộc gọi.
 class VideoInCallView extends ConsumerStatefulWidget {
   const VideoInCallView({
     super.key,
@@ -24,9 +25,11 @@ class VideoInCallView extends ConsumerStatefulWidget {
     required this.theme,
     required this.elapsed,
     required this.videoPath,
+    required this.loop,
     required this.isMuted,
     required this.onToggleMute,
     required this.onHangUp,
+    required this.onVideoEnded,
     required this.onVideoUnavailable,
   });
   final String caller;
@@ -36,9 +39,13 @@ class VideoInCallView extends ConsumerStatefulWidget {
 
   /// Video người gọi (`media:...mp4`), `null` nếu combo chưa có video.
   final String? videoPath;
+
+  /// Phát lại video từ đầu khi hết, thay vì kết thúc cuộc gọi.
+  final bool loop;
   final bool isMuted;
   final VoidCallback onToggleMute;
   final VoidCallback onHangUp;
+  final VoidCallback onVideoEnded;
   final VoidCallback onVideoUnavailable;
 
   @override
@@ -50,6 +57,7 @@ class _VideoInCallViewState extends ConsumerState<VideoInCallView>
   late final VideoRecorder _recorder = ref.read(videoRecorderProvider);
   VideoPlayerController? _remote;
   bool _remoteUnavailable = false;
+  bool _remoteEnded = false;
   List<CameraDescription> _cameras = const [];
   CameraDescription? _camera;
   CameraController? _self;
@@ -105,6 +113,7 @@ class _VideoInCallViewState extends ConsumerState<VideoInCallView>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _remote?.removeListener(_onRemoteTick);
     unawaited(_remote?.dispose());
     unawaited(_self?.dispose());
     super.dispose();
@@ -135,12 +144,12 @@ class _VideoInCallViewState extends ConsumerState<VideoInCallView>
       final location = await ref.read(fileServiceProvider).videoLocation(path);
       controller = videoControllerFor(location);
       await controller.initialize();
-      // Hết video thì dừng ở khung cuối, như người gọi ngừng nói.
-      await controller.setLooping(false);
+      await controller.setLooping(widget.loop);
       if (!mounted) {
         await controller.dispose();
         return;
       }
+      controller.addListener(_onRemoteTick);
       setState(() => _remote = controller);
       await controller.play();
     } catch (_) {
@@ -149,6 +158,26 @@ class _VideoInCallViewState extends ConsumerState<VideoInCallView>
         setState(() => _remote = null);
       }
       _markRemoteUnavailable();
+    }
+  }
+
+  /// Video không lặp phát hết: người gọi gác máy.
+  void _onRemoteTick() {
+    final value = _remote?.value;
+    if (widget.loop || _remoteEnded || value == null) {
+      return;
+    }
+    if (value.hasError) {
+      _markRemoteUnavailable();
+      return;
+    }
+    if (value.isCompleted ||
+        (value.isInitialized &&
+            !value.isPlaying &&
+            value.duration > Duration.zero &&
+            value.position >= value.duration)) {
+      _remoteEnded = true;
+      widget.onVideoEnded();
     }
   }
 

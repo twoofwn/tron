@@ -227,6 +227,12 @@ public class BackupAndShareService(
                 CallType = UserDataService.ParseCallType(dto.CallType)
                     ?? (hadCombo ? previousVideo.CallType : CallType.Voice),
                 VideoMediaId = videoMediaId,
+                // App bản cũ không gửi VideoEndAction: giữ tên người gọi và cách kết thúc đang có.
+                CallerName = UserDataService.ParseVideoEndAction(dto.VideoEndAction) is null && hadCombo
+                    ? previousVideo.CallerName
+                    : UserDataService.CleanCallerName(dto.CallerName),
+                VideoEndAction = UserDataService.ParseVideoEndAction(dto.VideoEndAction)
+                    ?? (hadCombo ? previousVideo.VideoEndAction : VideoEndAction.HangUp),
                 BackgroundVolume = Math.Clamp(dto.BackgroundVolume, 0m, 1m),
                 BackgroundOverridden = dto.BackgroundOverridden,
                 SortOrder = comboOrder++,
@@ -363,7 +369,9 @@ public class BackupAndShareService(
                 c.CreatedAt,
                 c.VoiceMediaId,
                 UserDataService.MapCallTypeString(c.CallType),
-                c.VideoMediaId)).ToList(),
+                c.VideoMediaId,
+                c.CallerName,
+                UserDataService.MapVideoEndActionString(c.VideoEndAction))).ToList(),
             mediaFiles.Select(m => new MediaCheckItemDto(m.Sha256, m.Id, m.Extension, m.SizeBytes)).ToList());
     }
 
