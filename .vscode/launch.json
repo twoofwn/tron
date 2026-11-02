@@ -1,26 +1,69 @@
 {
-    // Use IntelliSense to learn about possible attributes.
-    // Hover to view descriptions of existing attributes.
-    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-    
         {
-            "name": "tron",
-            "request": "launch",
-            "type": "dart"
-        },
-        {
-            "name": "tron (profile mode)",
+            "name": "Flutter (Tự động chọn thiết bị)",
             "request": "launch",
             "type": "dart",
-            "flutterMode": "profile"
+            "args": [
+                "--no-web-resources-cdn"
+            ]
         },
         {
-            "name": "tron (release mode)",
+            "name": "Flutter (Chrome Web)",
             "request": "launch",
             "type": "dart",
-            "flutterMode": "release"
+            "deviceId": "chrome",
+            "args": [
+                "--no-web-resources-cdn"
+            ]
+        },
+        {
+            // Chrome của "Flutter (Chrome Web)" dùng hồ sơ tạm, dữ liệu (combo,
+            // đăng nhập) chỉ được chép lại khi Chrome thoát êm nên dễ mất sau mỗi
+            // lần chạy. Cấu hình này chỉ chạy server: mở http://localhost:5173
+            // bằng Chrome thường của bạn, dữ liệu được giữ giữa các lần chạy.
+            "name": "Flutter (Web server, giữ dữ liệu)",
+            "request": "launch",
+            "type": "dart",
+            "deviceId": "web-server",
+            "args": [
+                "--no-web-resources-cdn",
+                "--web-port",
+                "5173"
+            ]
+        },
+        {
+            "name": "Flutter (Windows Desktop)",
+            "request": "launch",
+            "type": "dart",
+            "deviceId": "windows"
+        },
+        {
+            "name": "Flutter (Release)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "release",
+            "args": [
+                "--no-web-resources-cdn"
+            ]
+        },
+        {
+            "name": "Backend .NET API (Tron.Api)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/backend/src/Tron.Api/bin/Debug/net9.0/Tron.Api.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/backend/src/Tron.Api",
+            "stopAtEntry": false,
+            "serverReadyAction": {
+                "action": "openUrl",
+                "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+            },
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development"
+            }
         }
     ]
 }

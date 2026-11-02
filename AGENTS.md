@@ -114,6 +114,34 @@ Code nằm dưới `lib/features/scenarios/{models,data,presentation,services}/`
 - Đã chạy `flutter analyze` và `flutter test`; build Android debug thành công. Test bao phủ tìm kiếm tiếng Việt, bộ lọc, xác nhận/hủy, lưu dữ liệu qua lần mở lại, sự tồn tại của audio mẫu, dừng player và bố cục viewport hẹp. Trước khi bàn giao cuối, chạy lại các lệnh sau thay đổi mới nhất.
 - Còn cần kiểm tra phát audio, chọn file và lưu dữ liệu trên thiết bị Android/iOS thực; nối `ScenarioSelection` vào màn tạo combo khi màn đó được triển khai; thay audio tổng hợp nếu cần chất lượng cuộc gọi đáng tin cậy.
 
+### Tiến độ Backend .NET & Database (2026-10-25)
+
+- Đã tạo nhánh `codex/backend-api` và triển khai toàn bộ backend ASP.NET Core 9 REST API + EF Core 9 + SQL Server 2022 trong `backend/src/Tron.Api/` theo mô hình 5 lớp: `Controllers`, `Models`, `Services`, `Repositories`, `Db`.
+- Đã tạo script `trondb.sql` (ở gốc repo và `backend/trondb.sql`) kèm `SqlScriptInitializer` nạp tự động 15 bảng, 4 kịch bản mẫu (22 bước hội thoại), 7 âm nền hợp nhất, 4 nhạc chuông và bảng ánh xạ ID cũ (`ScenarioAliases`).
+- Đã triển khai `DiskMediaStorage` lưu audio trên ổ đĩa server kèm kiểm tra magic bytes, chống trùng SHA-256, hạn mức 200 MB/user và `StorageCleanupWorker` dọn file mồ côi / gói chia sẻ hết hạn.
+- Đã nối Flutter với backend qua `ApiClient`, `AuthRepository`, `BackupService`, màn `AuthScreen`, `AccountScreen` và hỗ trợ nhập mã chia sẻ trực tuyến `EH-XXXXXX`.
+
+### Tiến độ gọi video (2026-11-02)
+
+- Nhánh `codex/video-call`. Combo có `callType` (`voice`/`video`) và `videoPath` (`media:UUID.mp4`) + `videoMediaId`. Màn quay `VideoRecordScreen` (camera trước, tối đa 60 s, ~1,3 Mbps), thẻ `VideoRecorderCard` (quay / chọn MP4 / xem lại / xoá), `CallTypeSelector` trong form. Gọi thoại giữ nguyên.
+- Màn gọi: chuông và màn đến đổi chữ sang "video", trả lời mở `VideoInCallView` (video người gọi phủ kín + khung camera trước chỉ xem). Gọi video không bao giờ phát giọng hay âm nền: có video thì video tự có tiếng; không có video hoặc video lỗi → avatar "Camera đang tắt", im lặng (video lỗi thì báo lỗi). Khung camera bản thân kéo được, thả ra dính góc gần nhất, không che hàng nút.
+- Đồng bộ: `ComboRepository` dùng enum `MediaTrack` (voice, video) cho cả gộp danh sách, tải lên/tải về và dọn file; quy ước server giữ như giọng. Chia sẻ `.ehc`/`EH-` và sao lưu mang theo video khi chọn kèm âm thanh.
+- Backend: `CallType`, `MediaKind.Video`, cột `Combos.CallType`/`VideoMediaId` (+ `EnsureComboVideoColumnsAsync`, mục 1.10c trong `trondb.sql`), MP4 tối đa 20 MB, upload giới hạn 22 MB.
+- Đã chạy: `flutter analyze` sạch; `flutter test` — mọi test xanh trừ "Primary screen visual snapshots" (lỗi có sẵn: thiếu `test/goldens/`); `dotnet build` sạch.
+- Kiểm tra giới hạn (cùng ngày): mọi chỗ chọn file kiểm tra dung lượng trước khi đọc và báo dung lượng thật (`FileService.ensureSize`, `sizeLabel`, `durationLabel`); video chỉ giới hạn 20 MB, không giới hạn độ dài (quay trong app tự dừng khi ước tính theo bitrate chạm 90% của 20 MB, khoảng 2 phút — `VideoRecorder.autoStopAfter`; video chọn từ máy chỉ cần phát được — `checkPickedVideo`); `FileService.videoLocation` nhớ vị trí phát của từng video trong phiên (web dùng blob URL tạo một lần thay cho data URI), bỏ khi file bị xoá; nhập audio kịch bản giới hạn 10 MB và lọc đuôi file; màn xuất hiện dung lượng gói ước tính và khoá nút khi vượt 25 MB; mã dán quá dài được báo riêng; 10 giây cuối khi thu/quay có cảnh báo, tự dừng thì báo; server từ chối file (hạn mức, quá lớn) thì form báo sau khi lưu (`takeUploadRejection`); HTTP 413 có câu báo riêng. Test: `test/media_limits_test.dart`.
+- Build APK debug lần đầu lỗi không resolve được `camera`/`video_player` (có thể do chạy cùng lúc với `flutter test`); chưa build lại.
+- Chưa kiểm tra trên thiết bị thật: quay video, quyền camera/micro, khung camera khi gọi, phát video, dung lượng thực tế của bản quay trên từng máy. `backend/trondb.sql` là bản cũ (chưa có cả cột giọng), chỉ cập nhật `trondb.sql` gốc và bản trong `backend/src/Tron.Api/`.
+
+### Gọi video chỉ cần tên người gọi (2026-11-02)
+
+- Nhánh `codex/video-call-name-only`. Combo gọi video không dùng kịch bản thoại: form ẩn chọn kịch bản, thu giọng và âm nền; thay bằng ô "Tên người gọi" (bắt buộc), thẻ video (bắt buộc khi lưu) và "Khi video kết thúc" (`VideoEndAction.hangUp` tắt máy / `loop` lặp lại). `scenarioId` cũ vẫn được giữ để đổi lại gọi thoại không mất lựa chọn.
+- `ComboModel.callerName`, `videoEndAction`, `displayCaller()`; đồng bộ qua `toServerMap`/`fromServerMap`, sao lưu, chia sẻ `.ehc`/`EH-`. Server cũ không trả `callerName` thì giữ bản trên máy.
+- Màn gọi video không còn phát giọng kịch bản khi video lỗi/thiếu (chỉ báo lỗi và hiện avatar). Hết video không lặp thì tự kết thúc cuộc gọi.
+- Backend: cột `Combos.CallerName` (NVARCHAR 40) và `VideoEndAction` (mặc định `HangUp`), mục 1.10d trong `trondb.sql` + `EnsureComboVideoColumnsAsync`. App cũ không gửi `videoEndAction` thì server giữ nguyên hai trường.
+- Đã chạy: `flutter analyze` sạch, `flutter test` xanh trừ golden có sẵn; `dotnet build` sạch. Chưa kiểm tra trên máy thật việc phát hết video → tắt máy / lặp.
+- Web (2026-11-02): file âm thanh/video chuyển từ base64 trong localStorage (~5 MB, video làm đầy và các lần lưu combo sau đó lỗi) sang IndexedDB (`media_files_web.dart`, DB `tron_media`); file cũ tự chuyển khi đọc. Test chạy bằng `flutter test --platform chrome test/media_files_web_test.dart`.
+- `flutter run -d chrome` dùng hồ sơ Chrome tạm, dữ liệu chỉ được chép về `.dart_tool/chrome-device` khi Chrome thoát êm nên combo mới hay mất sau khi chạy lại. Dùng cấu hình VS Code "Flutter (Web server, giữ dữ liệu)" rồi mở http://localhost:5173 bằng Chrome thường.
+
 ### Tiến độ phần D: hẹn giờ và kích hoạt (2026-10-26)
 
 - Nhánh `codex/timer-triggers`. Đã có: màn Cài đặt (loại điện thoại, quyền, hẹn giờ, rung, sáng/tối), báo thức hệ thống khi hẹn giờ, xin quyền thông báo, lật máy và gõ lưng (Android), dịch vụ "Sẵn sàng khi tắt màn hình" (Android, `ArmedService`), deep link `tron://trigger` (Android và iOS).
@@ -121,3 +149,42 @@ Code nằm dưới `lib/features/scenarios/{models,data,presentation,services}/`
 - Chưa xác nhận: build APK debug và biên dịch Kotlin. Máy build thiếu SDK `android-37`, mà `permission_handler_android` 14.x yêu cầu. Xem cách sửa trong mục build.
 - Chưa kiểm tra trên thiết bị thật: báo thức khi khóa máy, full-screen intent, cảm biến khi màn hình tắt, Back Tap iOS. Ngưỡng lật máy và gõ lưng là ước lượng, phải chỉnh lại trên máy.
 - Lệch so với plan: không lưu `tron.pendingCall`; báo thức hệ thống và đồng hồ trong app đã đủ. "Hiện khi khóa máy" chỉ mở cài đặt, không đọc được trạng thái. Chuông báo thức dùng âm thông báo mặc định. Android không rõ hãng thì dùng kiểu Samsung.
+
+### Tiến độ nhạc chuông MP3 (2026-11-02)
+
+- Nhánh `codex/ringtone-mp3`. Chuông iPhone, Samsung, Huawei, Zalo, Messenger là file MP3 trong `assets/audio/ringtones/`, cùng bản sao `ring_*.mp3` trong `android/app/src/main/res/raw/` cho thông báo. `BuiltInRingtone` (`lib/core/constants/built_in_ringtone.dart`) chọn chuông: Zalo/Messenger theo giao diện, Điện thoại theo loại máy (Xiaomi và máy chưa rõ hãng dùng Samsung). Giữ "Chuông cổ điển"; đã xóa 3 WAV cũ.
+- Android khi khóa máy: mỗi chuông một kênh thông báo `incoming_calls_<tên>` (xóa kênh cũ `incoming_calls`), chuông lặp bằng FLAG_INSISTENT, theo âm lượng nhạc chuông, tự tắt sau 60 giây. Khi app ở nền, màn gọi không phát chuông; lúc app lên màn hình thì hủy thông báo rồi app phát chuông. Quá 60 giây thì coi như cuộc gọi nhỡ. Chuông cá nhân chỉ phát khi app mở; lúc khóa máy dùng chuông theo giao diện.
+- Seed `Ringtones` ở backend (3 file SQL và `DbInitializer`) đồng bộ lại mỗi lần chạy.
+- Kiểm tra: `flutter analyze` sạch; `flutter test` 107 test đạt, 1 lỗi có sẵn (`Primary screen visual snapshots` thiếu `test/goldens/`, bị xóa ở commit `5502781`). Build APK chưa chạy được ở máy agent (Gradle lỗi loopback). Chưa thử trên máy thật. iOS chưa đổi chuông thông báo.
+
+### Tiến độ phím âm lượng và loa trong/ngoài (2026-11-02)
+
+- Cùng nhánh `codex/ringtone-mp3`. `MainActivity.kt` mở kênh `tron/call`; Dart dùng qua `CallDeviceService` (`lib/features/fake_call/services/`). Khi đổ chuông, phím tăng/giảm âm lượng tắt chuông và rung, màn gọi vẫn chờ trả lời; ngoài lúc đổ chuông phím hoạt động bình thường.
+- Trả lời thì máy vào chế độ cuộc gọi, tiếng ra loa trong (hoặc tai nghe); nút "loa" chuyển loa ngoài. Kết thúc thì trả về chế độ thường. Giọng và âm nền người gọi dùng kiểu âm thanh cuộc gọi (`audio_session`). Giọng đọc tự động được tạo thành file WAV trong lúc đổ chuông rồi phát như giọng thu; tạo file lỗi thì đọc trực tiếp ra loa ngoài.
+- Kiểm tra: `flutter analyze` sạch; `flutter test` 113 đạt, 1 lỗi có sẵn (golden). Build APK vẫn lỗi Gradle loopback ở máy agent nên Kotlin chưa biên dịch thử. Chưa thử trên máy thật. iOS chưa làm.
+
+### Tiến độ SOS khẩn cấp (2026-11-02)
+
+- Nhánh `codex/sos-emergency`, chỉ làm Android (bỏ qua iOS theo yêu cầu). Code ở `lib/features/sos/` (models, data, services, providers, screens, widgets) và `android/.../SosTools.kt`, `SosCheckIn.kt`, kênh `tron/sos` trong `MainActivity.kt`. Bảng nhập số cũ `emergency_sheet.dart` đã bỏ; số cũ (`tron.emergency`) tự chuyển thành người liên hệ đầu tiên của `tron.sos.v1`.
+- Cài đặt (`/sos`): tối đa 5 người liên hệ (chọn từ danh bạ hệ thống, không cần quyền đọc danh bạ; hoặc nhập tay), kéo để đổi thứ tự, người đầu được gọi trước; mẫu tin có sẵn, sửa được, chèn `{vitri}` `{thoigian}` `{pin}`, xem trước và đếm số tin (có dấu ~70 ký tự/tin), tuỳ chọn gửi không dấu; tự gọi bật/tắt; đếm ngược 0/3/5/10 giây; mục quyền.
+- Luồng SOS (`/sos/alert`): đếm ngược có nút HỦY → xin quyền còn thiếu → lấy vị trí (tối đa 8 giây, không được thì gửi không kèm vị trí) → gửi SMS cho tất cả qua `SmsManager` → gọi thẳng người đầu (`ACTION_CALL`, thiếu quyền thì mở màn quay số) → màn kết quả: gửi lại tin lỗi, gọi người tiếp theo, mở sẵn 113/115. Không có quyền SMS thì mở app tin nhắn soạn sẵn. `SosTools.render` (Kotlin) và `SosMessage.render` (Dart) phải giữ cùng định dạng.
+- Kích hoạt: (1) thẻ SOS ở Home: chạm để gửi, giữ để vào cài đặt; (3) giữ nút gác máy 2 giây trong màn đang gọi giả (thoại và video, bỏ qua ở bản xem thử); (4) hẹn giờ "Báo an toàn" 15/30/60/120 phút, +15 phút, "Tôi an toàn". Hết giờ thì Android tự gửi SOS kể cả khi app đóng: báo thức chính xác → `SosCheckInReceiver` → `SosCheckInService` (foreground `location|specialUse`, thông báo đếm ngược có nút "Tôi an toàn"), cảnh báo trước 1 phút, khởi động lại máy thì đặt lại báo thức hoặc gửi ngay nếu đã quá hạn. Sau khi gửi hiện thông báo toàn màn hình để gọi người đầu; Home hiện kết quả lần tự gửi.
+- Kiểm tra: `flutter analyze` sạch; `flutter test` 171 đạt, 1 lỗi có sẵn (golden). `flutter build apk --debug` thành công (Kotlin biên dịch được). Máy agent lỗi Gradle "Unable to establish loopback connection": chạy với `JAVA_TOOL_OPTIONS=-Djdk.net.unixdomain.tmpdir=D:\gt` (thư mục ngắn, không dấu cách) thì build được.
+- Chưa thử trên máy thật: gửi SMS thật (kể cả máy 2 SIM, Xiaomi chặn gửi SMS), gọi thẳng, vị trí trong nhà, báo thức khi máy Doze, foreground service vị trí khi app đóng, thông báo toàn màn hình (Android 14 cần người dùng cấp), khởi động lại máy giữa chừng. Ngoài phạm vi lần này: ô Quick Settings/widget, cử chỉ gọi SOS, link `tron://sos`, mã PIN chống bị ép bấm "Tôi an toàn".
+
+### Tiến độ chờ người dùng đáp khi gọi (2026-11-02)
+
+- Nhánh `codex/voice-turn-taking`, tách từ `codex/sos-emergency` khi phần SOS còn chưa commit (vẫn nằm trong working tree). Người gọi nói từng câu; tới bước chờ thì nghe micro, người dùng nói rồi im khoảng 0,9 giây thì nói câu tiếp.
+- `CallScript` (`lib/features/fake_call/models/`) dựng lượt nói/chờ từ bước kịch bản. Kịch bản cũ chỉ có chữ thì tách theo `. ! ? …` và chờ sau mỗi câu. Combo có giọng thu liền một file (`voicePath`) thì phát cả file, không mở micro. Video có video người gọi thì giữ nguyên.
+- `TurnDetector` (logic thuần, có test): khung 30 ms; ồn nền là mức thấp nhất trong 1,5 giây gần nhất; bắt đầu nói khi cao hơn nền 12 dB (tối thiểu -50 dBFS) trong ít nhất 0,2 giây; xong khi im 0,9 giây; bỏ qua 0,25 giây đầu (tiếng vọng); không nói 5 giây hoặc nói quá 20 giây thì người gọi nói tiếp.
+- `MicReplyListener`: `record` dạng luồng PCM 16 kHz, nguồn `voiceCommunication`, khử vọng/ồn, không đổi chế độ loa, không giành audio focus, không bật Bluetooth. Không lưu file. Chỉ Android; iOS/web chờ cố định (`seconds` của bước, mặc định 3 giây). Cuộc gọi thật không hỏi quyền micro; bản xem thử và công tắc "Chờ tôi nói xong mới nói tiếp" (Cài đặt, mặc định bật) thì hỏi. Tắt tiếng thì chờ cố định. Bản xem thử hiện "Đang nghe bạn…".
+- Giọng đọc tự động tạo file cho từng câu (lần lượt, trong lúc đổ chuông); câu có file thoại thì phát file đó.
+- Kiểm tra: `flutter analyze` sạch; `flutter test` 199 đạt, 1 lỗi có sẵn (golden); `flutter build apk --debug` thành công.
+- Chưa thử trên máy thật: các ngưỡng dB, khử vọng khi bật loa ngoài cùng âm nền, tai nghe Bluetooth, micro bị app khác chiếm, việc mở micro có làm đổi đường ra âm thanh trên từng hãng máy. Màn chi tiết kịch bản (nghe thử, chạm "Tiếp tục") chưa dùng micro.
+
+### Tiến độ thu giọng từng câu trong form kịch bản (2026-11-02)
+
+- Cùng nhánh `codex/voice-turn-taking`. Form kịch bản (`scenario_editor_sheet.dart`) mỗi câu có nút Thu / Thu lại (tối đa 30 giây, 10 giây cuối cảnh báo, hết giờ tự dừng và giữ bản thu), chọn file, nghe lại, và ô "Chờ người dùng trả lời sau câu này" (giữ đúng cấu trúc chờ của kịch bản gốc; câu cuối không có ô). Câu còn dùng audio có sẵn hiện "Giọng mẫu của app".
+- Bản thu đi qua `VoiceRecorder.stopBytes()` rồi `ScenarioRepository.importAudio`, lưu cùng chỗ file nhập. `ScenarioRepository.deleteAudio` chỉ xoá file trong thư mục audio của kho kịch bản. Thu lại hoặc xoá câu thì xoá bản vừa thu; đóng form không lưu thì xoá mọi bản thu/nhập mới; lưu kịch bản cá nhân thì xoá audio cũ không còn dùng. Bản sao kịch bản mẫu không đụng audio gốc.
+- `docs/thu-giong-kich-ban-mau.md`: bản kịch để nhóm nhờ người thật thu 16 câu của 4 kịch bản mẫu, thay file trong `assets/audio/voice/`. Chưa có bản thu thật.
+- Kiểm tra: `flutter analyze` sạch; `flutter test` 211 đạt, 1 lỗi có sẵn (golden); `flutter build apk --debug` thành công. Chưa thử thu trên máy thật (quyền micro, chất lượng bản thu, chuyển sang app khác khi đang thu).

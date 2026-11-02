@@ -72,6 +72,31 @@ class _ScenarioDetailScreenState extends State<ScenarioDetailScreen>
     if (mounted && updated != null) setState(() => _scenarioId = updated.id);
   }
 
+  Future<void> _delete(Scenario scenario) async {
+    await _preview.stop();
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Xóa kịch bản cá nhân?'),
+        content: Text('“${scenario.title}” sẽ bị xóa khỏi bộ nhớ.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Hủy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await widget.repository.deleteUserScenario(scenario.id);
+    if (mounted) Navigator.of(context).pop();
+  }
+
   void _confirm(Scenario scenario) {
     unawaited(_preview.stop());
     Navigator.of(context).pop(
@@ -128,6 +153,12 @@ class _ScenarioDetailScreenState extends State<ScenarioDetailScreen>
                           onPressed: () => _edit(scenario),
                           child: Text(scenario.isEditable ? 'Sửa' : 'Sao chép'),
                         ),
+                        if (scenario.isEditable)
+                          IconButton(
+                            tooltip: 'Xóa kịch bản',
+                            onPressed: () => _delete(scenario),
+                            icon: const Icon(Icons.delete_outline),
+                          ),
                       ],
                     ),
                     const SizedBox(height: 20),

@@ -56,10 +56,22 @@ class ComboCard extends StatelessWidget {
                   runSpacing: 5,
                   children: [
                     ComboTag(combo.callInterface.label, color: color),
-                    for (final key in combo.backgroundSoundPaths)
-                      ComboTag(BackgroundSound.values.byName(key).label),
-                    if (combo.customBackgroundPath != null)
-                      const ComboTag('Âm thanh riêng'),
+                    // Gọi video không phát âm nền: không hiện nhãn âm nền.
+                    if (!combo.isVideoCall) ...[
+                      for (final key in combo.backgroundSoundPaths)
+                        ComboTag(BackgroundSound.values.byName(key).label),
+                      if (combo.customBackgroundPath != null)
+                        const ComboTag('Âm thanh riêng'),
+                    ],
+                    if (combo.isVideoCall) ...[
+                      ComboTag(
+                        combo.videoPath == null ? 'Gọi video' : 'Video tự quay',
+                        color: AppColors.green,
+                      ),
+                      if (combo.videoEndAction == VideoEndAction.loop)
+                        const ComboTag('Lặp video'),
+                    ] else if (combo.voicePath != null)
+                      const ComboTag('Giọng tự thu'),
                     ComboTag(switch (combo.ringtoneType) {
                       RingtoneType.classic => 'Chuông cổ điển',
                       RingtoneType.custom => 'Chuông cá nhân',

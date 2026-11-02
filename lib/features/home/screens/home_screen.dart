@@ -18,7 +18,8 @@ import '../../fake_call/providers/call_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../widgets/combo_card.dart';
 import '../widgets/delay_selector.dart';
-import '../widgets/emergency_sheet.dart';
+import '../../sos/providers/sos_providers.dart';
+import '../../sos/widgets/check_in_card.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -151,22 +152,27 @@ class HomeScreen extends ConsumerWidget {
                                 ),
                               ),
                             ),
-                            TextButton(
+                            TextButton.icon(
                               onPressed: () => Navigator.pushNamed(
                                 context,
                                 RouteNames.sharing,
                               ),
                               style: TextButton.styleFrom(
-                                foregroundColor: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
+                                foregroundColor: AppColors.accent,
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8,
                                 ),
                               ),
-                              child: const Text(
+                              icon: const Icon(
+                                Icons.storefront_outlined,
+                                size: 15,
+                              ),
+                              label: const Text(
                                 'Nhập / Xuất',
-                                style: TextStyle(fontSize: 12),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
                             ),
                             TextButton(
@@ -221,26 +227,33 @@ class HomeScreen extends ConsumerWidget {
                         CallSchedulerCard(combo: selected),
                         const SizedBox(height: 24),
                         const Spacer(),
+                        const CheckInBanner(),
                         const HomeQuickActions(),
                         const SizedBox(height: 14),
                         Center(
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                Icons.shield_outlined,
-                                size: 12,
-                                color: AppColors.muted.withValues(alpha: 0.7),
-                              ),
-                              const SizedBox(width: 5),
-                              const Text(
-                                'Riêng tư trên thiết bị. An tâm là chính mình.',
-                                style: TextStyle(
-                                  color: AppColors.muted,
-                                  fontSize: 10,
+                          child: GestureDetector(
+                            onTap: () => Navigator.pushNamed(
+                              context,
+                              RouteNames.account,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.shield_outlined,
+                                  size: 12,
+                                  color: AppColors.muted.withValues(alpha: 0.7),
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 5),
+                                const Text(
+                                  'Riêng tư trên thiết bị. An tâm là chính mình.',
+                                  style: TextStyle(
+                                    color: AppColors.muted,
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],
@@ -295,6 +308,15 @@ class HomeHeader extends StatelessWidget {
           ],
         ),
       ),
+      GlassCard(
+        padding: EdgeInsets.zero,
+        child: IconButton(
+          onPressed: () => Navigator.pushNamed(context, RouteNames.account),
+          tooltip: 'Tài khoản & Sao lưu',
+          icon: const Icon(Icons.person_outline_rounded, size: 21),
+        ),
+      ),
+      const SizedBox(width: 8),
       GlassCard(
         padding: EdgeInsets.zero,
         child: IconButton(
@@ -486,6 +508,8 @@ class HomeQuickActions extends ConsumerWidget {
       settings?.flipEnabled,
       settings?.knockEnabled,
     ].where((on) => on == true).length;
+    final sosCount = ref.watch(sosSettingsProvider).value?.contacts.length ?? 0;
+    final sosReady = sosCount > 0;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -516,16 +540,16 @@ class HomeQuickActions extends ConsumerWidget {
             tint: Theme.of(context).brightness == Brightness.dark
                 ? const Color(0xFF301C22)
                 : const Color(0xFFFFE8E9),
-            onTap: () => showModalBottomSheet<void>(
-              context: context,
-              isScrollControlled: true,
-              showDragHandle: true,
-              builder: (_) => const EmergencySheet(),
+            // Chạm: gửi SOS (có đếm ngược để hủy). Giữ: mở cài đặt SOS.
+            onTap: () => Navigator.pushNamed(
+              context,
+              sosReady ? RouteNames.sosAlert : RouteNames.sos,
             ),
-            child: const Column(
+            onLongPress: () => Navigator.pushNamed(context, RouteNames.sos),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'SOS khẩn cấp',
                   style: TextStyle(
                     color: AppColors.red,
@@ -533,10 +557,12 @@ class HomeQuickActions extends ConsumerWidget {
                     fontSize: 13,
                   ),
                 ),
-                SizedBox(height: 5),
+                const SizedBox(height: 5),
                 Text(
-                  'Liên hệ người tin cậy',
-                  style: TextStyle(color: AppColors.red, fontSize: 11),
+                  sosReady
+                      ? 'Chạm để gửi · $sosCount người · giữ để cài đặt'
+                      : 'Chạm để thiết lập',
+                  style: const TextStyle(color: AppColors.red, fontSize: 11),
                 ),
               ],
             ),

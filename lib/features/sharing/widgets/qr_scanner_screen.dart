@@ -47,9 +47,13 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                     return;
                   }
                   final value = capture.barcodes
-                      .map((barcode) => barcode.rawValue)
+                      .map((barcode) => barcode.rawValue?.trim())
                       .whereType<String>()
-                      .where((value) => value.startsWith('TRON1.'))
+                      .where(
+                        (v) =>
+                            v.toUpperCase().startsWith('TRON1.') ||
+                            v.toUpperCase().startsWith('EH-'),
+                      )
                       .firstOrNull;
                   if (value == null) {
                     return;

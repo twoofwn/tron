@@ -18,8 +18,20 @@ class DevicePreviewAudioBackend implements PreviewAudioBackend {
   StreamSubscription<void>? _completionSubscription;
   Completer<void>? _voiceCompletion;
 
-  Source _source(String path) =>
-      path.startsWith('/') ? DeviceFileSource(path) : AssetSource(path);
+  Source _source(String path) {
+    if (path.startsWith('data:') ||
+        path.startsWith('http://') ||
+        path.startsWith('https://') ||
+        path.startsWith('blob:')) {
+      return UrlSource(path);
+    }
+    if (!kIsWeb &&
+        (path.startsWith('/') || RegExp(r'^[a-zA-Z]:[\\/]').hasMatch(path))) {
+      return DeviceFileSource(path);
+    }
+    final assetPath = path.startsWith('assets/') ? path.substring(7) : path;
+    return AssetSource(assetPath);
+  }
 
   @override
   Future<void> playVoice(String path) async {

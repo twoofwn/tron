@@ -18,6 +18,7 @@ Flutter SDK cần đi kèm Dart 3.13.2 trở lên theo `pubspec.yaml`. Có thể
 - Xuất: chọn nhiều / tất cả, tùy chọn kèm âm thanh cá nhân, tạo mã và QR, lưu `.ehc`, mở bảng chia sẻ hệ thống.
 - Nhập: mở `.ehc`, quét QR hoặc dán mã đầy đủ, xem trước, chọn combo, bỏ qua hoặc tạo bản sao khi ID trùng, xác nhận lưu.
 - Màn hình phụ: cuộc gọi đến / trả lời / kết thúc, đồng hồ cuộc gọi, tắt / bật âm thanh; máy tính ngụy trang; lưu số người tin cậy và mở trình gọi điện.
+- Gọi video: ở form combo chọn "Gọi thoại" hoặc "Gọi video". Gọi video có thẻ "Video người gọi" để quay ngay trong app (camera trước, tối đa 60 giây, có tiếng) hoặc chọn file MP4 có sẵn (tối đa 20 MB), xem lại, quay lại, xoá. Khi bắt máy, video phủ kín màn hình, khung nhỏ góc trên hiện camera trước của người dùng (chỉ xem, không quay, không thu tiếng), có nút đổi camera, tắt camera, tắt tiếng, kết thúc. Combo gọi video chưa có video, hoặc video không phát được, thì hiện như người gọi tắt camera và phát giọng tự thu / giọng máy đọc như gọi thoại.
 - Kho kịch bản (màn 5–6): mở từ form combo bằng thẻ kịch bản. Tìm kiếm không dấu kèm bộ lọc, xem chi tiết, nghe thử từng câu (chờ chạm "Tiếp tục câu thoại"), chọn âm nền, tạo / sửa kịch bản cá nhân, sao chép kịch bản có sẵn, nhập file MP3 / M4A / WAV. Chỉ khi bấm "Dùng kịch bản này" thì kịch bản mới đổi trong combo; quay lại không đổi gì.
 
 ## Kiến trúc và lưu trữ
@@ -32,13 +33,14 @@ Combo và tùy chọn giao diện lưu bằng SharedPreferences. Âm thanh cá n
 
 `.ehc` là JSON UTF-8 có `format: tron.ehc`, `version: 1`, ID gói, danh sách combo và các âm thanh được mã hóa base64 khi người dùng chọn đính kèm. Bytes chỉ nằm trong gói chia sẻ, không nằm trong dữ liệu combo lưu trên máy. Khi nhập, âm thanh được tạo thành file mới và các đường dẫn được thay thế.
 
-Mã đầy đủ có dạng `TRON1.<base64url của gói>`, chứa dữ liệu trực tiếp nên nhập được trên thiết bị khác mà không có server. Nhãn `EH-…` chỉ là ID hiển thị, không phải mã để nhập. QR chứa mã đầy đủ. Gói quá lớn cho QR chuyển sang chia sẻ file `.ehc`. Mỗi file âm thanh tối đa 10 MB; mỗi gói tối đa 25 MB và 100 combo. Khi bỏ tùy chọn đính kèm, chuông cá nhân trở về chuông theo giao diện và âm nền cá nhân được bỏ khỏi gói.
+Mã đầy đủ có dạng `TRON1.<base64url của gói>`, chứa dữ liệu trực tiếp nên nhập được trên thiết bị khác mà không có server. Nhãn `EH-…` chỉ là ID hiển thị, không phải mã để nhập. QR chứa mã đầy đủ. Gói quá lớn cho QR chuyển sang chia sẻ file `.ehc`. Mỗi file âm thanh tối đa 10 MB, video người gọi tối đa 20 MB; mỗi gói tối đa 25 MB và 100 combo. Khi bỏ tùy chọn đính kèm, chuông cá nhân trở về chuông theo giao diện và âm nền cá nhân được bỏ khỏi gói.
 
 ## Giới hạn nền tảng
 
 - Hẹn giờ hoạt động khi ứng dụng còn mở, kể cả trong màn hình ngụy trang. Chưa có dịch vụ nền / thông báo cuộc gọi hệ thống để bảo đảm kích hoạt khi ứng dụng bị đóng hoặc thiết bị khóa.
 - Hội thoại dùng giọng TTS `vi-VN` có sẵn trên thiết bị; cần cài giọng tiếng Việt để nghe. TTS có thể cần kết nối mạng tùy giọng và hệ điều hành.
 - Chuông và âm nền đi kèm là các âm thanh demo tự tạo bằng `tool/generate_audio.py`. Không dùng âm thanh thương hiệu gốc; giao diện mô phỏng không thực hiện cuộc gọi qua Zalo / Messenger.
+- Quay video người gọi chỉ có trên Android / iOS (gói `camera`); bản web chỉ chọn được file MP4 có sẵn. Video lưu trong thư mục media của app dưới dạng `media:UUID.mp4`.
 - Camera, âm thanh, chọn file và chia sẻ phụ thuộc khả năng và quyền của thiết bị. Cần kiểm tra trên thiết bị thật trước khi phát hành Android / iOS. Bản web yêu cầu HTTPS hoặc localhost để dùng camera, và trình duyệt có thể yêu cầu tương tác trước khi phát âm thanh.
 - Build web JavaScript được hỗ trợ. Plugin `flutter_tts` hiện có cảnh báo tương thích WebAssembly; chưa xác nhận bản build `--wasm`.
 - Máy tính là màn hình ngụy trang mặc định. SOS mở trình gọi điện với số người dùng lưu; ứng dụng không tự gọi hoặc gửi tin nhắn.
@@ -65,3 +67,20 @@ Mã nguồn nằm ở `lib/features/scenarios/` (models, data, providers, presen
 - Kịch bản cá nhân gắn với file trên máy, nên combo dùng chúng không nhập được trên thiết bị khác; gói chia sẻ chỉ chấp nhận kịch bản có sẵn.
 - Âm nền chọn trong kho chưa được lưu vào combo; combo vẫn dùng bộ chọn âm nền riêng ở form.
 - `tool/generate_demo_audio.py` tạo lại giọng thoại demo (cần macOS với giọng `Linh`).
+
+
+## Backend .NET 9 & SQL Server (`backend/`)
+
+Dự án bao gồm hệ thống backend ASP.NET Core 9 Web API kết nối SQL Server 2022 trong thư mục `backend/`:
+
+- **Kiến trúc**: Tổ chức theo mô hình 5 thư mục trong `backend/src/Tron.Api/`: `Controllers`, `Models`, `Services`, `Repositories`, `Db` (khởi tạo DB từ `trondb.sql`).
+- **Tính năng**: Đăng ký / đăng nhập (`JWT + Refresh Token xoay vòng`), quản lý danh mục kịch bản & âm nền (`Catalog`), lưu trữ file âm thanh trên ổ đĩa server (`DiskMediaStorage`), sao lưu & khôi phục dữ liệu (`PUT/GET /api/v1/backup`) và chia sẻ trực tuyến bằng mã `EH-XXXXXX` (`POST/GET /api/v1/shares`).
+- **Chạy backend**:
+  ```sh
+  cd backend
+  dotnet run --project src/Tron.Api
+  ```
+- **Chạy Flutter kèm cổng đăng nhập bắt buộc**:
+  ```sh
+  flutter run --dart-define=REQUIRE_AUTH=true --dart-define=API_BASE_URL=http://localhost:5080
+  ```

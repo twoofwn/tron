@@ -1,0 +1,36 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: tron-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:-TronStrongPass!2026}"
+    ports:
+      - "14333:1433"
+    volumes:
+      - tron-sql-data:/var/opt/mssql
+    restart: unless-stopped
+
+  tron-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tron-api
+    depends_on:
+      - sqlserver
+    environment:
+      ASPNETCORE_ENVIRONMENT: "${ASPNETCORE_ENVIRONMENT:-Production}"
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      ConnectionStrings__Tron: "Server=sqlserver;Database=TronDb;User Id=sa;Password=${MSSQL_SA_PASSWORD:-TronStrongPass!2026};TrustServerCertificate=True;MultipleActiveResultSets=true"
+      Jwt__SigningKey: "${JWT_SIGNING_KEY:-change-this-production-signing-key-at-least-32-chars!}"
+      Storage__MediaRoot: "/var/tron/media"
+    ports:
+      - "5080:5080"
+    volumes:
+      - tron-media-data:/var/tron/media
+    restart: unless-stopped
+
+volumes:
+  tron-sql-data:
+  tron-media-data:

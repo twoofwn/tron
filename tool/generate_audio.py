@@ -27,10 +27,9 @@ def save(folder, name, sample, seconds=4):
 def tone(frequency, time):
     return math.sin(math.tau * frequency * time)
 
+# Chuông iPhone/Samsung/Huawei/Zalo/Messenger là file MP3 có sẵn, không tạo ở đây.
+# Nếu tạo lại chuông cổ điển, chép thêm sang android/app/src/main/res/raw/ring_classic.wav.
 save('ringtones', 'classic_ring', lambda t: (tone(480, t) + tone(620, t)) * 0.25 if t % 2 < 0.8 else 0)
-save('ringtones', 'phone_ring', lambda t: tone([659, 784, 880, 784][int(t * 6) % 4], t) * math.exp(-6 * (t % 0.17)) * 0.5 if t % 2 < 1.3 else 0)
-save('ringtones', 'zalo_ring', lambda t: (tone([523, 659, 784, 1047][int(t * 4) % 4], t) * 0.5) * math.exp(-9 * (t % 0.25)) if t % 2 < 1 else 0)
-save('ringtones', 'messenger_ring', lambda t: (tone(784, t) + tone(1175, t)) * 0.2 * math.exp(-8 * (t % 0.4)) if t % 2 < 0.8 else 0)
 save('backgrounds', 'rain', lambda t: random.uniform(-0.6, 0.6))
 save('backgrounds', 'office', lambda t: random.uniform(-0.12, 0.12) + (random.uniform(-0.7, 0.7) * math.exp(-180 * (t % 0.13))))
 save('backgrounds', 'traffic', lambda t: random.uniform(-0.15, 0.15) + ((tone(349, t) + tone(440, t)) * 0.25 if 0.8 < t % 3 < 1.1 else 0))

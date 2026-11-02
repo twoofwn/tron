@@ -50,4 +50,50 @@ void main() {
       }
     },
   );
+
+  test('only recorded or imported audio files can be deleted', () async {
+    final documents = await Directory.systemTemp.createTemp('tron-audio-');
+    final outside = File('${documents.path}/keep.wav')
+      ..writeAsBytesSync([1, 2, 3]);
+    try {
+      final repository = ScenarioRepository(
+        documentsDirectory: () async => documents,
+      );
+      final path = await repository.importAudio(
+        Uint8List.fromList(List.filled(64, 1)),
+        'cau.wav',
+      );
+      expect(File(path).existsSync(), isTrue);
+      expect(ScenarioRepository.isBundledAudio(path), isFalse);
+
+      await repository.deleteAudio(path);
+      expect(File(path).existsSync(), isFalse);
+      // File ngoài thư mục audio của kho kịch bản không bao giờ bị xoá.
+      await repository.deleteAudio(outside.path);
+      await repository.deleteAudio(
+        '${documents.path}/escapehatch/audio/../../keep.wav',
+      );
+      await repository.deleteAudio('audio/voice/mother_1.wav');
+      expect(outside.existsSync(), isTrue);
+      repository.dispose();
+    } finally {
+      await documents.delete(recursive: true);
+    }
+  });
+
+  test('bundled audio is told apart from user audio', () {
+    expect(
+      ScenarioRepository.isBundledAudio('audio/voice/mother_1.wav'),
+      isTrue,
+    );
+    for (final path in [
+      '/data/user/0/app/escapehatch/audio/1.wav',
+      r'C:\Users\a\escapehatch\audio\1.wav',
+      'data:audio/wav;base64,AAAA',
+      'media:abc.wav',
+      'https://example.com/a.wav',
+    ]) {
+      expect(ScenarioRepository.isBundledAudio(path), isFalse, reason: path);
+    }
+  });
 }

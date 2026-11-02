@@ -1,0 +1,72 @@
+[
+  {
+    "id": "mother-urgent",
+    "title": "Mẹ gọi về gấp",
+    "category": "family",
+    "source": "builtIn",
+    "callerName": "Mẹ",
+    "initial": "M",
+    "estimatedSeconds": 40,
+    "defaultBackgroundId": "television",
+    "steps": [
+      {"id": "m1", "type": "speech", "text": "Alo, con à?", "audioPath": "audio/voice/mother_1.wav", "seconds": 2},
+      {"id": "mw1", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
+      {"id": "m2", "type": "speech", "text": "Ở nhà có việc gấp, con về ngay nhé.", "audioPath": "audio/voice/mother_2.wav", "seconds": 4},
+      {"id": "mw2", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
+      {"id": "m3", "type": "speech", "text": "Không được, bố con đang mệt. Về liền đi.", "audioPath": "audio/voice/mother_3.wav", "seconds": 3},
+      {"id": "m4", "type": "speech", "text": "Nhanh lên nhé con.", "audioPath": "audio/voice/mother_4.wav", "seconds": 2}
+    ]
+  },
+  {
+    "id": "boss-server",
+    "title": "Sếp báo server sập",
+    "category": "work",
+    "source": "builtIn",
+    "callerName": "Sếp Hùng",
+    "initial": "S",
+    "estimatedSeconds": 55,
+    "defaultBackgroundId": "office",
+    "steps": [
+      {"id": "b1", "type": "speech", "text": "Alo, em nghe máy được không?", "audioPath": "audio/voice/boss_1.wav", "seconds": 2},
+      {"id": "bw1", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
+      {"id": "b2", "type": "speech", "text": "Server bên mình vừa gặp sự cố, cần em kiểm tra ngay.", "audioPath": "audio/voice/boss_2.wav", "seconds": 4},
+      {"id": "b3", "type": "speech", "text": "Em có thể về máy tính trong ít phút nữa không?", "audioPath": "audio/voice/boss_3.wav", "seconds": 4},
+      {"id": "bw2", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
+      {"id": "b4", "type": "speech", "text": "Ừ, anh chờ em. Cảm ơn nhé.", "audioPath": "audio/voice/boss_4.wav", "seconds": 3},
+      {"id": "b5", "type": "speech", "text": "Có gì cập nhật thì gọi lại cho anh.", "audioPath": "audio/voice/boss_5.wav", "seconds": 3}
+    ]
+  },
+  {
+    "id": "landlord-rent",
+    "title": "Chủ trọ đòi tiền nhà",
+    "category": "family",
+    "source": "builtIn",
+    "callerName": "Chủ trọ",
+    "initial": "C",
+    "estimatedSeconds": 35,
+    "defaultBackgroundId": "office",
+    "steps": [
+      {"id": "l1", "type": "speech", "text": "Alo, cô gọi về tiền phòng tháng này.", "audioPath": "audio/voice/landlord_1.wav", "seconds": 3},
+      {"id": "lw1", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
+      {"id": "l2", "type": "speech", "text": "Con thu xếp về gặp cô hôm nay nhé.", "audioPath": "audio/voice/landlord_2.wav", "seconds": 3},
+      {"id": "l3", "type": "speech", "text": "Cô cần nói chuyện trực tiếp một chút.", "audioPath": "audio/voice/landlord_3.wav", "seconds": 3},
+      {"id": "l4", "type": "speech", "text": "Cô đợi con ở nhà trọ.", "audioPath": "audio/voice/landlord_4.wav", "seconds": 2}
+    ]
+  },
+  {
+    "id": "friend-lan-demo",
+    "title": "Lan (bạn thân) – mẫu tự tạo",
+    "category": "personal",
+    "source": "sampleUser",
+    "callerName": "Lan",
+    "initial": "L",
+    "estimatedSeconds": 30,
+    "defaultBackgroundId": "cafe",
+    "steps": [
+      {"id": "f1", "type": "speech", "text": "Ê, cậu ra ngoài gặp mình một lát được không?", "audioPath": "audio/voice/friend_1.wav", "seconds": 3},
+      {"id": "fw1", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
+      {"id": "f2", "type": "speech", "text": "Mình đang có chuyện gấp muốn hỏi cậu.", "audioPath": "audio/voice/friend_2.wav", "seconds": 3},
+      {"id": "f3", "type": "speech", "text": "Ra chỗ cũ nhé, mình đợi.", "audioPath": "audio/voice/friend_3.wav", "seconds": 2}
+    ]
+  }
+]

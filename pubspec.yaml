@@ -43,17 +43,25 @@ dependencies:
   qr_flutter: ^4.1.0
   mobile_scanner: ^7.4.2
   just_audio: ^0.10.6
+  # Kiểu âm thanh cuộc gọi cho giọng người gọi (loa trong / loa ngoài).
+  audio_session: ^0.2.4
   flutter_tts: ^4.2.5
   path_provider: ^2.1.6
   url_launcher: ^6.3.3
   audioplayers: ^6.8.1
   file_selector: ^1.1.0
+  http: ^1.6.0
+  crypto: ^3.0.7
   flutter_local_notifications: ^22.3.3
   timezone: ^0.11.2
   permission_handler: ^12.0.3
   sensors_plus: ^7.1.1
   device_info_plus: ^13.3.0
   app_links: ^7.2.2
+  record: ^7.1.2
+  camera: ^0.12.2
+  video_player: ^2.14.1
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:

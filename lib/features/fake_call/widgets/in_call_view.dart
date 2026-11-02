@@ -16,6 +16,8 @@ class InCallView extends StatelessWidget {
     required this.onToggleMute,
     required this.onToggleSpeaker,
     required this.onHangUp,
+    this.onSos,
+    this.statusHint,
   });
   final String caller;
   final CallTheme theme;
@@ -25,6 +27,12 @@ class InCallView extends StatelessWidget {
   final VoidCallback onToggleMute;
   final VoidCallback onToggleSpeaker;
   final VoidCallback onHangUp;
+
+  /// Giữ nút gác máy 2 giây: gửi SOS (không có chữ nào trên màn hình gợi ý).
+  final VoidCallback? onSos;
+
+  /// Dòng nhỏ dưới đồng hồ, chỉ dùng ở bản xem thử (ví dụ "Đang nghe bạn…").
+  final Widget? statusHint;
 
   String get _time =>
       '${elapsed.inMinutes.toString().padLeft(2, '0')}:${(elapsed.inSeconds % 60).toString().padLeft(2, '0')}';
@@ -77,6 +85,7 @@ class InCallView extends StatelessWidget {
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
+          if (statusHint != null) ...[const SizedBox(height: 8), statusHint!],
           const SizedBox(height: 24),
           const Spacer(flex: 4),
           Row(
@@ -113,6 +122,7 @@ class InCallView extends StatelessWidget {
             color: theme.decline,
             showLabel: false,
             onTap: onHangUp,
+            onHold: onSos,
           ),
           const SizedBox(height: 40),
         ],

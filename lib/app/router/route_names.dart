@@ -5,5 +5,9 @@ abstract final class RouteNames {
   static const scenarios = '/scenarios';
   static const fakeCall = '/call';
   static const camouflage = '/calculator';
+  static const auth = '/auth';
+  static const account = '/account';
   static const settings = '/settings';
+  static const sos = '/sos';
+  static const sosAlert = '/sos/alert';
 }

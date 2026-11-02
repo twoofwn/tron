@@ -2,21 +2,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tron/app/providers/app_foreground_provider.dart';
+import 'package:tron/core/constants/built_in_ringtone.dart';
 import 'package:tron/features/activation/services/call_alarm_service.dart';
 import 'package:tron/features/combo/models/combo_model.dart';
 import 'package:tron/features/fake_call/providers/call_provider.dart';
+import 'package:tron/features/settings/models/app_settings.dart';
+import 'package:tron/features/settings/providers/settings_provider.dart';
 import 'package:tron/shared/enums/call_interface.dart';
 
 class FakeAlarm extends CallAlarmService {
   final scheduled = <(String, DateTime)>[];
+  final ringtones = <BuiltInRingtone>[];
   int cancelled = 0;
 
   @override
   Future<bool> scheduleCall({
     required String comboId,
     required DateTime fireAt,
+    required BuiltInRingtone ringtone,
   }) async {
     scheduled.add((comboId, fireAt));
+    ringtones.add(ringtone);
     return true;
   }
 
@@ -126,6 +132,70 @@ void main() {
       expect(alarm.cancelled, 0);
     },
   );
+
+  test('The system alarm rings with the combo ringtone', () async {
+    for (final (callInterface, ringtoneType, style, expected) in [
+      (
+        CallInterface.phone,
+        RingtoneType.interfaceDefault,
+        PhoneStyle.huawei,
+        BuiltInRingtone.huawei,
+      ),
+      (
+        CallInterface.zalo,
+        RingtoneType.interfaceDefault,
+        PhoneStyle.iphone,
+        BuiltInRingtone.zalo,
+      ),
+      (
+        CallInterface.messenger,
+        RingtoneType.classic,
+        PhoneStyle.iphone,
+        BuiltInRingtone.classic,
+      ),
+    ]) {
+      final alarm = FakeAlarm();
+      final container = ProviderContainer(
+        overrides: [
+          callAlarmServiceProvider.overrideWithValue(alarm),
+          resolvedPhoneStyleProvider.overrideWith((ref) async => style),
+        ],
+      );
+      await container
+          .read(callProvider.notifier)
+          .schedule(
+            ComboModel(
+              id: 'test',
+              name: 'Test',
+              scenarioId: 'boss',
+              callInterface: callInterface,
+              ringtoneType: ringtoneType,
+              createdAt: DateTime(2026),
+            ),
+            const Duration(seconds: 30),
+          );
+      container.dispose();
+      expect(alarm.ringtones, [expected], reason: callInterface.name);
+    }
+  });
+
+  test('Silencing the alarm only applies while ringing', () async {
+    final alarm = FakeAlarm();
+    final container = ProviderContainer(
+      overrides: [callAlarmServiceProvider.overrideWithValue(alarm)],
+    );
+    addTearDown(container.dispose);
+    final notifier = container.read(callProvider.notifier);
+    notifier.silenceAlarm();
+    await Future<void>.delayed(Duration.zero);
+    expect(alarm.cancelled, 0);
+    notifier.ringNow(combo);
+    await Future<void>.delayed(Duration.zero);
+    final before = alarm.cancelled;
+    notifier.silenceAlarm();
+    await Future<void>.delayed(Duration.zero);
+    expect(alarm.cancelled, greaterThan(before));
+  });
 
   test('Answering the call cancels the system alarm', () async {
     final alarm = FakeAlarm();

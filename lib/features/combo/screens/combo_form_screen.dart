@@ -17,7 +17,11 @@ import '../models/combo_model.dart';
 import '../providers/combo_provider.dart';
 import '../widgets/background_sound_selector.dart';
 import '../widgets/call_interface_selector.dart';
+import '../widgets/call_type_selector.dart';
 import '../widgets/ringtone_selector.dart';
+import '../widgets/video_end_action_selector.dart';
+import '../widgets/video_recorder_card.dart';
+import '../widgets/voice_recorder_card.dart';
 
 class ComboFormScreen extends ConsumerStatefulWidget {
   const ComboFormScreen({super.key, this.combo});
@@ -29,14 +33,25 @@ class ComboFormScreen extends ConsumerStatefulWidget {
 class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameController;
+  late final TextEditingController _callerController;
   late String _scenarioId;
   late CallInterface _callInterface;
   late RingtoneType _ringtoneType;
   late Set<String> _backgrounds;
   String? _ringtonePath;
   String? _customBackgroundPath;
+  String? _voicePath;
+  late CallType _callType;
+  String? _videoPath;
+  late VideoEndAction _videoEndAction;
   bool _isSaving = false;
   bool _isPicking = false;
+  bool _isRecording = false;
+
+  /// Bản thu giọng và video tạo ra trong lần sửa này. Bản nào không được lưu thì xoá file.
+  final _takes = <String>{};
+  bool _committed = false;
+  late final FileService _files;
   bool _hasChanges = false;
   bool _hasSaved = false;
   @override
@@ -44,23 +59,61 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
     super.initState();
     final combo = widget.combo;
     _nameController = TextEditingController(text: combo?.name ?? '');
-    _nameController.addListener(() {
-      if (!_hasChanges) {
-        setState(() => _hasChanges = true);
-      }
-    });
+    _callerController = TextEditingController(text: combo?.callerName ?? '');
+    for (final controller in [_nameController, _callerController]) {
+      controller.addListener(() {
+        if (!_hasChanges) {
+          setState(() => _hasChanges = true);
+        }
+      });
+    }
     _scenarioId = combo?.scenarioId ?? 'boss';
     _callInterface = combo?.callInterface ?? CallInterface.zalo;
     _ringtoneType = combo?.ringtoneType ?? RingtoneType.interfaceDefault;
     _backgrounds = {...?combo?.backgroundSoundPaths};
     _ringtonePath = combo?.ringtonePath;
     _customBackgroundPath = combo?.customBackgroundPath;
+    _voicePath = combo?.voicePath;
+    _callType = combo?.callType ?? CallType.voice;
+    _videoPath = combo?.videoPath;
+    _videoEndAction = combo?.videoEndAction ?? VideoEndAction.hangUp;
+    _files = ref.read(fileServiceProvider);
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _callerController.dispose();
+    // Thoát mà không lưu: các bản thu mới không ai dùng nữa.
+    if (!_committed) {
+      for (final take in _takes) {
+        _files.deleteAudio(take);
+      }
+    }
     super.dispose();
+  }
+
+  void _onVoiceChanged(String? path) {
+    final previous = _voicePath;
+    _change(() => _voicePath = path);
+    _replaceTake(previous, path);
+  }
+
+  void _onVideoChanged(String? path) {
+    final previous = _videoPath;
+    _change(() => _videoPath = path);
+    _replaceTake(previous, path);
+  }
+
+  /// Bản thu/quay của lần sửa này bị thay hoặc xoá trước khi lưu: xoá file luôn.
+  /// File cũ của combo thì để lại, chỉ dọn sau khi lưu.
+  void _replaceTake(String? previous, String? path) {
+    if (previous != null && previous != path && _takes.remove(previous)) {
+      _files.deleteAudio(previous);
+    }
+    if (path != null) {
+      _takes.add(path);
+    }
   }
 
   ComboModel _draft() => ComboModel(
@@ -75,7 +128,22 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
     ringtonePath: _ringtonePath,
     backgroundSoundPaths: _backgrounds.toList(),
     customBackgroundPath: _customBackgroundPath,
+    voicePath: _voicePath,
+    // Giọng không đổi thì giữ id trên server; thu lại/xoá thì bỏ để gửi bản mới.
+    voiceMediaId: _voicePath != null && _voicePath == widget.combo?.voicePath
+        ? widget.combo?.voiceMediaId
+        : null,
+    callType: _callType,
+    videoPath: _videoPath,
+    videoMediaId: _videoPath != null && _videoPath == widget.combo?.videoPath
+        ? widget.combo?.videoMediaId
+        : null,
+    callerName: ComboModel.cleanCallerName(_callerController.text),
+    videoEndAction: _videoEndAction,
   );
+
+  bool get _isVideo => _callType == CallType.video;
+
   void _change(VoidCallback change) {
     setState(() {
       change();
@@ -100,6 +168,11 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
           }
         });
       }
+    } on FormatException catch (error) {
+      // Vượt dung lượng, file trống...: báo đúng lý do kèm dung lượng thật.
+      if (mounted) {
+        showMessage(context, error.message);
+      }
     } catch (_) {
       if (mounted) {
         showMessage(
@@ -115,13 +188,30 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
   }
 
   Future<void> _save() async {
-    if (!_formKey.currentState!.validate() || _isSaving || _isPicking) {
+    if (!_formKey.currentState!.validate() ||
+        _isSaving ||
+        _isPicking ||
+        _isRecording) {
+      return;
+    }
+    // Gọi video không có kịch bản thoại: thiếu video thì cuộc gọi im lặng.
+    if (_isVideo && _videoPath == null) {
+      showMessage(context, 'Hãy quay hoặc chọn video người gọi.');
       return;
     }
     setState(() => _isSaving = true);
     try {
       await ref.read(scenarioPlaybackProvider.notifier).stop();
-      await ref.read(comboListProvider.notifier).saveCombo(_draft());
+      final rejection = await ref
+          .read(comboListProvider.notifier)
+          .saveCombo(_draft());
+      _committed = true;
+      if (mounted && rejection != null) {
+        showMessage(
+          context,
+          'Đã lưu combo trên máy nhưng chưa đồng bộ được file: $rejection',
+        );
+      }
       if (mounted) {
         setState(() {
           _hasSaved = true;
@@ -170,6 +260,9 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
   Future<void> _onBack(bool didPop) async {
     if (didPop) {
       await ref.read(scenarioPlaybackProvider.notifier).stop();
+      return;
+    }
+    if (_isSaving) {
       return;
     }
     final discard = await showDialog<bool>(
@@ -223,7 +316,8 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
     );
     final isPlaying = ref.watch(scenarioPlaybackProvider);
     return PopScope(
-      canPop: _hasSaved || !_hasChanges,
+      // Đang lưu thì không cho thoát: tránh "Bỏ thay đổi" xoá bản thu vừa lưu.
+      canPop: !_isSaving && (_hasSaved || !_hasChanges),
       onPopInvokedWithResult: (didPop, _) => _onBack(didPop),
       child: ScreenShell(
         title: widget.combo == null ? 'Tạo combo' : 'Chỉnh sửa combo',
@@ -231,7 +325,7 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
           label: 'Lưu combo',
           icon: Icons.check_rounded,
           isLoading: _isSaving,
-          onPressed: _isPicking ? null : _save,
+          onPressed: _isPicking || _isRecording ? null : _save,
         ),
         child: Form(
           key: _formKey,
@@ -247,12 +341,51 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
                     : null,
               ),
               const SizedBox(height: 18),
-              ScenarioPickerCard(
-                scenario: scenario,
-                isPlaying: isPlaying,
-                onChoose: _chooseScenario,
-                onPreview: _previewScenario,
+              const _FieldLabel('Loại cuộc gọi'),
+              CallTypeSelector(
+                selected: _callType,
+                onChanged: (value) => _change(() => _callType = value),
               ),
+              const SizedBox(height: 18),
+              // Gọi video chỉ cần tên người gọi và video; không dùng kịch bản thoại.
+              if (_isVideo) ...[
+                const _FieldLabel('Tên người gọi'),
+                AppTextField(
+                  controller: _callerController,
+                  hint: 'Ví dụ: Mẹ',
+                  validator: (value) =>
+                      _isVideo && (value == null || value.trim().isEmpty)
+                      ? 'Nhập tên hiện trên cuộc gọi video'
+                      : null,
+                ),
+                const SizedBox(height: 18),
+                VideoRecorderCard(
+                  videoPath: _videoPath,
+                  onChanged: _onVideoChanged,
+                  onBusyChanged: (value) =>
+                      setState(() => _isRecording = value),
+                ),
+                const SizedBox(height: 18),
+                const _FieldLabel('Khi video kết thúc'),
+                VideoEndActionSelector(
+                  selected: _videoEndAction,
+                  onChanged: (value) => _change(() => _videoEndAction = value),
+                ),
+              ] else ...[
+                ScenarioPickerCard(
+                  scenario: scenario,
+                  isPlaying: isPlaying,
+                  onChoose: _chooseScenario,
+                  onPreview: _previewScenario,
+                ),
+                const SizedBox(height: 10),
+                VoiceRecorderCard(
+                  voicePath: _voicePath,
+                  onChanged: _onVoiceChanged,
+                  onRecordingChanged: (value) =>
+                      setState(() => _isRecording = value),
+                ),
+              ],
               const SizedBox(height: 18),
               const _FieldLabel('Giao diện cuộc gọi'),
               CallInterfaceSelector(
@@ -267,20 +400,23 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
                 onChanged: (value) => _change(() => _ringtoneType = value),
                 onPickFile: () => _pickAudio(isRingtone: true),
               ),
-              const SizedBox(height: 20),
-              const _FieldLabel('Âm nền & nhạc nền trong cuộc gọi'),
-              BackgroundSoundSelector(
-                selected: _backgrounds,
-                hasCustomFile: _customBackgroundPath != null,
-                onChanged: (key) => _change(() {
-                  if (!_backgrounds.add(key)) {
-                    _backgrounds.remove(key);
-                  }
-                }),
-                onPickFile: () => _pickAudio(isRingtone: false),
-                onRemoveCustom: () =>
-                    _change(() => _customBackgroundPath = null),
-              ),
+              // Video đã có tiếng của người gọi; âm nền chỉ dùng cho gọi thoại.
+              if (!_isVideo) ...[
+                const SizedBox(height: 20),
+                const _FieldLabel('Âm nền & nhạc nền trong cuộc gọi'),
+                BackgroundSoundSelector(
+                  selected: _backgrounds,
+                  hasCustomFile: _customBackgroundPath != null,
+                  onChanged: (key) => _change(() {
+                    if (!_backgrounds.add(key)) {
+                      _backgrounds.remove(key);
+                    }
+                  }),
+                  onPickFile: () => _pickAudio(isRingtone: false),
+                  onRemoveCustom: () =>
+                      _change(() => _customBackgroundPath = null),
+                ),
+              ],
               if (_isPicking)
                 const Padding(
                   padding: EdgeInsets.all(8),
@@ -291,7 +427,7 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
                 label: 'Xem trước cuộc gọi',
                 icon: Icons.play_circle_outline_rounded,
                 isSecondary: true,
-                onPressed: _isPicking
+                onPressed: _isPicking || _isRecording
                     ? null
                     : () async {
                         await ref
