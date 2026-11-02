@@ -59,6 +59,8 @@ class SilentAudioService extends AudioService {
 class PickedVideoFiles extends FileService {
   @override
   Future<String?> pickVideo() async => 'media:0f0f.mp4';
+}
+
 /// Kênh Android thật không trả lời trong test, nên thay bằng bản không làm gì.
 class SilentCallDevice extends CallDeviceService {
   SilentCallDevice() : super(const MethodChannel('test/call'));
