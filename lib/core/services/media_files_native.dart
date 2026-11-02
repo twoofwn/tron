@@ -14,6 +14,14 @@ Future<void> writeMediaFile(String name, Uint8List bytes) async {
 Future<Uint8List> readMediaFile(String name) async =>
     File('${(await getApplicationDocumentsDirectory()).path}/tron_audio/$name')
         .readAsBytes();
+
+/// Đường dẫn tuyệt đối của file (trình phát video cần file thật).
+Future<String> mediaFileLocation(String name) async =>
+    '${(await getApplicationDocumentsDirectory()).path}/tron_audio/$name';
+
+/// Đường dẫn file không giữ tài nguyên nào: không cần giải phóng.
+void releaseMediaLocation(String location) {}
+
 Future<String> mediaFileUri(String name) async => Uri.file(
   '${(await getApplicationDocumentsDirectory()).path}/tron_audio/$name',
 ).toString();
@@ -38,3 +46,7 @@ Future<bool> mediaFileExists(String name) async =>
 Future<void> deleteMediaFile(String name) async => deleteTempFile(
   '${(await getApplicationDocumentsDirectory()).path}/tron_audio/$name',
 );
+
+Future<int> mediaFileSize(String name) async =>
+    File('${(await getApplicationDocumentsDirectory()).path}/tron_audio/$name')
+        .length();

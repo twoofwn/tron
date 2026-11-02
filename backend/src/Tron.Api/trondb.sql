@@ -218,10 +218,12 @@ BEGIN
         [Name]                    NVARCHAR(80)     NOT NULL,
         [ScenarioId]              NVARCHAR(64)     NOT NULL,
         [CallInterface]           NVARCHAR(20)     NOT NULL,
+        [CallType]                NVARCHAR(20)     NOT NULL CONSTRAINT [DF_Combos_CallType] DEFAULT (N'Voice'),
         [RingtoneType]            NVARCHAR(20)     NOT NULL,
         [RingtoneMediaId]         UNIQUEIDENTIFIER NULL,
         [CustomBackgroundMediaId] UNIQUEIDENTIFIER NULL,
         [VoiceMediaId]            UNIQUEIDENTIFIER NULL,
+        [VideoMediaId]            UNIQUEIDENTIFIER NULL,
         [BackgroundVolume]        DECIMAL(4, 2)    NOT NULL DEFAULT (0.30),
         [BackgroundOverridden]    BIT              NOT NULL DEFAULT (0),
         [SortOrder]               INT              NOT NULL DEFAULT (0),
@@ -235,12 +237,15 @@ BEGIN
         CONSTRAINT [FK_Combos_MediaFiles_CustomBackgroundMediaId] FOREIGN KEY ([CustomBackgroundMediaId])
             REFERENCES [dbo].[MediaFiles] ([Id]),
         CONSTRAINT [FK_Combos_MediaFiles_VoiceMediaId] FOREIGN KEY ([VoiceMediaId])
+            REFERENCES [dbo].[MediaFiles] ([Id]),
+        CONSTRAINT [FK_Combos_MediaFiles_VideoMediaId] FOREIGN KEY ([VideoMediaId])
             REFERENCES [dbo].[MediaFiles] ([Id])
     );
 
     CREATE INDEX [IX_Combos_RingtoneMediaId] ON [dbo].[Combos] ([RingtoneMediaId]);
     CREATE INDEX [IX_Combos_CustomBackgroundMediaId] ON [dbo].[Combos] ([CustomBackgroundMediaId]);
     CREATE INDEX [IX_Combos_VoiceMediaId] ON [dbo].[Combos] ([VoiceMediaId]);
+    CREATE INDEX [IX_Combos_VideoMediaId] ON [dbo].[Combos] ([VideoMediaId]);
 END
 GO
 
@@ -259,6 +264,30 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Combos_VoiceMediaId' AND object_id = OBJECT_ID(N'dbo.Combos'))
 BEGIN
     CREATE INDEX [IX_Combos_VoiceMediaId] ON [dbo].[Combos] ([VoiceMediaId]);
+END
+GO
+
+-- 1.10c Nâng cấp database cũ: thêm loại cuộc gọi (thoại/video) và video người gọi tự quay
+IF COL_LENGTH(N'dbo.Combos', N'CallType') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Combos] ADD [CallType] NVARCHAR(20) NOT NULL
+        CONSTRAINT [DF_Combos_CallType] DEFAULT (N'Voice');
+END
+GO
+IF COL_LENGTH(N'dbo.Combos', N'VideoMediaId') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Combos] ADD [VideoMediaId] UNIQUEIDENTIFIER NULL;
+END
+GO
+IF OBJECT_ID(N'[dbo].[FK_Combos_MediaFiles_VideoMediaId]', N'F') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Combos] ADD CONSTRAINT [FK_Combos_MediaFiles_VideoMediaId]
+        FOREIGN KEY ([VideoMediaId]) REFERENCES [dbo].[MediaFiles] ([Id]);
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Combos_VideoMediaId' AND object_id = OBJECT_ID(N'dbo.Combos'))
+BEGIN
+    CREATE INDEX [IX_Combos_VideoMediaId] ON [dbo].[Combos] ([VideoMediaId]);
 END
 GO
 

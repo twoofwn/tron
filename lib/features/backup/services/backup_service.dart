@@ -97,7 +97,7 @@ class BackupService {
       var fileName = 'audio.mp3';
       try {
         if (path.startsWith('media:')) {
-          bytes = await files.readAudio(path);
+          bytes = await files.readMedia(path);
           fileName = path.substring(6);
         }
       } catch (_) {
@@ -141,6 +141,10 @@ class BackupService {
           ? ComboRepository.clearVoiceId
           : (reuseVoiceIds ? combo.voiceMediaId : null) ??
                 await ensureUploaded(combo.voicePath, 'Voice');
+      final videoMediaId = combo.videoPath == null
+          ? ComboRepository.clearVoiceId
+          : (reuseVoiceIds ? combo.videoMediaId : null) ??
+                await ensureUploaded(combo.videoPath, 'Video');
 
       comboPayloads.add({
         'id': combo.id,
@@ -155,6 +159,8 @@ class BackupService {
         'backgroundSoundIds': combo.backgroundSoundPaths,
         'customBackgroundMediaId': bgMediaId,
         'voiceMediaId': voiceMediaId,
+        'callType': combo.callType.name,
+        'videoMediaId': videoMediaId,
         'backgroundVolume': 0.3,
         'backgroundOverridden': false,
         'createdAt': combo.createdAt.toUtc().toIso8601String(),
@@ -216,7 +222,7 @@ class BackupService {
         'combos': comboPayloads,
       });
     } on ApiException catch (error) {
-      // Id giọng lưu trên máy đã bị server dọn: tải giọng lên lại rồi thử một lần nữa.
+      // Id giọng/video lưu trên máy đã bị server dọn: tải lên lại rồi thử một lần nữa.
       if (reuseVoiceIds && error.errorCode == 'MEDIA_NOT_FOUND') {
         return performBackup(reuseVoiceIds: false);
       }
@@ -250,7 +256,7 @@ class BackupService {
       }
       final ext = mediaIdToExt[mediaId] ?? 'mp3';
       final bytes = await api.getBytes('/media/$mediaId');
-      final storedPath = await files.storeAudio(
+      final storedPath = await files.storeMedia(
         bytes,
         ext == 'm4a' ? 'mp3' : ext,
       );
@@ -280,6 +286,11 @@ class BackupService {
           ? null
           : rawVoiceId;
       final voicePath = await downloadMedia(voiceMediaId);
+      final rawVideoId = map['videoMediaId'] as String?;
+      final videoMediaId = rawVideoId == ComboRepository.clearVoiceId
+          ? null
+          : rawVideoId;
+      final videoPath = await downloadMedia(videoMediaId);
       final bgList = ((map['backgroundSoundIds'] as List?) ?? const [])
           .map((e) => e.toString())
           .where(
@@ -303,6 +314,9 @@ class BackupService {
           customBackgroundPath: customBgPath,
           voicePath: voicePath,
           voiceMediaId: voicePath == null ? null : voiceMediaId,
+          callType: _callType(map['callType']),
+          videoPath: videoPath,
+          videoMediaId: videoPath == null ? null : videoMediaId,
           createdAt:
               DateTime.tryParse(map['createdAt'] as String? ?? '') ??
               DateTime.now(),
@@ -316,6 +330,11 @@ class BackupService {
     }
     return restoredCombos.length;
   }
+
+  static CallType _callType(Object? raw) => CallType.values.firstWhere(
+    (type) => type.name == raw,
+    orElse: () => CallType.voice,
+  );
 
   /// Creates an online share code `EH-XXXXXX` on the server.
   Future<String> createOnlineShare(
@@ -336,6 +355,11 @@ class BackupService {
       final voiceMediaId = !includeAudio || voicePath == null
           ? null
           : c.voiceMediaId ?? await repository.uploadVoice(voicePath);
+      final videoPath = c.videoPath;
+      final videoMediaId = !includeAudio || videoPath == null
+          ? null
+          : c.videoMediaId ??
+                await repository.uploadMedia(videoPath, MediaTrack.video.kind);
       comboDtos.add({
         'id': c.id,
         'name': c.name,
@@ -346,6 +370,8 @@ class BackupService {
         'backgroundSoundIds': c.backgroundSoundPaths,
         'customBackgroundMediaId': null,
         'voiceMediaId': voiceMediaId,
+        'callType': c.callType.name,
+        'videoMediaId': videoMediaId,
         'backgroundVolume': 0.3,
         'backgroundOverridden': false,
         'createdAt': c.createdAt.toUtc().toIso8601String(),
@@ -385,6 +411,18 @@ class BackupService {
           // Không tải được giọng: combo dùng giọng máy đọc.
         }
       }
+      // Video người gọi đi kèm gói (khi chia sẻ cả âm thanh và video).
+      String? videoPath;
+      final videoId = map['videoMediaId'] as String?;
+      if (videoId != null && videoId != ComboRepository.clearVoiceId) {
+        try {
+          final bytes = await api.getBytes('/shares/$shareCode/media/$videoId');
+          videoPath = 'media:${const Uuid().v4()}.mp4';
+          audio[videoPath] = bytes;
+        } catch (_) {
+          // Không tải được video: cuộc gọi video hiện như người gọi tắt camera.
+        }
+      }
       final bgList = ((map['backgroundSoundIds'] as List?) ?? const [])
           .map((e) => e.toString())
           .where(
@@ -404,6 +442,8 @@ class BackupService {
           ),
           backgroundSoundPaths: bgList,
           voicePath: voicePath,
+          callType: _callType(map['callType']),
+          videoPath: videoPath,
           createdAt:
               DateTime.tryParse(map['createdAt'] as String? ?? '') ??
               DateTime.now(),

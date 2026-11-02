@@ -60,7 +60,13 @@ class ComboCard extends StatelessWidget {
                       ComboTag(BackgroundSound.values.byName(key).label),
                     if (combo.customBackgroundPath != null)
                       const ComboTag('Âm thanh riêng'),
-                    if (combo.voicePath != null) const ComboTag('Giọng tự thu'),
+                    if (combo.isVideoCall)
+                      ComboTag(
+                        combo.videoPath == null ? 'Gọi video' : 'Video tự quay',
+                        color: AppColors.green,
+                      )
+                    else if (combo.voicePath != null)
+                      const ComboTag('Giọng tự thu'),
                     ComboTag(switch (combo.ringtoneType) {
                       RingtoneType.classic => 'Chuông cổ điển',
                       RingtoneType.custom => 'Chuông cá nhân',

@@ -121,6 +121,17 @@ Code nằm dưới `lib/features/scenarios/{models,data,presentation,services}/`
 - Đã triển khai `DiskMediaStorage` lưu audio trên ổ đĩa server kèm kiểm tra magic bytes, chống trùng SHA-256, hạn mức 200 MB/user và `StorageCleanupWorker` dọn file mồ côi / gói chia sẻ hết hạn.
 - Đã nối Flutter với backend qua `ApiClient`, `AuthRepository`, `BackupService`, màn `AuthScreen`, `AccountScreen` và hỗ trợ nhập mã chia sẻ trực tuyến `EH-XXXXXX`.
 
+### Tiến độ gọi video (2026-11-02)
+
+- Nhánh `codex/video-call`. Combo có `callType` (`voice`/`video`) và `videoPath` (`media:UUID.mp4`) + `videoMediaId`. Màn quay `VideoRecordScreen` (camera trước, tối đa 60 s, ~1,3 Mbps), thẻ `VideoRecorderCard` (quay / chọn MP4 / xem lại / xoá), `CallTypeSelector` trong form. Gọi thoại giữ nguyên.
+- Màn gọi: chuông và màn đến đổi chữ sang "video", trả lời mở `VideoInCallView` (video người gọi phủ kín + khung camera trước chỉ xem). Không có video hoặc video lỗi → avatar "Camera đang tắt" và phát giọng như gọi thoại. Có video thì không phát âm nền/giọng (video đã có tiếng, phát chồng gây ồn). Khung camera bản thân kéo được, thả ra dính góc gần nhất, không che hàng nút.
+- Đồng bộ: `ComboRepository` dùng enum `MediaTrack` (voice, video) cho cả gộp danh sách, tải lên/tải về và dọn file; quy ước server giữ như giọng. Chia sẻ `.ehc`/`EH-` và sao lưu mang theo video khi chọn kèm âm thanh.
+- Backend: `CallType`, `MediaKind.Video`, cột `Combos.CallType`/`VideoMediaId` (+ `EnsureComboVideoColumnsAsync`, mục 1.10c trong `trondb.sql`), MP4 tối đa 20 MB, upload giới hạn 22 MB.
+- Đã chạy: `flutter analyze` sạch; `flutter test` — mọi test xanh trừ "Primary screen visual snapshots" (lỗi có sẵn: thiếu `test/goldens/`); `dotnet build` sạch.
+- Kiểm tra giới hạn (cùng ngày): mọi chỗ chọn file kiểm tra dung lượng trước khi đọc và báo dung lượng thật (`FileService.ensureSize`, `sizeLabel`, `durationLabel`); video chỉ giới hạn 20 MB, không giới hạn độ dài (quay trong app tự dừng khi ước tính theo bitrate chạm 90% của 20 MB, khoảng 2 phút — `VideoRecorder.autoStopAfter`; video chọn từ máy chỉ cần phát được — `checkPickedVideo`); `FileService.videoLocation` nhớ vị trí phát của từng video trong phiên (web dùng blob URL tạo một lần thay cho data URI), bỏ khi file bị xoá; nhập audio kịch bản giới hạn 10 MB và lọc đuôi file; màn xuất hiện dung lượng gói ước tính và khoá nút khi vượt 25 MB; mã dán quá dài được báo riêng; 10 giây cuối khi thu/quay có cảnh báo, tự dừng thì báo; server từ chối file (hạn mức, quá lớn) thì form báo sau khi lưu (`takeUploadRejection`); HTTP 413 có câu báo riêng. Test: `test/media_limits_test.dart`.
+- Build APK debug lần đầu lỗi không resolve được `camera`/`video_player` (có thể do chạy cùng lúc với `flutter test`); chưa build lại.
+- Chưa kiểm tra trên thiết bị thật: quay video, quyền camera/micro, khung camera khi gọi, phát video, dung lượng thực tế của bản quay trên từng máy. `backend/trondb.sql` là bản cũ (chưa có cả cột giọng), chỉ cập nhật `trondb.sql` gốc và bản trong `backend/src/Tron.Api/`.
+
 ### Tiến độ phần D: hẹn giờ và kích hoạt (2026-10-26)
 
 - Nhánh `codex/timer-triggers`. Đã có: màn Cài đặt (loại điện thoại, quyền, hẹn giờ, rung, sáng/tối), báo thức hệ thống khi hẹn giờ, xin quyền thông báo, lật máy và gõ lưng (Android), dịch vụ "Sẵn sàng khi tắt màn hình" (Android, `ArmedService`), deep link `tron://trigger` (Android và iOS).

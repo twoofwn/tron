@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../app/theme/app_colors.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/services/file_service.dart';
 import '../../../core/widgets/app_button.dart';
@@ -30,23 +31,46 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
   bool _isBusy = false;
   ComboPackage? _package;
   String? _onlineCode;
+
+  /// Dung lượng ước tính của gói theo lựa chọn hiện tại; `null` khi đang tính.
+  int? _estimate;
+  int _estimateRun = 0;
+
   @override
   void initState() {
     super.initState();
     _selectedIds.addAll(widget.combos.take(2).map((combo) => combo.id));
+    _refreshEstimate();
   }
 
-  void _invalidate(VoidCallback change) => setState(() {
-    change();
-    _package = null;
-    _onlineCode = null;
-  });
+  void _invalidate(VoidCallback change) {
+    setState(() {
+      change();
+      _package = null;
+      _onlineCode = null;
+    });
+    _refreshEstimate();
+  }
+
+  List<ComboModel> get _selectedCombos =>
+      widget.combos.where((combo) => _selectedIds.contains(combo.id)).toList();
+
+  /// Tính lại dung lượng gói để báo trước khi người dùng bấm tạo mã.
+  Future<void> _refreshEstimate() async {
+    final run = ++_estimateRun;
+    final estimate = await ref
+        .read(sharingRepositoryProvider)
+        .estimateSize(_selectedCombos, includeAudio: _includeAudio);
+    if (mounted && run == _estimateRun) {
+      setState(() => _estimate = estimate);
+    }
+  }
+
+  bool get _isTooLarge => (_estimate ?? 0) > AppConstants.maxPackageBytes;
   Future<void> _generate() async {
     setState(() => _isBusy = true);
     try {
-      final selectedCombos = widget.combos
-          .where((combo) => _selectedIds.contains(combo.id))
-          .toList();
+      final selectedCombos = _selectedCombos;
       final package = await ref
           .read(sharingRepositoryProvider)
           .create(selectedCombos, includeAudio: _includeAudio);
@@ -197,12 +221,22 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
           contentPadding: EdgeInsets.zero,
           dense: true,
           title: const Text(
-            'Kèm file âm thanh cá nhân',
+            'Kèm âm thanh và video cá nhân',
             style: TextStyle(fontSize: 12),
           ),
-          subtitle: const Text(
-            'File lớn hơn · tối đa 25 MB mỗi gói',
-            style: TextStyle(fontSize: 10, color: AppColors.muted),
+          subtitle: Text(
+            _estimate == null
+                ? 'Tối đa ${sizeLabel(AppConstants.maxPackageBytes)} mỗi gói'
+                : _isTooLarge
+                ? 'Gói khoảng ${sizeLabel(_estimate!)}, vượt giới hạn '
+                      '${sizeLabel(AppConstants.maxPackageBytes)}. Bỏ bớt combo '
+                      'hoặc bỏ kèm âm thanh và video.'
+                : 'Gói khoảng ${sizeLabel(_estimate!)} · tối đa '
+                      '${sizeLabel(AppConstants.maxPackageBytes)}',
+            style: TextStyle(
+              fontSize: 10,
+              color: _isTooLarge ? AppColors.red : AppColors.muted,
+            ),
           ),
         ),
         const SizedBox(height: 14),
@@ -211,7 +245,8 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
             label: 'Tạo mã chia sẻ · $selectedCount combo',
             icon: Icons.qr_code_rounded,
             isLoading: _isBusy,
-            onPressed: selectedCount == 0 ? null : _generate,
+            // Gói vượt giới hạn: khoá nút, lý do hiện ngay ở dòng phía trên.
+            onPressed: selectedCount == 0 || _isTooLarge ? null : _generate,
           )
         else ...[
           SharePackageCard(package: package, code: code!),

@@ -19,17 +19,30 @@ import 'package:tron/shared/enums/call_interface.dart';
 
 Uint8List wav(int fill) => Uint8List.fromList(List.filled(44 + 22050, fill));
 
+/// Video MP4 giả: 4 byte độ dài rồi "ftyp", phần sau đổi theo `fill`.
+Uint8List mp4(int fill) => Uint8List.fromList([
+  0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, //
+  ...List.filled(64, fill),
+]);
+
 /// Âm thanh lưu trong bộ nhớ thay cho thư mục của app.
 class MemoryFiles extends FileService {
   final audio = <String, Uint8List>{};
   final deleted = <String>[];
   var _next = 0;
   @override
-  Future<Uint8List> readAudio(String path) async =>
+  Future<Uint8List> readMedia(String path) async =>
       audio[path] ?? (throw StateError('missing $path'));
   @override
   Future<String> storeAudio(Uint8List bytes, String extension) async {
     final path = 'media:local-${_next++}.$extension';
+    audio[path] = bytes;
+    return path;
+  }
+
+  @override
+  Future<String> storeVideo(Uint8List bytes) async {
+    final path = 'media:local-${_next++}.mp4';
     audio[path] = bytes;
     return path;
   }
@@ -49,10 +62,14 @@ class FakeServer {
   final media = <String, Uint8List>{};
   final posted = <Map<String, dynamic>>[];
   var uploads = 0;
+  final uploadKinds = <String>[];
   var downloads = 0;
   var listCalls = 0;
   var failDownloads = false;
   var offline = false;
+
+  /// Lỗi server trả về khi tải file lên, ví dụ `QUOTA_EXCEEDED`.
+  String? rejectUploads;
   var _next = 1;
 
   String addMedia(Uint8List bytes) {
@@ -80,23 +97,23 @@ class FakeServer {
     if (path == '/combos' && request.method == 'POST') {
       final body = jsonDecode(request.body) as Map<String, dynamic>;
       posted.add(body);
-      final voice = body['voiceMediaId'] as String?;
-      if (voice != null &&
-          voice != ComboRepository.clearVoiceId &&
-          !media.containsKey(voice)) {
-        return _json({'errorCode': 'MEDIA_NOT_FOUND'}, 400);
+      final stored = {...body};
+      // Cùng quy ước cho giọng và video: thiếu = giữ, clearVoiceId = xoá.
+      for (final field in ['voiceMediaId', 'videoMediaId']) {
+        final value = body[field] as String?;
+        if (value != null &&
+            value != ComboRepository.clearVoiceId &&
+            !media.containsKey(value)) {
+          return _json({'errorCode': 'MEDIA_NOT_FOUND'}, 400);
+        }
+        if (!body.containsKey(field)) {
+          stored[field] = combos[body['id']]?[field];
+        } else if (value == ComboRepository.clearVoiceId) {
+          stored[field] = null;
+        }
       }
-      final previousVoice = combos[body['id']]?['voiceMediaId'];
-      final String? storedVoice;
-      if (!body.containsKey('voiceMediaId')) {
-        storedVoice = previousVoice as String?;
-      } else if (voice == ComboRepository.clearVoiceId) {
-        storedVoice = null;
-      } else {
-        storedVoice = voice;
-      }
-      combos[body['id'] as String] = {...body, 'voiceMediaId': storedVoice};
-      return _json(combos[body['id']]!);
+      combos[body['id'] as String] = stored;
+      return _json(stored);
     }
     if (path == '/media/check') {
       final hashes = (jsonDecode(request.body)['sha256List'] as List)
@@ -109,8 +126,19 @@ class FakeServer {
       return _json({'existing': existing});
     }
     if (path == '/media' && request.method == 'POST') {
+      if (rejectUploads != null) {
+        return _json({
+          'errorCode': rejectUploads,
+          'detail': 'Đã vượt hạn mức lưu trữ âm thanh (200 MB).',
+        }, 400);
+      }
       uploads++;
-      return _json({'mediaId': addMedia(wav(uploads))});
+      final form = latin1.decode(request.bodyBytes);
+      final isVideo = form.contains('\r\n\r\nVideo\r\n');
+      uploadKinds.add(isVideo ? 'Video' : 'Voice');
+      return _json({
+        'mediaId': addMedia(isVideo ? mp4(uploads) : wav(uploads)),
+      });
     }
     if (path.startsWith('/media/')) {
       downloads++;
@@ -134,6 +162,8 @@ void main() {
   ComboModel combo({
     String? voicePath,
     String? voiceMediaId,
+    String? videoPath,
+    String? videoMediaId,
     bool pending = false,
   }) => ComboModel(
     id: id,
@@ -143,6 +173,11 @@ void main() {
     createdAt: DateTime(2026),
     voicePath: voicePath,
     voiceMediaId: voiceMediaId,
+    callType: videoPath == null && videoMediaId == null
+        ? CallType.voice
+        : CallType.video,
+    videoPath: videoPath,
+    videoMediaId: videoMediaId,
     syncPending: pending,
   );
 
@@ -408,5 +443,127 @@ void main() {
     expect(identical(results[0], results[1]), isTrue);
     await repository.load();
     expect(server.listCalls, 2);
+  });
+
+  group('Video call', () {
+    void serverHasVideo(String? videoMediaId) => server.combos[id] = {
+      ...ComboRepository.toServerMap(combo(videoMediaId: videoMediaId)),
+      'videoMediaId': videoMediaId,
+    };
+
+    test(
+      'Saving uploads the video as a Video file and records its id',
+      () async {
+        files.audio['media:clip.mp4'] = mp4(7);
+        final synced = await repository.upsertRemote(
+          combo(videoPath: 'media:clip.mp4', pending: true),
+        );
+        expect(server.uploadKinds, ['Video']);
+        expect(server.posted.last['callType'], 'video');
+        expect(
+          server.posted.last['voiceMediaId'],
+          ComboRepository.clearVoiceId,
+        );
+        expect(synced!.videoMediaId, server.combos[id]!['videoMediaId']);
+        expect(synced.syncPending, isFalse);
+      },
+    );
+
+    test(
+      'A file the server refuses is reported once, combo stays pending',
+      () async {
+        files.audio['media:clip.mp4'] = mp4(7);
+        server.rejectUploads = 'QUOTA_EXCEEDED';
+        final result = await repository.upsertRemote(
+          combo(videoPath: 'media:clip.mp4', pending: true),
+        );
+        expect(result, isNull);
+        expect(repository.takeUploadRejection(), contains('hạn mức'));
+        expect(repository.takeUploadRejection(), isNull);
+      },
+    );
+
+    test('Video and voice sync independently on the same combo', () async {
+      files.audio['media:a.wav'] = wav(1);
+      files.audio['media:clip.mp4'] = mp4(7);
+      final synced = await repository.upsertRemote(
+        combo(voicePath: 'media:a.wav', videoPath: 'media:clip.mp4'),
+      );
+      expect(server.uploadKinds, ['Voice', 'Video']);
+      expect(synced!.voiceMediaId, isNotNull);
+      expect(synced.videoMediaId, isNotNull);
+      expect(synced.voiceMediaId, isNot(synced.videoMediaId));
+    });
+
+    test('Video recorded on another device is downloaded as MP4', () async {
+      final remoteId = server.addMedia(mp4(3));
+      serverHasVideo(remoteId);
+      final loaded = (await repository.load()).single;
+      expect(loaded.callType, CallType.video);
+      expect(loaded.videoPath, endsWith('.mp4'));
+      expect(files.audio[loaded.videoPath], mp4(3));
+      expect(loaded.videoMediaId, remoteId);
+    });
+
+    test('Video deleted here tells the server to clear it', () async {
+      final remoteId = server.addMedia(mp4(1));
+      serverHasVideo(remoteId);
+      final result = await repository.upsertRemote(combo(pending: true));
+      expect(server.posted.last['videoMediaId'], ComboRepository.clearVoiceId);
+      expect(server.combos[id]!['videoMediaId'], isNull);
+      expect(result!.videoPath, isNull);
+    });
+
+    test(
+      'A failed video upload keeps the server video and stays pending',
+      () async {
+        final remoteId = server.addMedia(mp4(1));
+        serverHasVideo(remoteId);
+        final result = await repository.upsertRemote(
+          combo(videoPath: 'media:unreadable.mp4', pending: true),
+        );
+        expect(result, isNull);
+        expect(server.posted.last.containsKey('videoMediaId'), isFalse);
+        expect(server.combos[id]!['videoMediaId'], remoteId);
+      },
+    );
+
+    test('A video missing on the server is uploaded again', () async {
+      final remoteId = server.addMedia(mp4(1));
+      files.audio['media:clip.mp4'] = mp4(1);
+      server.media.remove(remoteId);
+      final again = await repository.upsertRemote(
+        combo(videoPath: 'media:clip.mp4', videoMediaId: remoteId),
+      );
+      expect(server.uploadKinds, ['Video']);
+      expect(again!.videoMediaId, isNot(remoteId));
+    });
+
+    test('Saving the list deletes video files no combo uses', () async {
+      files.audio['media:a.mp4'] = mp4(1);
+      final local = ComboRepository(storage, files: files);
+      await local.save([combo(videoPath: 'media:a.mp4')]);
+      await local.save([
+        combo(videoPath: 'media:a.mp4').copyWith(clearVideo: true),
+      ]);
+      expect(files.deleted, ['media:a.mp4']);
+    });
+
+    test(
+      'An older server without call type keeps the local call type',
+      () async {
+        final remoteId = server.addMedia(mp4(1));
+        files.audio['media:clip.mp4'] = mp4(1);
+        await deviceHas(
+          combo(videoPath: 'media:clip.mp4', videoMediaId: remoteId),
+        );
+        serverHasVideo(remoteId);
+        server.combos[id]!.remove('callType');
+        final loaded = (await repository.load()).single;
+        expect(loaded.callType, CallType.video);
+        expect(loaded.videoPath, 'media:clip.mp4');
+        expect(server.downloads, 0);
+      },
+    );
   });
 }

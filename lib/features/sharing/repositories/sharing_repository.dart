@@ -29,11 +29,17 @@ class SharingRepository {
     if (combos.length > 100) {
       throw const FormatException('Mỗi gói có tối đa 100 combo.');
     }
+    // Ước tính trước khi đọc file: gói quá lớn bị từ chối ngay, không phải chờ
+    // đọc và mã hoá hết âm thanh/video rồi mới báo.
+    final estimate = await estimateSize(combos, includeAudio: includeAudio);
+    if (estimate > AppConstants.maxPackageBytes) {
+      throw FormatException(_tooLargeMessage(estimate));
+    }
     final audio = <String, Uint8List>{};
     if (includeAudio) {
       for (final combo in combos) {
-        for (final path in combo.customAudioPaths) {
-          audio[path] = await files.readAudio(path);
+        for (final path in combo.customMediaPaths) {
+          audio[path] = await files.readMedia(path);
         }
       }
     }
@@ -48,12 +54,32 @@ class SharingRepository {
           .toList(),
       audio: audio,
     );
-    if (encode(package).length > AppConstants.maxPackageBytes) {
-      throw const FormatException(
-        'Gói vượt 25 MB. Hãy chọn ít combo hoặc bỏ âm thanh.',
-      );
+    final size = encode(package).length;
+    if (size > AppConstants.maxPackageBytes) {
+      throw FormatException(_tooLargeMessage(size));
     }
     return package;
+  }
+
+  static String _tooLargeMessage(int bytes) =>
+      'Gói nặng khoảng ${sizeLabel(bytes)}, vượt giới hạn '
+      '${sizeLabel(AppConstants.maxPackageBytes)}. Hãy chọn ít combo hơn '
+      'hoặc bỏ kèm âm thanh và video.';
+
+  /// Dung lượng ước tính của gói (byte), chưa cần đọc file: phần combo nhỏ,
+  /// file đính kèm nặng thêm khoảng 1/3 vì được mã hoá base64.
+  Future<int> estimateSize(
+    List<ComboModel> combos, {
+    required bool includeAudio,
+  }) async {
+    var bytes = 512 + combos.length * 600;
+    if (includeAudio) {
+      final paths = {for (final combo in combos) ...combo.customMediaPaths};
+      for (final path in paths) {
+        bytes += (await files.mediaSize(path)) * 4 ~/ 3 + 64;
+      }
+    }
+    return bytes;
   }
 
   Uint8List encode(ComboPackage package) => Uint8List.fromList(
@@ -73,9 +99,16 @@ class SharingRepository {
       'TRON1.${base64UrlEncode(encode(package))}';
   ComboPackage decodeCode(String code) {
     final value = code.trim();
-    if (!value.startsWith('TRON1.') ||
-        value.length > AppConstants.maxPackageBytes * 2) {
+    if (!value.startsWith('TRON1.')) {
       throw const FormatException('Mã chia sẻ TRỐN không hợp lệ.');
+    }
+    // Mã là gói mã hoá base64url: dài hơn gói gốc khoảng 1/3.
+    if (value.length > AppConstants.maxPackageBytes * 4 ~/ 3 + 16) {
+      throw FormatException(
+        'Mã chia sẻ quá dài (gói khoảng ${sizeLabel(value.length * 3 ~/ 4)}, '
+        'giới hạn ${sizeLabel(AppConstants.maxPackageBytes)}). '
+        'Hãy nhập bằng file .ehc.',
+      );
     }
     try {
       return decode(base64Url.decode(value.substring(6)));
@@ -85,6 +118,11 @@ class SharingRepository {
   }
 
   ComboPackage decode(Uint8List bytes) {
+    FileService.ensureSize(
+      bytes.length,
+      limit: AppConstants.maxPackageBytes,
+      what: 'Gói chia sẻ',
+    );
     try {
       if (bytes.length > AppConstants.maxPackageBytes) {
         throw const FormatException();
@@ -111,11 +149,17 @@ class SharingRepository {
       final encodedAudio = Map<String, Object?>.from(json['audio'] as Map);
       final audio = <String, Uint8List>{};
       for (final entry in encodedAudio.entries) {
-        if (!RegExp(r'^media:[a-f0-9-]+\.(mp3|wav)$').hasMatch(entry.key)) {
+        if (!FileService.mediaPathPattern.hasMatch(entry.key)) {
           throw const FormatException();
         }
         final data = base64Decode(entry.value as String);
-        if (data.isEmpty || data.length > AppConstants.maxAudioBytes) {
+        final isVideo = FileService.isVideoPath(entry.key);
+        final limit = isVideo
+            ? AppConstants.maxVideoBytes
+            : AppConstants.maxAudioBytes;
+        if (data.isEmpty ||
+            data.length > limit ||
+            (isVideo && !FileService.isMp4(data))) {
           throw const FormatException();
         }
         audio[entry.key] = data;
@@ -124,7 +168,7 @@ class SharingRepository {
         if (!ScenarioLookup.isShareableId(combo.scenarioId)) {
           throw const FormatException();
         }
-        for (final path in combo.customAudioPaths) {
+        for (final path in combo.customMediaPaths) {
           if (!audio.containsKey(path)) {
             throw const FormatException();
           }
@@ -151,9 +195,9 @@ class SharingRepository {
         .toList();
     final paths = <String, String>{};
     for (final combo in selected) {
-      for (final path in combo.customAudioPaths) {
+      for (final path in combo.customMediaPaths) {
         if (!paths.containsKey(path)) {
-          paths[path] = await files.storeAudio(
+          paths[path] = await files.storeMedia(
             package.audio[path]!,
             path.split('.').last,
           );
@@ -167,6 +211,7 @@ class SharingRepository {
                 ringtonePath: paths[combo.ringtonePath],
                 customBackgroundPath: paths[combo.customBackgroundPath],
                 voicePath: paths[combo.voicePath],
+                videoPath: paths[combo.videoPath],
               )
               .withoutSync(),
         )

@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
     <key>NSMicrophoneUsageDescription</key>
-    <string>TRỐN dùng micro để bạn thu giọng người gọi cho cuộc gọi giả.</string>
+    <string>TRỐN dùng micro để bạn thu giọng người gọi và tiếng trong video người gọi cho cuộc gọi giả.</string>
     <key>NSCameraUsageDescription</key>
-    <string>TRỐN sử dụng camera để quét QR và nhập combo được chia sẻ.</string>
+    <string>TRỐN dùng camera để quét QR nhập combo, quay video người gọi và hiện hình bạn trong cuộc gọi video giả.</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

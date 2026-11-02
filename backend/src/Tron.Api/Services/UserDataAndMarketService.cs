@@ -45,7 +45,9 @@ public class UserDataService(
         var ringtoneMediaId = await ResolveOwnedMediaAsync(userId, dto.RingtoneMediaId, ct);
         var customBackgroundMediaId = await ResolveOwnedMediaAsync(userId, dto.CustomBackgroundMediaId, ct);
         var voiceMediaId = await ResolveOwnedMediaAsync(userId, dto.VoiceMediaId, ct);
+        var videoMediaId = await ResolveOwnedMediaAsync(userId, dto.VideoMediaId, ct);
         var previousVoiceMediaId = existing?.VoiceMediaId;
+        var previousVideoMediaId = existing?.VideoMediaId;
 
         if (existing is null)
         {
@@ -66,6 +68,8 @@ public class UserDataService(
                 RingtoneMediaId = ringtoneMediaId,
                 CustomBackgroundMediaId = customBackgroundMediaId,
                 VoiceMediaId = voiceMediaId,
+                CallType = ParseCallType(dto.CallType) ?? CallType.Voice,
+                VideoMediaId = videoMediaId,
                 BackgroundVolume = Math.Clamp(dto.BackgroundVolume <= 0 ? 0.3m : dto.BackgroundVolume, 0m, 1m),
                 BackgroundOverridden = dto.BackgroundOverridden,
                 SortOrder = count + 1,
@@ -103,6 +107,12 @@ public class UserDataService(
             {
                 existing.VoiceMediaId = voiceMediaId;
             }
+            // Cùng quy ước cho loại cuộc gọi và video: không gửi = giữ nguyên.
+            existing.CallType = ParseCallType(dto.CallType) ?? existing.CallType;
+            if (dto.VideoMediaId.HasValue)
+            {
+                existing.VideoMediaId = videoMediaId;
+            }
             existing.BackgroundVolume = Math.Clamp(dto.BackgroundVolume <= 0 ? 0.3m : dto.BackgroundVolume, 0m, 1m);
             existing.BackgroundOverridden = dto.BackgroundOverridden;
             existing.UpdatedAt = DateTime.UtcNow;
@@ -134,6 +144,10 @@ public class UserDataService(
         {
             await mediaRepo.OrphanIfUnreferencedAsync(userId, previousVoiceMediaId.Value, ct);
         }
+        if (previousVideoMediaId.HasValue && previousVideoMediaId != existing.VideoMediaId)
+        {
+            await mediaRepo.OrphanIfUnreferencedAsync(userId, previousVideoMediaId.Value, ct);
+        }
 
         return MapComboDto(existing, prefix);
     }
@@ -163,11 +177,16 @@ public class UserDataService(
         }
 
         var voiceMediaId = existing.VoiceMediaId;
+        var videoMediaId = existing.VideoMediaId;
         userDataRepo.RemoveCombo(existing);
         await userDataRepo.SaveChangesAsync(ct);
         if (voiceMediaId.HasValue)
         {
             await mediaRepo.OrphanIfUnreferencedAsync(userId, voiceMediaId.Value, ct);
+        }
+        if (videoMediaId.HasValue)
+        {
+            await mediaRepo.OrphanIfUnreferencedAsync(userId, videoMediaId.Value, ct);
         }
     }
 
@@ -441,7 +460,9 @@ public class UserDataService(
             c.BackgroundVolume,
             c.BackgroundOverridden,
             c.CreatedAt,
-            c.VoiceMediaId);
+            c.VoiceMediaId,
+            MapCallTypeString(c.CallType),
+            c.VideoMediaId);
 
     internal static ScenarioDto MapScenarioDto(Scenario s, string prefix) =>
         new(
@@ -492,6 +513,18 @@ public class UserDataService(
             "messenger" => CallInterface.Messenger,
             _ => CallInterface.Phone
         };
+
+    /// <summary>null khi app không gửi loại cuộc gọi (bản cũ), để nơi gọi tự quyết giữ nguyên hay dùng mặc định.</summary>
+    internal static CallType? ParseCallType(string? raw) =>
+        raw?.Trim().ToLowerInvariant() switch
+        {
+            null or "" => null,
+            "video" => CallType.Video,
+            _ => CallType.Voice
+        };
+
+    internal static string MapCallTypeString(CallType type) =>
+        type == CallType.Video ? "video" : "voice";
 
     internal static RingtoneType ParseRingtone(string? raw) =>
         raw?.ToLowerInvariant() switch
@@ -662,14 +695,15 @@ public class MarketService(
         {
             try
             {
-                // File âm thanh riêng thuộc người bán: người mua không dùng được, dùng chuông/giọng mặc định.
+                // File âm thanh/video riêng thuộc người bán: người mua không dùng được, dùng chuông/giọng mặc định.
                 var newComboDto = combo with
                 {
                     Id = Guid.NewGuid(),
                     CreatedAt = DateTime.UtcNow,
                     RingtoneMediaId = null,
                     CustomBackgroundMediaId = null,
-                    VoiceMediaId = null
+                    VoiceMediaId = null,
+                    VideoMediaId = null
                 };
                 var savedCombo = await userDataService.UpsertComboAsync(userId, newComboDto, ct);
                 addedCombos.Add(savedCombo);

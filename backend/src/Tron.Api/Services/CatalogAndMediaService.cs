@@ -102,9 +102,10 @@ public class CatalogAndMediaService(
         long? declaredLength,
         CancellationToken ct = default)
     {
-        if (declaredLength.HasValue && declaredLength.Value > DomainLimits.MaxMediaFileBytes)
+        var declaredExt = Path.GetExtension(originalFileName);
+        if (declaredLength.HasValue && declaredLength.Value > DomainLimits.MaxBytesForExtension(declaredExt))
         {
-            throw new ApiDomainException("MEDIA_TOO_LARGE", "File âm thanh vượt quá giới hạn 10 MB.");
+            throw new ApiDomainException("MEDIA_TOO_LARGE", AudioValidator.TooLargeMessage(declaredExt));
         }
 
         await using var bufferStream = new MemoryStream();
@@ -116,15 +117,26 @@ public class CatalogAndMediaService(
         }
 
         var (ext, contentType) = AudioValidator.ValidateFormat(originalFileName, header.AsSpan(0, headerRead));
+        // Video chỉ dùng cho cuộc gọi video; đuôi file quyết định loại để không lưu nhầm.
+        if (DomainLimits.IsVideoExtension(ext))
+        {
+            kind = MediaKind.Video;
+        }
+        else if (kind == MediaKind.Video)
+        {
+            throw new ApiDomainException("MEDIA_INVALID_EXTENSION", "Video cuộc gọi phải là file MP4.");
+        }
+
+        var maxBytes = DomainLimits.MaxBytesForExtension(ext);
         await bufferStream.WriteAsync(header.AsMemory(0, headerRead), ct);
 
         var copyBuf = new byte[65536];
         int n;
         while ((n = await fileStream.ReadAsync(copyBuf.AsMemory(0, copyBuf.Length), ct)) > 0)
         {
-            if (bufferStream.Length + n > DomainLimits.MaxMediaFileBytes)
+            if (bufferStream.Length + n > maxBytes)
             {
-                throw new ApiDomainException("MEDIA_TOO_LARGE", "File âm thanh vượt quá giới hạn 10 MB.");
+                throw new ApiDomainException("MEDIA_TOO_LARGE", AudioValidator.TooLargeMessage(ext));
             }
             await bufferStream.WriteAsync(copyBuf.AsMemory(0, n), ct);
         }

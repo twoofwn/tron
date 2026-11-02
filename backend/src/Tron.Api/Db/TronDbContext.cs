@@ -167,6 +167,7 @@ public class TronDbContext(DbContextOptions<TronDbContext> options) : DbContext(
             b.Property(x => x.Name).HasMaxLength(80).IsRequired();
             b.Property(x => x.ScenarioId).HasMaxLength(64).IsRequired();
             b.Property(x => x.CallInterface).HasConversion<string>().HasMaxLength(20);
+            b.Property(x => x.CallType).HasConversion<string>().HasMaxLength(20);
             b.Property(x => x.RingtoneType).HasConversion<string>().HasMaxLength(20);
             b.Property(x => x.BackgroundVolume).HasPrecision(4, 2);
             b.HasOne(x => x.Owner)
@@ -184,6 +185,10 @@ public class TronDbContext(DbContextOptions<TronDbContext> options) : DbContext(
             b.HasOne(x => x.VoiceMedia)
                 .WithMany()
                 .HasForeignKey(x => x.VoiceMediaId)
+                .OnDelete(DeleteBehavior.NoAction);
+            b.HasOne(x => x.VideoMedia)
+                .WithMany()
+                .HasForeignKey(x => x.VideoMediaId)
                 .OnDelete(DeleteBehavior.NoAction);
         });
 

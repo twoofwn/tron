@@ -73,7 +73,7 @@ public class BackupAndShareService(
 
         // Kiểm tra file của combo TRƯỚC khi xoá dữ liệu cũ, để request bị từ chối không làm mất gì.
         var comboMediaIds = request.Combos
-            .SelectMany(c => new[] { c.RingtoneMediaId, c.CustomBackgroundMediaId, c.VoiceMediaId })
+            .SelectMany(c => new[] { c.RingtoneMediaId, c.CustomBackgroundMediaId, c.VoiceMediaId, c.VideoMediaId })
             .Where(id => id.HasValue && id.Value != Guid.Empty)
             .Select(id => id!.Value)
             .ToHashSet();
@@ -88,6 +88,8 @@ public class BackupAndShareService(
 
         // App bản cũ (hoặc khi tải giọng lên lỗi) không gửi voiceMediaId: giữ giọng đang có trên server.
         var previousVoices = await backupRepo.GetComboVoiceIdsAsync(userId, ct);
+        // Tương tự cho loại cuộc gọi và video người gọi.
+        var previousVideos = await backupRepo.GetComboVideosAsync(userId, ct);
 
         // 2. Replace existing custom Combos, Scenarios, AmbientSounds for this user
         await backupRepo.ClearUserSnapshotEntitiesAsync(userId, ct);
@@ -199,6 +201,18 @@ public class BackupAndShareService(
                 referencedMediaIds.Add(voiceMediaId.Value);
             }
 
+            var hadCombo = previousVideos.TryGetValue(comboId, out var previousVideo);
+            var videoMediaId = dto.VideoMediaId switch
+            {
+                null => hadCombo ? previousVideo.VideoMediaId : null,
+                var id when id == Guid.Empty => null,
+                var id => id,
+            };
+            if (videoMediaId.HasValue)
+            {
+                referencedMediaIds.Add(videoMediaId.Value);
+            }
+
             var combo = new Combo
             {
                 Id = comboId,
@@ -210,6 +224,9 @@ public class BackupAndShareService(
                 RingtoneMediaId = dto.RingtoneMediaId,
                 CustomBackgroundMediaId = dto.CustomBackgroundMediaId,
                 VoiceMediaId = voiceMediaId,
+                CallType = UserDataService.ParseCallType(dto.CallType)
+                    ?? (hadCombo ? previousVideo.CallType : CallType.Voice),
+                VideoMediaId = videoMediaId,
                 BackgroundVolume = Math.Clamp(dto.BackgroundVolume, 0m, 1m),
                 BackgroundOverridden = dto.BackgroundOverridden,
                 SortOrder = comboOrder++,
@@ -344,7 +361,9 @@ public class BackupAndShareService(
                 c.BackgroundVolume,
                 c.BackgroundOverridden,
                 c.CreatedAt,
-                c.VoiceMediaId)).ToList(),
+                c.VoiceMediaId,
+                UserDataService.MapCallTypeString(c.CallType),
+                c.VideoMediaId)).ToList(),
             mediaFiles.Select(m => new MediaCheckItemDto(m.Sha256, m.Id, m.Extension, m.SizeBytes)).ToList());
     }
 
@@ -371,6 +390,7 @@ public class BackupAndShareService(
                 if (c.RingtoneMediaId.HasValue) mediaIds.Add(c.RingtoneMediaId.Value);
                 if (c.CustomBackgroundMediaId.HasValue) mediaIds.Add(c.CustomBackgroundMediaId.Value);
                 if (c.VoiceMediaId.HasValue) mediaIds.Add(c.VoiceMediaId.Value);
+                if (c.VideoMediaId.HasValue) mediaIds.Add(c.VideoMediaId.Value);
             }
             foreach (var s in request.CustomScenarios)
             {

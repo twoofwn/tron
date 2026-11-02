@@ -21,6 +21,7 @@ import '../widgets/in_call_view.dart';
 import '../widgets/incoming/messenger_incoming_view.dart';
 import '../widgets/incoming/phone_incoming_view.dart';
 import '../widgets/incoming/zalo_incoming_view.dart';
+import '../widgets/video_in_call_view.dart';
 
 final callSessionProvider =
     NotifierProvider.autoDispose<CallSessionNotifier, CallStatus>(
@@ -204,12 +205,17 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
     if (!mounted) {
       return;
     }
-    await _playConversation();
+    // Gọi video có video người gọi: video tự phát tiếng, chỉ tắt chuông.
+    await _playConversation(
+      withVoice: !(_combo.isVideoCall && _combo.videoPath != null),
+    );
   }
 
-  Future<void> _playConversation() async {
+  Future<void> _playConversation({bool withVoice = true}) async {
     try {
-      await ref.read(audioServiceProvider).conversation(_combo, _dialogue);
+      await ref
+          .read(audioServiceProvider)
+          .conversation(_combo, _dialogue, withVoice: withVoice);
     } catch (_) {
       if (mounted) {
         showMessage(
@@ -252,6 +258,26 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
     ).caller;
     final name = caller.trim().isEmpty ? combo.name.trim() : caller.trim();
     final initial = name.isEmpty ? '?' : name.characters.first.toUpperCase();
+    final isVideo = combo.isVideoCall;
+    // Đang gọi video: video người gọi phủ kín màn hình, không đóng khung như gọi thoại.
+    if (isAnswered && isVideo) {
+      return _CallScaffold(
+        theme: theme,
+        onPop: _stop,
+        child: VideoInCallView(
+          caller: caller,
+          initial: initial,
+          theme: theme,
+          elapsed: _elapsed,
+          videoPath: combo.videoPath,
+          isMuted: _isMuted,
+          onToggleMute: () => setState(() => _isMuted = !_isMuted),
+          onHangUp: _hangUp,
+          // Video hỏng: phát giọng như gọi thoại để cuộc gọi không im lặng.
+          onVideoUnavailable: _playConversation,
+        ),
+      );
+    }
     final Widget view;
     if (isAnswered) {
       view = InCallView(
@@ -271,6 +297,7 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
           caller: caller,
           initial: initial,
           theme: theme,
+          isVideo: isVideo,
           onAnswer: _answer,
           onDecline: _hangUp,
         ),
@@ -278,6 +305,7 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
           caller: caller,
           initial: initial,
           theme: theme,
+          isVideo: isVideo,
           onAnswer: _answer,
           onDecline: _hangUp,
         ),
@@ -285,68 +313,48 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
           caller: caller,
           initial: initial,
           theme: theme,
+          isVideo: isVideo,
           onAnswer: _answer,
           onDecline: _hangUp,
         ),
       };
     }
-    return PopScope(
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) {
-          _stop();
-        }
-      },
-      // Thanh trạng thái trong suốt để nền phủ kín màn hình như app gọi thật.
-      child: AnnotatedRegion<SystemUiOverlayStyle>(
-        value: SystemUiOverlayStyle.light.copyWith(
-          statusBarColor: Colors.transparent,
-          systemNavigationBarColor: theme.background,
-          systemNavigationBarIconBrightness: Brightness.light,
-        ),
-        child: Scaffold(
-          backgroundColor: theme.background,
-          body: DefaultTextStyle.merge(
-            style: const TextStyle(
-              fontFamily: CallTheme.fontFamily,
-              color: Colors.white,
-            ),
-            child: SafeArea(
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 500),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Column(
-                      children: [
-                        if (widget.arguments.isPreview)
-                          const Padding(
-                            padding: EdgeInsets.only(top: 12),
-                            child: Text(
-                              'XEM TRƯỚC CUỘC GỌI',
-                              style: TextStyle(
-                                color: Colors.white54,
-                                letterSpacing: 2,
-                                fontSize: 10,
-                              ),
-                            ),
-                          ),
-                        Expanded(
-                          child: LayoutBuilder(
-                            builder: (context, constraints) =>
-                                SingleChildScrollView(
-                                  child: ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                      minHeight: constraints.maxHeight,
-                                    ),
-                                    child: IntrinsicHeight(child: view),
-                                  ),
-                                ),
-                          ),
+    return _CallScaffold(
+      theme: theme,
+      onPop: _stop,
+      child: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                children: [
+                  if (widget.arguments.isPreview)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 12),
+                      child: Text(
+                        'XEM TRƯỚC CUỘC GỌI',
+                        style: TextStyle(
+                          color: Colors.white54,
+                          letterSpacing: 2,
+                          fontSize: 10,
                         ),
-                      ],
+                      ),
+                    ),
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) => SingleChildScrollView(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minHeight: constraints.maxHeight,
+                          ),
+                          child: IntrinsicHeight(child: view),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
             ),
           ),
@@ -354,4 +362,43 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
       ),
     );
   }
+}
+
+/// Khung chung của màn gọi: thanh trạng thái trong suốt để nền phủ kín màn
+/// hình như app gọi thật, font cuộc gọi, và dừng âm thanh khi vuốt quay lại.
+class _CallScaffold extends StatelessWidget {
+  const _CallScaffold({
+    required this.theme,
+    required this.onPop,
+    required this.child,
+  });
+  final CallTheme theme;
+  final VoidCallback onPop;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => PopScope(
+    onPopInvokedWithResult: (didPop, _) {
+      if (didPop) {
+        onPop();
+      }
+    },
+    child: AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
+        systemNavigationBarColor: theme.background,
+        systemNavigationBarIconBrightness: Brightness.light,
+      ),
+      child: Scaffold(
+        backgroundColor: theme.background,
+        body: DefaultTextStyle.merge(
+          style: const TextStyle(
+            fontFamily: CallTheme.fontFamily,
+            color: Colors.white,
+          ),
+          child: child,
+        ),
+      ),
+    ),
+  );
 }
