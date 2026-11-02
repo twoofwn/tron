@@ -23,6 +23,8 @@ import '../services/reply_listener.dart';
 import '../themes/call_theme.dart';
 import '../widgets/in_call_view.dart';
 import '../widgets/incoming/messenger_incoming_view.dart';
+import '../widgets/messenger_in_call_view.dart';
+import '../widgets/zalo_in_call_view.dart';
 import '../widgets/incoming/phone_incoming_view.dart';
 import '../widgets/incoming/zalo_incoming_view.dart';
 import '../widgets/video_in_call_view.dart';
@@ -278,6 +280,8 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
     }
   }
 
+  void _toggleMute() => setState(() => _isMuted = !_isMuted);
+
   Future<void> _hangUp() async {
     await _stop();
     if (mounted) {
@@ -338,6 +342,17 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
         ),
       );
     }
+    // Zalo và Messenger: dựng như app thật trên Android, phủ kín màn hình,
+    // font của hệ thống.
+    if (combo.callInterface != CallInterface.phone) {
+      return _appStyleCall(
+        theme: theme,
+        isAnswered: isAnswered,
+        caller: caller,
+        initial: initial,
+        isVideo: isVideo,
+      );
+    }
     final Widget view;
     if (isAnswered) {
       view = InCallView(
@@ -365,22 +380,8 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
           onAnswer: _answer,
           onDecline: _hangUp,
         ),
-        CallInterface.zalo => ZaloIncomingView(
-          caller: caller,
-          initial: initial,
-          theme: theme,
-          isVideo: isVideo,
-          onAnswer: _answer,
-          onDecline: _hangUp,
-        ),
-        CallInterface.messenger => MessengerIncomingView(
-          caller: caller,
-          initial: initial,
-          theme: theme,
-          isVideo: isVideo,
-          onAnswer: _answer,
-          onDecline: _hangUp,
-        ),
+        // Zalo/Messenger đã trả về ở trên.
+        CallInterface.zalo || CallInterface.messenger => const SizedBox(),
       };
     }
     return _CallScaffold(
@@ -428,6 +429,123 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
   }
 }
 
+extension on _FakeCallScreenState {
+  Widget _appStyleCall({
+    required CallTheme theme,
+    required bool isAnswered,
+    required String caller,
+    required String initial,
+    required bool isVideo,
+  }) {
+    final isZalo = _combo.callInterface == CallInterface.zalo;
+    final Widget content;
+    final Color background;
+    Widget? backdrop;
+    if (!isAnswered) {
+      // Android: Zalo/Messenger tự vẽ màn gọi đến, cùng nền với màn đang gọi.
+      background = isZalo
+          ? ZaloInCallView.background
+          : MessengerInCallView.background;
+      backdrop = isZalo ? null : const _MessengerBackdrop();
+      content = isZalo
+          ? ZaloIncomingView(
+              caller: caller,
+              initial: initial,
+              theme: theme,
+              isVideo: isVideo,
+              onAnswer: _answer,
+              onDecline: _hangUp,
+            )
+          : MessengerIncomingView(
+              caller: caller,
+              initial: initial,
+              theme: theme,
+              isVideo: isVideo,
+              onAnswer: _answer,
+              onDecline: _hangUp,
+            );
+    } else {
+      final hint = widget.arguments.isPreview
+          ? _ListeningHint(_replies.listening)
+          : null;
+      if (isZalo) {
+        background = ZaloInCallView.background;
+        content = ZaloInCallView(
+          caller: caller,
+          elapsed: _elapsed,
+          isMuted: _isMuted,
+          isSpeaker: _isSpeaker,
+          onToggleMute: _toggleMute,
+          onToggleSpeaker: _toggleSpeaker,
+          onHangUp: _hangUp,
+          onSos: _startSos,
+          statusHint: hint,
+        );
+      } else {
+        background = MessengerInCallView.background;
+        backdrop = const _MessengerBackdrop();
+        content = MessengerInCallView(
+          caller: caller,
+          initial: initial,
+          elapsed: _elapsed,
+          isMuted: _isMuted,
+          isSpeaker: _isSpeaker,
+          onToggleMute: _toggleMute,
+          onToggleSpeaker: _toggleSpeaker,
+          onHangUp: _hangUp,
+          onSos: _startSos,
+          statusHint: hint,
+        );
+      }
+    }
+    return _CallScaffold(
+      theme: theme,
+      onPop: _stop,
+      background: background,
+      backdrop: backdrop,
+      systemFont: true,
+      child: SafeArea(
+        child: Stack(
+          children: [
+            Positioned.fill(child: content),
+            if (widget.arguments.isPreview)
+              const Positioned(
+                left: 0,
+                right: 0,
+                top: 4,
+                child: Text(
+                  'XEM TRƯỚC CUỘC GỌI',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white54,
+                    letterSpacing: 2,
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Nền tối mờ của màn đang gọi Messenger (ảnh đại diện làm mờ).
+class _MessengerBackdrop extends StatelessWidget {
+  const _MessengerBackdrop();
+
+  @override
+  Widget build(BuildContext context) => const DecoratedBox(
+    decoration: BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0xFF3A3150), Color(0xFF1B1726), Color(0xFF0E0C12)],
+      ),
+    ),
+  );
+}
+
 /// Khung chung của màn gọi: thanh trạng thái trong suốt để nền phủ kín màn
 /// hình như app gọi thật, font cuộc gọi, và dừng âm thanh khi vuốt quay lại.
 class _CallScaffold extends StatelessWidget {
@@ -435,10 +553,22 @@ class _CallScaffold extends StatelessWidget {
     required this.theme,
     required this.onPop,
     required this.child,
+    this.background,
+    this.backdrop,
+    this.systemFont = false,
   });
   final CallTheme theme;
   final VoidCallback onPop;
   final Widget child;
+
+  /// Màu nền (và thanh điều hướng); mặc định theo [theme].
+  final Color? background;
+
+  /// Lớp nền vẽ phía sau nội dung (ví dụ nền mờ của iOS).
+  final Widget? backdrop;
+
+  /// Dùng font của hệ thống (SF trên iPhone, Roboto trên Android) như app thật.
+  final bool systemFont;
 
   @override
   Widget build(BuildContext context) => PopScope(
@@ -450,17 +580,28 @@ class _CallScaffold extends StatelessWidget {
     child: AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
-        systemNavigationBarColor: theme.background,
+        systemNavigationBarColor: background ?? theme.background,
         systemNavigationBarIconBrightness: Brightness.light,
       ),
       child: Scaffold(
-        backgroundColor: theme.background,
-        body: DefaultTextStyle.merge(
-          style: const TextStyle(
-            fontFamily: CallTheme.fontFamily,
-            color: Colors.white,
-          ),
-          child: child,
+        backgroundColor: background ?? theme.background,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            ?backdrop,
+            systemFont
+                ? DefaultTextStyle(
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                    child: child,
+                  )
+                : DefaultTextStyle.merge(
+                    style: const TextStyle(
+                      fontFamily: CallTheme.fontFamily,
+                      color: Colors.white,
+                    ),
+                    child: child,
+                  ),
+          ],
         ),
       ),
     ),

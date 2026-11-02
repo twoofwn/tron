@@ -322,7 +322,7 @@ void main() {
     // Màn Zalo có vòng sáng lặp vô hạn nên không dùng pumpAndSettle ở đây.
     await tester.pump(const Duration(milliseconds: 250));
     await tester.pump(const Duration(seconds: 1));
-    expect(find.text('Cuộc gọi thoại đến…'), findsOneWidget);
+    expect(find.text('Cuộc gọi thoại đến'), findsOneWidget);
     await tester.tap(find.text('Trả lời'));
     await tester.pump(const Duration(seconds: 1));
     expect(container.read(callProvider).status, CallStatus.inProgress);

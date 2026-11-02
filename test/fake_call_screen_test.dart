@@ -17,6 +17,7 @@ import 'package:tron/features/fake_call/services/reply_listener.dart';
 import 'package:tron/features/fake_call/providers/call_provider.dart';
 import 'package:tron/features/fake_call/screens/fake_call_screen.dart';
 import 'package:tron/features/fake_call/services/call_device_service.dart';
+import 'package:tron/features/fake_call/widgets/call_action_button.dart';
 import 'package:tron/features/fake_call/widgets/video_in_call_view.dart';
 import 'package:tron/features/settings/models/app_settings.dart';
 import 'package:tron/features/settings/providers/settings_provider.dart';
@@ -97,6 +98,14 @@ class FakeCallDevice extends CallDeviceService {
   Future<void> endCallAudio() async => calls.add('end');
 }
 
+/// Nút tắt tiếng của từng giao diện: Điện thoại "tắt tiếng", Zalo "Mic",
+/// Messenger không có chữ (chỉ biểu tượng micro trên thanh điều khiển).
+Finder muteButton(CallInterface callInterface) => switch (callInterface) {
+  CallInterface.phone => find.text('tắt tiếng'),
+  CallInterface.zalo => find.text('Mic'),
+  CallInterface.messenger => find.widgetWithIcon(CallButton, Icons.mic_rounded),
+};
+
 void main() {
   Future<RecordingAudioService> open(
     WidgetTester tester,
@@ -171,10 +180,10 @@ void main() {
       await tester.tap(find.text('Trả lời'));
       await tester.pump();
       expect(find.byIcon(Icons.call_end_rounded), findsOneWidget);
-      expect(find.text('tắt tiếng'), findsOneWidget);
+      expect(muteButton(callInterface), findsOneWidget);
       expect(audio.events.last, 'conversation');
       // Tắt tiếng chỉ đổi trạng thái, không dừng hội thoại.
-      await tester.tap(find.text('tắt tiếng'));
+      await tester.tap(muteButton(callInterface));
       await tester.pump();
       expect(audio.events.last, 'conversation');
       await tester.tap(find.byIcon(Icons.call_end_rounded));
@@ -239,10 +248,10 @@ void main() {
     await tester.pump();
     expect(device.calls.last, 'start:false');
 
-    await tester.tap(find.text('loa'));
+    await tester.tap(find.text('Loa'));
     await tester.pump();
     expect(device.calls.last, 'speaker:true');
-    await tester.tap(find.text('loa'));
+    await tester.tap(find.text('Loa'));
     await tester.pump();
     expect(device.calls.last, 'speaker:false');
 
@@ -257,7 +266,7 @@ void main() {
   ) async {
     final device = FakeCallDevice();
     await open(tester, CallInterface.messenger, device: device);
-    await tester.tap(find.text('Nhắn tin'));
+    await tester.tap(find.text('Từ chối'));
     await tester.pump();
     expect(device.calls, isNot(contains('end')));
     expect(device.calls.last, 'silenceKeys:false');
@@ -318,12 +327,12 @@ void main() {
     expect(alarm.cancelled, greaterThan(cancelledBefore));
   });
 
-  testWidgets('Phone and Messenger message buttons decline the call', (
+  testWidgets('Phone message button and Messenger decline end the call', (
     tester,
   ) async {
     for (final (callInterface, label) in [
       (CallInterface.phone, 'Tin nhắn'),
-      (CallInterface.messenger, 'Nhắn tin'),
+      (CallInterface.messenger, 'Từ chối'),
     ]) {
       final audio = await open(tester, callInterface);
       await tester.tap(find.text(label));
@@ -334,8 +343,8 @@ void main() {
 
   for (final (callInterface, ringing) in [
     (CallInterface.phone, 'cuộc gọi video'),
-    (CallInterface.zalo, 'Cuộc gọi video đến…'),
-    (CallInterface.messenger, 'đang gọi video cho bạn…'),
+    (CallInterface.zalo, 'Cuộc gọi video đến'),
+    (CallInterface.messenger, 'Cuộc gọi video qua Messenger'),
   ]) {
     testWidgets('${callInterface.name} video call without video shows avatar', (
       tester,
@@ -350,7 +359,8 @@ void main() {
       // Gọi video dùng tên người gọi của combo, không dùng kịch bản.
       expect(find.textContaining('Mẹ yêu'), findsWidgets);
       expect(find.textContaining('Anh Minh'), findsNothing);
-      expect(find.byIcon(Icons.videocam_rounded), findsOneWidget);
+      // Nút Trả lời là camera (Zalo còn có nút video ở thanh trên).
+      expect(find.byIcon(Icons.videocam_rounded), findsWidgets);
       await tester.tap(find.text('Trả lời'));
       await tester.pump();
       await tester.pump();
