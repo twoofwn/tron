@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chuông thông báo cuộc gọi chỉ được gọi theo tên từ Dart, nên phải giữ lại
+     khi bản release thu gọn tài nguyên. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@raw/ring_*" />

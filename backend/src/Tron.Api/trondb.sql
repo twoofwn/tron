@@ -432,16 +432,26 @@ BEGIN
 END
 GO
 
--- 2.2 Seed Ringtones
-IF NOT EXISTS (SELECT 1 FROM [dbo].[Ringtones])
-BEGIN
-    INSERT INTO [dbo].[Ringtones] ([Id], [Title], [AssetAudioPath], [SortOrder])
-    VALUES
-        (N'phone',     N'Chuông Điện thoại', N'assets/audio/ringtones/phone_ring.wav',     1),
-        (N'zalo',      N'Chuông Zalo',       N'assets/audio/ringtones/zalo_ring.wav',      2),
-        (N'messenger', N'Chuông Messenger',  N'assets/audio/ringtones/messenger_ring.wav', 3),
-        (N'classic',   N'Chuông cổ điển',    N'assets/audio/ringtones/classic_ring.wav',   4);
-END
+-- 2.2 Seed Ringtones (đồng bộ mỗi lần chạy để DB cũ cũng nhận chuông MP3 mới)
+MERGE [dbo].[Ringtones] AS [target]
+USING (VALUES
+    (N'iphone',    N'Chuông iPhone',    N'assets/audio/ringtones/iphone.mp3',       1),
+    (N'samsung',   N'Chuông Samsung',   N'assets/audio/ringtones/samsung.mp3',      2),
+    (N'huawei',    N'Chuông Huawei',    N'assets/audio/ringtones/huawei.mp3',       3),
+    (N'zalo',      N'Chuông Zalo',      N'assets/audio/ringtones/zalo.mp3',         4),
+    (N'messenger', N'Chuông Messenger', N'assets/audio/ringtones/messenger.mp3',    5),
+    (N'classic',   N'Chuông cổ điển',   N'assets/audio/ringtones/classic_ring.wav', 6)
+) AS [source] ([Id], [Title], [AssetAudioPath], [SortOrder])
+ON [target].[Id] = [source].[Id]
+WHEN MATCHED THEN
+    UPDATE SET [Title] = [source].[Title],
+               [AssetAudioPath] = [source].[AssetAudioPath],
+               [SortOrder] = [source].[SortOrder]
+WHEN NOT MATCHED BY TARGET THEN
+    INSERT ([Id], [Title], [AssetAudioPath], [SortOrder])
+    VALUES ([source].[Id], [source].[Title], [source].[AssetAudioPath], [source].[SortOrder])
+WHEN NOT MATCHED BY SOURCE THEN
+    DELETE;
 GO
 
 -- 2.3 Seed ScenarioAliases

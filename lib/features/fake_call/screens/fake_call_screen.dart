@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../app/providers/app_foreground_provider.dart';
 import '../../../core/services/audio_service.dart';
 import '../../../shared/enums/call_interface.dart';
 import '../../../shared/widgets/screen_shell.dart';
+import '../../activation/services/call_alarm_service.dart';
 import '../../combo/models/combo_model.dart';
 import '../../scenarios/data/scenario_lookup.dart';
 import '../../scenarios/providers/scenario_provider.dart';
+import '../../settings/models/app_settings.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../providers/call_provider.dart';
 import '../themes/call_theme.dart';
@@ -45,6 +48,8 @@ class FakeCallScreen extends ConsumerStatefulWidget {
 class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
   Timer? _timer;
   Timer? _vibration;
+  final _ringStartedAt = DateTime.now();
+  bool _waitingForForeground = false;
   DateTime? _answeredAt;
   Duration _elapsed = Duration.zero;
   bool _isMuted = false;
@@ -82,12 +87,52 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
         (_) => HapticFeedback.heavyImpact(),
       );
     }
+    // Máy khóa hoặc app ở nền: thông báo hệ thống đang đổ chuông. App chờ
+    // tới khi lên màn hình mới đổ chuông để không phát chồng hai chuông.
+    if (!widget.arguments.isPreview && !ref.read(appForegroundProvider)) {
+      _waitingForForeground = true;
+      return;
+    }
+    await _playRingtone();
+  }
+
+  void _onForegroundChanged(bool? previous, bool foreground) {
+    if (!foreground ||
+        !_waitingForForeground ||
+        ref.read(callSessionProvider) != CallStatus.ringing) {
+      return;
+    }
+    _waitingForForeground = false;
+    // Thông báo đã tự tắt sau thời gian chờ: coi như cuộc gọi nhỡ.
+    if (DateTime.now().difference(_ringStartedAt) >
+        CallAlarmService.ringTimeout) {
+      unawaited(_hangUp());
+      return;
+    }
+    ref.read(callProvider.notifier).silenceAlarm();
+    unawaited(_playRingtone());
+  }
+
+  Future<void> _playRingtone() async {
+    final phoneStyle = await _phoneStyle();
+    // Người dùng có thể đã trả lời hoặc tắt máy trong lúc đọc cài đặt.
+    if (!mounted || ref.read(callSessionProvider) != CallStatus.ringing) {
+      return;
+    }
     try {
-      await ref.read(audioServiceProvider).ring(_combo);
+      await ref.read(audioServiceProvider).ring(_combo, phoneStyle: phoneStyle);
     } catch (_) {
       if (mounted) {
         showMessage(context, 'Không phát được chuông trên thiết bị này.');
       }
+    }
+  }
+
+  Future<PhoneStyle> _phoneStyle() async {
+    try {
+      return await ref.read(resolvedPhoneStyleProvider.future);
+    } catch (_) {
+      return PhoneStyle.samsung;
     }
   }
 
@@ -141,6 +186,7 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(appForegroundProvider, _onForegroundChanged);
     final combo = _combo;
     final theme = CallTheme.of(combo.callInterface);
     final isAnswered = ref.watch(callSessionProvider) == CallStatus.inProgress;

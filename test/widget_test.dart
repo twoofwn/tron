@@ -11,6 +11,7 @@ import 'package:tron/features/activation/services/permission_service.dart';
 import 'package:tron/features/combo/models/combo_model.dart';
 import 'package:tron/features/combo/providers/combo_provider.dart';
 import 'package:tron/features/fake_call/providers/call_provider.dart';
+import 'package:tron/features/settings/models/app_settings.dart';
 import 'package:tron/shared/enums/call_interface.dart';
 import 'package:tron/features/sharing/repositories/sharing_repository.dart';
 
@@ -27,7 +28,10 @@ class SilentAudioService extends AudioService {
   @override
   Future<void> stop() async {}
   @override
-  Future<void> ring(ComboModel combo) async {}
+  Future<void> ring(
+    ComboModel combo, {
+    PhoneStyle phoneStyle = PhoneStyle.samsung,
+  }) async {}
   @override
   Future<void> conversation(ComboModel combo, String dialogue) async {}
   @override

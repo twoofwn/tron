@@ -5,8 +5,10 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../../features/combo/models/combo_model.dart';
+import '../../features/settings/models/app_settings.dart';
 import '../../shared/enums/call_interface.dart';
 import '../constants/asset_paths.dart';
+import '../constants/built_in_ringtone.dart';
 import 'file_service.dart';
 
 final audioServiceProvider = Provider((ref) {
@@ -71,7 +73,12 @@ class AudioService {
     }
   }
 
-  Future<void> ring(ComboModel combo) async {
+  /// Đổ chuông lặp lại tới khi [stop]. [phoneStyle] chọn chuông cho giao diện
+  /// Điện thoại (iPhone, Samsung, Huawei).
+  Future<void> ring(
+    ComboModel combo, {
+    PhoneStyle phoneStyle = PhoneStyle.samsung,
+  }) async {
     await stop();
     final generation = _generation;
     final ringtone = _ringtone ??= AudioPlayer();
@@ -79,10 +86,12 @@ class AudioService {
         combo.ringtonePath != null) {
       await ringtone.setUrl(await files.audioUri(combo.ringtonePath!));
     } else {
-      final asset = combo.ringtoneType == RingtoneType.classic
-          ? AssetPaths.ringtone
-          : 'assets/audio/ringtones/${combo.callInterface.name}_ring.wav';
-      await ringtone.setAsset(asset);
+      final builtIn = BuiltInRingtone.resolve(
+        type: combo.ringtoneType,
+        callInterface: combo.callInterface,
+        phoneStyle: phoneStyle,
+      );
+      await ringtone.setAsset(builtIn.asset);
     }
     if (generation != _generation) {
       return;

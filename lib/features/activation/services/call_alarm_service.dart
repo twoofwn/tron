@@ -1,9 +1,12 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
+
+import '../../../core/constants/built_in_ringtone.dart';
 
 final callAlarmServiceProvider = Provider<CallAlarmService>(
   (ref) => CallAlarmService(),
@@ -16,8 +19,17 @@ class CallAlarmService {
     : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
   static const notificationId = 1001;
-  static const channelId = 'incoming_calls';
   static const _channelName = 'Cuộc gọi đến';
+
+  /// Kênh cũ dùng âm mặc định của máy, xóa đi để không còn trong cài đặt.
+  static const _legacyChannelId = 'incoming_calls';
+
+  /// Cờ FLAG_INSISTENT của Android: chuông kêu lặp tới khi thông báo bị hủy
+  /// hoặc người dùng mở thông báo.
+  static const _flagInsistent = 4;
+
+  /// Không ai bấm thì thông báo tự tắt, như một cuộc gọi nhỡ.
+  static const ringTimeout = Duration(seconds: 60);
 
   final FlutterLocalNotificationsPlugin _plugin;
   final _taps = StreamController<String>.broadcast();
@@ -47,24 +59,51 @@ class CallAlarmService {
         }
       },
     );
-    await _plugin
+    final android = _plugin
         .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.createNotificationChannel(
-          const AndroidNotificationChannel(
-            channelId,
-            _channelName,
-            importance: Importance.max,
-          ),
-        );
+        >();
+    if (android != null) {
+      await android.deleteNotificationChannel(channelId: _legacyChannelId);
+      for (final ringtone in BuiltInRingtone.values) {
+        await android.createNotificationChannel(channelFor(ringtone));
+      }
+    }
     _ready = true;
   }
+
+  @visibleForTesting
+  static AndroidNotificationChannel channelFor(BuiltInRingtone ringtone) =>
+      AndroidNotificationChannel(
+        ringtone.channelId,
+        '$_channelName · ${ringtone.label}',
+        importance: Importance.max,
+        sound: RawResourceAndroidNotificationSound(ringtone.androidResource),
+        // Đi theo âm lượng nhạc chuông của máy, như cuộc gọi thật.
+        audioAttributesUsage: AudioAttributesUsage.notificationRingtone,
+      );
+
+  @visibleForTesting
+  static AndroidNotificationDetails androidDetailsFor(
+    BuiltInRingtone ringtone,
+  ) => AndroidNotificationDetails(
+    ringtone.channelId,
+    '$_channelName · ${ringtone.label}',
+    importance: Importance.max,
+    priority: Priority.max,
+    category: AndroidNotificationCategory.call,
+    fullScreenIntent: true,
+    sound: RawResourceAndroidNotificationSound(ringtone.androidResource),
+    audioAttributesUsage: AudioAttributesUsage.notificationRingtone,
+    additionalFlags: Int32List.fromList([_flagInsistent]),
+    timeoutAfter: ringTimeout.inMilliseconds,
+  );
 
   /// Trả về false nếu hệ thống từ chối (thiếu quyền, không hỗ trợ...).
   Future<bool> scheduleCall({
     required String comboId,
     required DateTime fireAt,
+    required BuiltInRingtone ringtone,
   }) async {
     try {
       await init();
@@ -74,16 +113,9 @@ class CallAlarmService {
         body: 'Chạm để nghe',
         // Đổi sang UTC giữ nguyên thời điểm tuyệt đối, không phụ thuộc múi giờ máy.
         scheduledDate: tz.TZDateTime.from(fireAt, tz.UTC),
-        notificationDetails: const NotificationDetails(
-          android: AndroidNotificationDetails(
-            channelId,
-            _channelName,
-            importance: Importance.max,
-            priority: Priority.max,
-            category: AndroidNotificationCategory.call,
-            fullScreenIntent: true,
-          ),
-          iOS: DarwinNotificationDetails(
+        notificationDetails: NotificationDetails(
+          android: androidDetailsFor(ringtone),
+          iOS: const DarwinNotificationDetails(
             presentSound: true,
             interruptionLevel: InterruptionLevel.timeSensitive,
           ),

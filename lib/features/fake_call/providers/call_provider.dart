@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/constants/built_in_ringtone.dart';
 import '../../../app/providers/app_foreground_provider.dart';
 import '../../../shared/enums/call_interface.dart';
 import '../../activation/services/call_alarm_service.dart';
 import '../../combo/models/combo_model.dart';
+import '../../settings/models/app_settings.dart';
 import '../../settings/providers/settings_provider.dart';
 
 class CallState {
@@ -79,11 +81,39 @@ class CallNotifier extends Notifier<CallState> {
         );
       }
     });
-    final arming = ref
-        .read(callAlarmServiceProvider)
-        .scheduleCall(comboId: combo.id, fireAt: deadline);
+    final arming = _arm(combo, deadline);
     _arming = arming;
     return arming;
+  }
+
+  Future<bool> _arm(ComboModel combo, DateTime fireAt) async {
+    final alarm = ref.read(callAlarmServiceProvider);
+    final ringtone = BuiltInRingtone.resolve(
+      type: combo.ringtoneType,
+      callInterface: combo.callInterface,
+      phoneStyle: await _phoneStyle(),
+    );
+    return alarm.scheduleCall(
+      comboId: combo.id,
+      fireAt: fireAt,
+      ringtone: ringtone,
+    );
+  }
+
+  Future<PhoneStyle> _phoneStyle() async {
+    try {
+      return await ref.read(resolvedPhoneStyleProvider.future);
+    } catch (_) {
+      return PhoneStyle.samsung;
+    }
+  }
+
+  /// App vừa lên màn hình trong lúc thông báo đang đổ chuông: tắt thông báo
+  /// để chỉ còn app đổ chuông, không phát chồng hai chuông.
+  void silenceAlarm() {
+    if (state.status == CallStatus.ringing) {
+      _cancelAlarm();
+    }
   }
 
   /// Mở app từ thông báo cuộc gọi: đổ chuông ngay, không chờ hẹn giờ nữa.
