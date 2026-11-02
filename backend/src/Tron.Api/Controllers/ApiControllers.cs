@@ -110,7 +110,8 @@ public class MediaController(CatalogAndMediaService mediaService) : ControllerBa
         Ok(await mediaService.CheckMediaAsync(User.GetUserId(), request, ct));
 
     [HttpPost]
-    [RequestSizeLimit(12 * 1024 * 1024)]
+    // Đủ cho video cuộc gọi 20 MB cộng phần đầu multipart; giới hạn theo loại file kiểm tra trong service.
+    [RequestSizeLimit(22 * 1024 * 1024)]
     public async Task<ActionResult<MediaUploadResponse>> UploadMedia(
         IFormFile file,
         [FromForm] string? kind,
@@ -118,7 +119,7 @@ public class MediaController(CatalogAndMediaService mediaService) : ControllerBa
     {
         if (file is null || file.Length == 0)
         {
-            throw new ApiDomainException("MEDIA_EMPTY_OR_CORRUPT", "Chưa chọn file âm thanh.");
+            throw new ApiDomainException("MEDIA_EMPTY_OR_CORRUPT", "Chưa chọn file âm thanh hoặc video.");
         }
 
         var mediaKind = Enum.TryParse<MediaKind>(kind, true, out var parsed) ? parsed : MediaKind.Voice;

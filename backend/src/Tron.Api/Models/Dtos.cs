@@ -93,7 +93,11 @@ public record BackupComboDto(
     bool BackgroundOverridden,
     DateTime CreatedAt,
     // Đặt cuối và mặc định null để app bản cũ (không gửi trường này) vẫn dùng được.
-    Guid? VoiceMediaId = null);
+    Guid? VoiceMediaId = null,
+    // "voice" hoặc "video"; null (app bản cũ) thì giữ loại đang có, combo mới là gọi thoại.
+    string? CallType = null,
+    // Cùng quy ước với VoiceMediaId: null = giữ nguyên, Guid.Empty = xoá video.
+    Guid? VideoMediaId = null);
 
 public record BackupSnapshotRequest(
     string? DeviceName,

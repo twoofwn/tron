@@ -32,8 +32,8 @@ class SharingRepository {
     final audio = <String, Uint8List>{};
     if (includeAudio) {
       for (final combo in combos) {
-        for (final path in combo.customAudioPaths) {
-          audio[path] = await files.readAudio(path);
+        for (final path in combo.customMediaPaths) {
+          audio[path] = await files.readMedia(path);
         }
       }
     }
@@ -50,7 +50,7 @@ class SharingRepository {
     );
     if (encode(package).length > AppConstants.maxPackageBytes) {
       throw const FormatException(
-        'Gói vượt 25 MB. Hãy chọn ít combo hoặc bỏ âm thanh.',
+        'Gói vượt 25 MB. Hãy chọn ít combo hoặc bỏ âm thanh và video.',
       );
     }
     return package;
@@ -111,11 +111,17 @@ class SharingRepository {
       final encodedAudio = Map<String, Object?>.from(json['audio'] as Map);
       final audio = <String, Uint8List>{};
       for (final entry in encodedAudio.entries) {
-        if (!RegExp(r'^media:[a-f0-9-]+\.(mp3|wav)$').hasMatch(entry.key)) {
+        if (!FileService.mediaPathPattern.hasMatch(entry.key)) {
           throw const FormatException();
         }
         final data = base64Decode(entry.value as String);
-        if (data.isEmpty || data.length > AppConstants.maxAudioBytes) {
+        final isVideo = FileService.isVideoPath(entry.key);
+        final limit = isVideo
+            ? AppConstants.maxVideoBytes
+            : AppConstants.maxAudioBytes;
+        if (data.isEmpty ||
+            data.length > limit ||
+            (isVideo && !FileService.isMp4(data))) {
           throw const FormatException();
         }
         audio[entry.key] = data;
@@ -124,7 +130,7 @@ class SharingRepository {
         if (!ScenarioLookup.isShareableId(combo.scenarioId)) {
           throw const FormatException();
         }
-        for (final path in combo.customAudioPaths) {
+        for (final path in combo.customMediaPaths) {
           if (!audio.containsKey(path)) {
             throw const FormatException();
           }
@@ -151,9 +157,9 @@ class SharingRepository {
         .toList();
     final paths = <String, String>{};
     for (final combo in selected) {
-      for (final path in combo.customAudioPaths) {
+      for (final path in combo.customMediaPaths) {
         if (!paths.containsKey(path)) {
-          paths[path] = await files.storeAudio(
+          paths[path] = await files.storeMedia(
             package.audio[path]!,
             path.split('.').last,
           );
@@ -167,6 +173,7 @@ class SharingRepository {
                 ringtonePath: paths[combo.ringtonePath],
                 customBackgroundPath: paths[combo.customBackgroundPath],
                 voicePath: paths[combo.voicePath],
+                videoPath: paths[combo.videoPath],
               )
               .withoutSync(),
         )

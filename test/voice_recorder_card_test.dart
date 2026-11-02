@@ -139,7 +139,7 @@ void main() {
       );
       expect(ComboModel.fromJson(combo.toJson()).voicePath, 'media:0f0f.wav');
       expect(combo.copyWith(stripCustomAudio: true).voicePath, isNull);
-      expect(combo.customAudioPaths, ['media:0f0f.wav']);
+      expect(combo.customMediaPaths, ['media:0f0f.wav']);
       expect(Uint8List(0), isEmpty);
     },
   );

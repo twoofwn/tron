@@ -6,6 +6,7 @@ abstract final class AppConstants {
   static const callDelays = AppConfig.callDelays;
   static const pagePadding = AppConfig.pagePadding;
   static const maxAudioBytes = AppConfig.maxAudioBytes;
+  static const maxVideoBytes = AppConfig.maxVideoBytes;
   static const maxPackageBytes = AppConfig.maxPackageBytes;
 }
 

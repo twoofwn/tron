@@ -24,8 +24,15 @@ Future<Uint8List> readMediaFile(String name) async {
 
 Future<String> mediaFileUri(String name) async => Uri.dataFromBytes(
   await readMediaFile(name),
-  mimeType: name.endsWith('.mp3') ? 'audio/mpeg' : 'audio/wav',
+  mimeType: name.endsWith('.mp3')
+      ? 'audio/mpeg'
+      : name.endsWith('.mp4')
+      ? 'video/mp4'
+      : 'audio/wav',
 ).toString();
+
+/// Trên web không có file thật: trình phát video đọc data URI.
+Future<String> mediaFileLocation(String name) => mediaFileUri(name);
 
 /// Trên web, thư viện thu âm tự giữ bản thu và trả về blob URL.
 Future<String> tempRecordingPath(String name) async => '';

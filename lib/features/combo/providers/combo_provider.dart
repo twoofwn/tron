@@ -79,12 +79,13 @@ class ComboListNotifier extends AsyncNotifier<List<ComboModel>> {
     if (index < 0 || !combos[index].sameContentAs(synced)) {
       return;
     }
-    combos[index] = synced.voicePath == null
-        ? combos[index].copyWith(clearVoiceMediaId: true, syncPending: false)
-        : combos[index].copyWith(
-            voiceMediaId: synced.voiceMediaId,
-            syncPending: false,
-          );
+    combos[index] = combos[index].copyWith(
+      voiceMediaId: synced.voiceMediaId,
+      clearVoiceMediaId: synced.voiceMediaId == null,
+      videoMediaId: synced.videoMediaId,
+      clearVideoMediaId: synced.videoMediaId == null,
+      syncPending: false,
+    );
     await _commit(combos);
   }
 
@@ -114,7 +115,7 @@ class ComboListNotifier extends AsyncNotifier<List<ComboModel>> {
       if (exists && !copyDuplicates) {
         continue;
       }
-      // Thông tin đồng bộ thuộc tài khoản khác: bỏ đi, giọng sẽ được tải lên lại.
+      // Thông tin đồng bộ thuộc tài khoản khác: bỏ đi, giọng/video sẽ được tải lên lại.
       final toAdd =
           (exists
                   ? combo.copyWith(

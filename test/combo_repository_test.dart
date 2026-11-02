@@ -69,7 +69,7 @@ class MemoryFiles extends FileService {
     'media:0f0f.wav': Uint8List.fromList(List.filled(44 + 22050 * 2, 7)),
   };
   @override
-  Future<Uint8List> readAudio(String path) async => audio[path]!;
+  Future<Uint8List> readMedia(String path) async => audio[path]!;
   @override
   Future<String> storeAudio(Uint8List bytes, String extension) async {
     final path = 'media:dl-${audio.length}.$extension';

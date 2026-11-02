@@ -29,7 +29,11 @@ class SilentAudioService extends AudioService {
   @override
   Future<void> ring(ComboModel combo) async {}
   @override
-  Future<void> conversation(ComboModel combo, String dialogue) async {}
+  Future<void> conversation(
+    ComboModel combo,
+    String dialogue, {
+    bool withVoice = true,
+  }) async {}
   @override
   Future<void> speak(String dialogue) async {}
   @override

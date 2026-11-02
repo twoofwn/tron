@@ -11,12 +11,22 @@ class MemoryFileService extends FileService {
   final audio = <String, Uint8List>{
     'media:abcd.mp3': Uint8List.fromList([73, 68, 51, 1, 2]),
     'media:beef.wav': Uint8List.fromList([82, 73, 70, 70, 9]),
+    'media:cafe.mp4': Uint8List.fromList([
+      0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, 1, 2, 3, 4, //
+    ]),
   };
   @override
-  Future<Uint8List> readAudio(String path) async => audio[path]!;
+  Future<Uint8List> readMedia(String path) async => audio[path]!;
   @override
   Future<String> storeAudio(Uint8List bytes, String extension) async {
     final path = 'media:copied-${audio.length}.$extension';
+    audio[path] = bytes;
+    return path;
+  }
+
+  @override
+  Future<String> storeVideo(Uint8List bytes) async {
+    final path = 'media:copied-${audio.length}.mp4';
     audio[path] = bytes;
     return path;
   }
@@ -74,6 +84,51 @@ void main() {
     expect(
       files.audio[imported.single.voicePath],
       files.audio['media:beef.wav'],
+    );
+  });
+  test('Recorded caller video travels with the package', () async {
+    final withVideo = combo.copyWith(
+      id: 'video-combo',
+      callType: CallType.video,
+      videoPath: 'media:cafe.mp4',
+    );
+    final package = await repository.create([withVideo], includeAudio: true);
+    final decoded = repository.decode(repository.encode(package));
+    final imported = await repository.materialize(decoded, {withVideo.id});
+    expect(imported.single.callType, CallType.video);
+    expect(imported.single.videoPath, endsWith('.mp4'));
+    expect(imported.single.videoPath, isNot(withVideo.videoPath));
+    expect(
+      files.audio[imported.single.videoPath],
+      files.audio['media:cafe.mp4'],
+    );
+  });
+  test('Without attached media a video call keeps its type only', () async {
+    final withVideo = combo.copyWith(
+      callType: CallType.video,
+      videoPath: 'media:cafe.mp4',
+    );
+    final package = await repository.create([withVideo], includeAudio: false);
+    expect(package.combos.single.callType, CallType.video);
+    expect(package.combos.single.videoPath, isNull);
+    expect(package.audio, isEmpty);
+  });
+  test('Rejects a package whose video is not an MP4', () async {
+    final withVideo = combo.copyWith(videoPath: 'media:cafe.mp4');
+    final json = jsonDecode(
+      utf8.decode(
+        repository.encode(
+          await repository.create([withVideo], includeAudio: true),
+        ),
+      ),
+    ) as Map<String, Object?>;
+    final audio = Map<String, Object?>.from(json['audio'] as Map)
+      ..['media:cafe.mp4'] = base64Encode(List.filled(12, 1));
+    expect(
+      () => repository.decode(
+        Uint8List.fromList(utf8.encode(jsonEncode({...json, 'audio': audio}))),
+      ),
+      throwsFormatException,
     );
   });
   test(

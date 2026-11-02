@@ -24,6 +24,7 @@ public static class DbInitializer
 
         // EnsureCreated không sửa bảng đã có, nên database tạo trước đó cần được bổ sung cột mới.
         await EnsureComboVoiceColumnAsync(db, ct);
+        await EnsureComboVideoColumnsAsync(db, ct);
 
         // Seed seed data if missing
         await SeedAmbientSoundsAsync(db, ct);
@@ -62,6 +63,42 @@ public static class DbInitializer
         catch (Exception ex)
         {
             Log.Error(ex, "Could not add Combos.VoiceMediaId. Run the ALTER block in trondb.sql manually.");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Thêm cột Combos.CallType và Combos.VideoMediaId (cuộc gọi video) vào database cũ. Chạy lại nhiều lần vẫn an toàn.
+    /// </summary>
+    private static async Task EnsureComboVideoColumnsAsync(TronDbContext db, CancellationToken ct)
+    {
+        const string sql = """
+            IF COL_LENGTH(N'dbo.Combos', N'CallType') IS NULL
+            BEGIN
+                ALTER TABLE [dbo].[Combos] ADD [CallType] NVARCHAR(20) NOT NULL
+                    CONSTRAINT [DF_Combos_CallType] DEFAULT (N'Voice');
+            END;
+            IF COL_LENGTH(N'dbo.Combos', N'VideoMediaId') IS NULL
+            BEGIN
+                ALTER TABLE [dbo].[Combos] ADD [VideoMediaId] UNIQUEIDENTIFIER NULL;
+            END;
+            IF OBJECT_ID(N'[dbo].[FK_Combos_MediaFiles_VideoMediaId]', N'F') IS NULL
+            BEGIN
+                EXEC(N'ALTER TABLE [dbo].[Combos] ADD CONSTRAINT [FK_Combos_MediaFiles_VideoMediaId]
+                    FOREIGN KEY ([VideoMediaId]) REFERENCES [dbo].[MediaFiles] ([Id])');
+            END;
+            IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Combos_VideoMediaId' AND object_id = OBJECT_ID(N'dbo.Combos'))
+            BEGIN
+                EXEC(N'CREATE INDEX [IX_Combos_VideoMediaId] ON [dbo].[Combos] ([VideoMediaId])');
+            END;
+            """;
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(sql, ct);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Could not add Combos.CallType/VideoMediaId. Run the ALTER block in trondb.sql manually.");
             throw;
         }
     }

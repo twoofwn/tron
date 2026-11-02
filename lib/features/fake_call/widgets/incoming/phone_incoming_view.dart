@@ -13,12 +13,16 @@ class PhoneIncomingView extends StatelessWidget {
     required this.theme,
     required this.onAnswer,
     required this.onDecline,
+    this.isVideo = false,
   });
   final String caller;
   final String initial;
   final CallTheme theme;
   final VoidCallback onAnswer;
   final VoidCallback onDecline;
+
+  /// Cuộc gọi video: đổi dòng trạng thái và biểu tượng nút Trả lời.
+  final bool isVideo;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -27,7 +31,10 @@ class PhoneIncomingView extends StatelessWidget {
       children: [
         const SizedBox(height: 16),
         const Spacer(),
-        Text('di động', style: TextStyle(color: theme.subtle, fontSize: 15)),
+        Text(
+          isVideo ? 'cuộc gọi video' : 'di động',
+          style: TextStyle(color: theme.subtle, fontSize: 15),
+        ),
         const SizedBox(height: 6),
         Text(
           caller,
@@ -89,7 +96,7 @@ class PhoneIncomingView extends StatelessWidget {
             ),
             CallButton(
               label: 'Trả lời',
-              icon: Icons.call_rounded,
+              icon: isVideo ? Icons.videocam_rounded : Icons.call_rounded,
               color: theme.answer,
               onTap: onAnswer,
             ),

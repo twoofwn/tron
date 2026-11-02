@@ -114,7 +114,7 @@ public class DiskMediaStorage : IMediaStorage
         CancellationToken ct = default)
     {
         var cleanExt = extension.TrimStart('.').ToLowerInvariant();
-        if (!DomainLimits.AllowedAudioExtensions.Contains(cleanExt))
+        if (!DomainLimits.AllowedAudioExtensions.Contains(cleanExt) && !DomainLimits.IsVideoExtension(cleanExt))
         {
             throw new ApiDomainException("MEDIA_INVALID_EXTENSION", "Định dạng file không được hỗ trợ.");
         }
@@ -130,6 +130,7 @@ public class DiskMediaStorage : IMediaStorage
         var tempPath = $"{fullPath}.tmp.{Guid.NewGuid():N}";
 
         long totalBytes = 0;
+        var maxBytes = DomainLimits.MaxBytesForExtension(cleanExt);
         string sha256Hex;
         try
         {
@@ -141,9 +142,9 @@ public class DiskMediaStorage : IMediaStorage
                 while ((read = await content.ReadAsync(buffer.AsMemory(0, buffer.Length), ct)) > 0)
                 {
                     totalBytes += read;
-                    if (totalBytes > DomainLimits.MaxMediaFileBytes)
+                    if (totalBytes > maxBytes)
                     {
-                        throw new ApiDomainException("MEDIA_TOO_LARGE", "File âm thanh vượt quá giới hạn 10 MB.");
+                        throw new ApiDomainException("MEDIA_TOO_LARGE", AudioValidator.TooLargeMessage(cleanExt));
                     }
                     sha.TransformBlock(buffer, 0, read, null, 0);
                     await fs.WriteAsync(buffer.AsMemory(0, read), ct);
@@ -222,14 +223,21 @@ public class DiskMediaStorage : IMediaStorage
     }
 }
 
+/// <summary>Kiểm tra đuôi file và magic bytes của âm thanh (MP3, M4A, WAV) và video cuộc gọi (MP4).</summary>
 public static class AudioValidator
 {
+    public static string TooLargeMessage(string extension) =>
+        DomainLimits.IsVideoExtension(extension)
+            ? $"File video vượt quá giới hạn {DomainLimits.MaxVideoFileBytes / (1024 * 1024)} MB."
+            : $"File âm thanh vượt quá giới hạn {DomainLimits.MaxMediaFileBytes / (1024 * 1024)} MB.";
+
     public static (string Extension, string ContentType) ValidateFormat(string fileName, ReadOnlySpan<byte> headerBytes)
     {
         var ext = Path.GetExtension(fileName).TrimStart('.').ToLowerInvariant();
-        if (!DomainLimits.AllowedAudioExtensions.Contains(ext))
+        var isVideoExt = DomainLimits.IsVideoExtension(ext);
+        if (!DomainLimits.AllowedAudioExtensions.Contains(ext) && !isVideoExt)
         {
-            throw new ApiDomainException("MEDIA_INVALID_EXTENSION", "Chỉ hỗ trợ định dạng MP3, M4A hoặc WAV.");
+            throw new ApiDomainException("MEDIA_INVALID_EXTENSION", "Chỉ hỗ trợ âm thanh MP3, M4A, WAV hoặc video MP4.");
         }
 
         if (headerBytes.Length < 12)
@@ -242,6 +250,7 @@ public static class AudioValidator
                     headerBytes[8] == (byte)'W' && headerBytes[9] == (byte)'A' &&
                     headerBytes[10] == (byte)'V' && headerBytes[11] == (byte)'E';
 
+        // M4A và MP4 cùng dùng khung ISO BMFF: 4 byte độ dài rồi tới "ftyp".
         var isM4a = headerBytes[4] == (byte)'f' && headerBytes[5] == (byte)'t' &&
                     headerBytes[6] == (byte)'y' && headerBytes[7] == (byte)'p';
 
@@ -254,6 +263,7 @@ public static class AudioValidator
             "wav" when isWav => ("wav", "audio/wav"),
             "m4a" when isM4a => ("m4a", "audio/mp4"),
             "mp3" when isMp3 => ("mp3", "audio/mpeg"),
+            "mp4" when isM4a => ("mp4", "video/mp4"),
             _ => throw new ApiDomainException(
                 "MEDIA_SIGNATURE_MISMATCH",
                 $"Nội dung file không khớp với định dạng .{ext}.")

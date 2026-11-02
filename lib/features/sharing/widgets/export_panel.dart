@@ -197,7 +197,7 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
           contentPadding: EdgeInsets.zero,
           dense: true,
           title: const Text(
-            'Kèm file âm thanh cá nhân',
+            'Kèm âm thanh và video cá nhân',
             style: TextStyle(fontSize: 12),
           ),
           subtitle: const Text(

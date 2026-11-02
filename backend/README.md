@@ -11,7 +11,8 @@ Backend REST API cho ứng dụng **TRỐN (EscapeHatch)** được tổ chức 
 
 - **Khởi tạo Database từ `trondb.sql`**: Tạo đầy đủ 15 bảng, ràng buộc, index và nạp sẵn 4 kịch bản mẫu (22 bước hội thoại), 7 âm nền hợp nhất, 4 nhạc chuông và 4 ánh xạ ID cũ.
 - **Xác thực bắt buộc (`JWT + Refresh Token xoay vòng`)**: Đăng ký, đăng nhập, làm mới phiên, đăng xuất, đổi mật khẩu, khóa tạm khi sai mật khẩu nhiều lần, xóa tài khoản kèm toàn bộ dữ liệu và file trên ổ đĩa.
-- **Lưu trữ âm thanh trên ổ đĩa (`DiskMediaStorage`)**: Kiểm tra định dạng bằng magic bytes (`MP3`, `M4A`, `WAV`), giới hạn 10 MB/file, hạn mức 200 MB/tài khoản, chống tải trùng bằng `SHA-256`, tự dọn file mồ côi.
+- **Lưu trữ âm thanh và video trên ổ đĩa (`DiskMediaStorage`)**: Kiểm tra định dạng bằng magic bytes (`MP3`, `M4A`, `WAV`, video `MP4`), giới hạn 10 MB/file âm thanh và 20 MB/video (`DomainLimits:MaxVideoFileBytes`), hạn mức 200 MB/tài khoản, chống tải trùng bằng `SHA-256`, tự dọn file mồ côi.
+- **Cuộc gọi video**: `Combos.CallType` (`Voice`/`Video`) và `Combos.VideoMediaId` (FK tới `MediaFiles`, tự thêm vào database cũ khi khởi động). Trong API combo/sao lưu/chia sẻ, `callType` và `videoMediaId` theo cùng quy ước với `voiceMediaId`: không gửi = giữ nguyên, `Guid.Empty` = xoá video. Video tải lên với `kind=Video`.
 - **Sao lưu & Khôi phục (`Backup & Restore`)**: Lưu ảnh chụp toàn bộ combo, kịch bản cá nhân, âm nền cá nhân, cài đặt và âm thanh đính kèm của tài khoản trong 1 transaction.
 - **Chia sẻ trực tuyến (`EH-XXXXXX`)**: Tạo mã chia sẻ ngắn 6 ký tự Base32 kèm thời hạn, hỗ trợ cả kịch bản cá nhân và âm thanh riêng, cho phép thu hồi bất kỳ lúc nào.
 

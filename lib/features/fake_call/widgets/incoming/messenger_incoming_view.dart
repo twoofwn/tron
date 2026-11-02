@@ -13,12 +13,16 @@ class MessengerIncomingView extends StatelessWidget {
     required this.theme,
     required this.onAnswer,
     required this.onDecline,
+    this.isVideo = false,
   });
   final String caller;
   final String initial;
   final CallTheme theme;
   final VoidCallback onAnswer;
   final VoidCallback onDecline;
+
+  /// Cuộc gọi video: đổi dòng trạng thái và biểu tượng nút Trả lời.
+  final bool isVideo;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -45,7 +49,7 @@ class MessengerIncomingView extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          'đang gọi thoại cho bạn…',
+          isVideo ? 'đang gọi video cho bạn…' : 'đang gọi thoại cho bạn…',
           textAlign: TextAlign.center,
           style: TextStyle(color: theme.subtle, fontSize: 15),
         ),
@@ -77,7 +81,7 @@ class MessengerIncomingView extends StatelessWidget {
             ),
             CallButton(
               label: 'Trả lời',
-              icon: Icons.call_rounded,
+              icon: isVideo ? Icons.videocam_rounded : Icons.call_rounded,
               color: theme.answer,
               size: 64,
               iconSize: 28,

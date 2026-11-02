@@ -47,6 +47,12 @@ abstract final class AppConfig {
     defaultValue: 10 * 1024 * 1024, // 10 MB
   );
 
+  /// Video người gọi tự quay (MP4). Khớp `DomainLimits.MaxVideoFileBytes` ở server.
+  static const int maxVideoBytes = int.fromEnvironment(
+    'MAX_VIDEO_BYTES',
+    defaultValue: 20 * 1024 * 1024, // 20 MB
+  );
+
   static const int maxPackageBytes = int.fromEnvironment(
     'MAX_PACKAGE_BYTES',
     defaultValue: 25 * 1024 * 1024, // 25 MB

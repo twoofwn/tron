@@ -143,11 +143,15 @@ public class Combo
     public string Name { get; set; } = string.Empty;
     public string ScenarioId { get; set; } = string.Empty;
     public CallInterface CallInterface { get; set; }
+    /// <summary>Gọi thoại hay gọi video. Gọi video phát <see cref="VideoMediaId"/> và bật camera trước của người dùng.</summary>
+    public CallType CallType { get; set; } = CallType.Voice;
     public RingtoneType RingtoneType { get; set; } = RingtoneType.InterfaceDefault;
     public Guid? RingtoneMediaId { get; set; }
     public Guid? CustomBackgroundMediaId { get; set; }
     /// <summary>Giọng người gọi do người dùng tự thu; null thì app đọc kịch bản bằng TTS.</summary>
     public Guid? VoiceMediaId { get; set; }
+    /// <summary>Video người gọi do người dùng tự quay (MP4); null thì cuộc gọi video hiện như người gọi tắt camera.</summary>
+    public Guid? VideoMediaId { get; set; }
     public decimal BackgroundVolume { get; set; } = 0.30m;
     public bool BackgroundOverridden { get; set; }
     public int SortOrder { get; set; }
@@ -158,6 +162,7 @@ public class Combo
     public MediaFile? RingtoneMedia { get; set; }
     public MediaFile? CustomBackgroundMedia { get; set; }
     public MediaFile? VoiceMedia { get; set; }
+    public MediaFile? VideoMedia { get; set; }
     public ICollection<ComboBackground> Backgrounds { get; set; } = new List<ComboBackground>();
 }
 

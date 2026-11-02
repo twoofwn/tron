@@ -13,12 +13,16 @@ class ZaloIncomingView extends StatelessWidget {
     required this.theme,
     required this.onAnswer,
     required this.onDecline,
+    this.isVideo = false,
   });
   final String caller;
   final String initial;
   final CallTheme theme;
   final VoidCallback onAnswer;
   final VoidCallback onDecline;
+
+  /// Cuộc gọi video: đổi dòng trạng thái và biểu tượng nút Trả lời.
+  final bool isVideo;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -46,7 +50,7 @@ class ZaloIncomingView extends StatelessWidget {
       ),
       const SizedBox(height: 8),
       Text(
-        'Cuộc gọi thoại đến…',
+        isVideo ? 'Cuộc gọi video đến…' : 'Cuộc gọi thoại đến…',
         style: TextStyle(color: theme.subtle, fontSize: 15),
       ),
       const SizedBox(height: 40),
@@ -64,7 +68,7 @@ class ZaloIncomingView extends StatelessWidget {
           ),
           CallButton(
             label: 'Trả lời',
-            icon: Icons.call_rounded,
+            icon: isVideo ? Icons.videocam_rounded : Icons.call_rounded,
             color: theme.answer,
             size: 68,
             iconSize: 28,

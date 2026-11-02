@@ -14,10 +14,10 @@ class ComboRepository {
   final StorageService storage;
   final ApiClient? api;
 
-  /// Dùng để đồng bộ giọng tự thu với server; `null` thì bỏ qua phần âm thanh.
+  /// Dùng để đồng bộ giọng tự thu và video tự quay với server; `null` thì bỏ qua.
   final FileService? files;
 
-  /// Gửi trong `voiceMediaId` để báo server xoá giọng của combo.
+  /// Gửi trong `voiceMediaId`/`videoMediaId` để báo server xoá giọng/video.
   static const clearVoiceId = '00000000-0000-0000-0000-000000000000';
   static const _key = AppConfig.combosKey;
 
@@ -81,15 +81,27 @@ class ComboRepository {
     final combos = <ComboModel>[];
     final onServer = <String>{};
     for (final map in remoteList) {
-      final remote = fromServerMap(map);
+      var remote = fromServerMap(map);
+      final mine = local[ensureGuid(remote.id)];
       onServer.add(ensureGuid(remote.id));
-      combos.add(
-        await _mergeVoice(
+      // Đổi trên máy mà server chưa nhận: giữ nguyên bản trên máy.
+      if (mine != null && mine.syncPending) {
+        combos.add(mine);
+        continue;
+      }
+      // Server bản cũ chưa có loại cuộc gọi: giữ loại đang dùng trên máy.
+      if (mine != null && !map.containsKey('callType')) {
+        remote = remote.copyWith(callType: mine.callType);
+      }
+      for (final track in MediaTrack.values) {
+        remote = await _mergeTrack(
+          track,
           remote,
-          local[ensureGuid(remote.id)],
-          _serverVoiceId(map),
-        ),
-      );
+          mine,
+          _serverMediaId(map, track),
+        );
+      }
+      combos.add(remote);
     }
     // Combo tạo/sửa trên máy mà chưa gửi được thì server chưa có: giữ lại.
     combos.addAll(
@@ -98,11 +110,11 @@ class ComboRepository {
           .map((e) => e.value),
     );
     // Combo chỉ bị bỏ vì server không có (ví dụ sao lưu lúc đăng ký bị lỗi):
-    // không xoá file âm thanh của nó, để còn khôi phục được.
+    // không xoá file của nó, để còn khôi phục được.
     final dropped = {
       for (final entry in local.entries)
         if (!onServer.contains(entry.key) && !entry.value.syncPending)
-          ...entry.value.customAudioPaths,
+          ...entry.value.customMediaPaths,
     };
     await save(combos, keepFiles: dropped);
 
@@ -128,63 +140,57 @@ class ComboRepository {
     return combos;
   }
 
-  /// Chọn giọng cho một combo khi gộp danh sách từ server với bản trên máy.
-  /// `serverVoiceId` là giọng server đang giữ; `voiceMediaId` trên máy là giọng
-  /// máy này đồng bộ lần cuối. Hai id khác nhau nghĩa là máy khác đã đổi giọng.
-  Future<ComboModel> _mergeVoice(
-    ComboModel remote,
+  /// Chọn giọng (hoặc video) cho một combo khi gộp danh sách từ server với bản
+  /// trên máy. `serverId` là file server đang giữ; id trên máy là file máy này
+  /// đồng bộ lần cuối. Hai id khác nhau nghĩa là máy khác đã đổi file.
+  /// `merged` là combo đang gộp (bắt đầu từ bản server, chưa có file riêng).
+  Future<ComboModel> _mergeTrack(
+    MediaTrack track,
+    ComboModel merged,
     ComboModel? local,
-    String? serverVoiceId,
+    String? serverId,
   ) async {
-    // Combo chỉ có trên server (ví dụ đăng nhập trên máy mới): lấy giọng về.
+    // Combo chỉ có trên server (ví dụ đăng nhập trên máy mới): lấy file về.
     if (local == null) {
-      return _withServerVoice(remote, serverVoiceId);
+      return _withServerMedia(track, merged, serverId);
     }
-    // Đổi trên máy mà server chưa nhận: giữ nguyên bản trên máy.
-    if (local.syncPending) {
-      return local;
+    final localPath = track.pathOf(local);
+    final syncedId = track.mediaIdOf(local)?.toLowerCase();
+    // Dữ liệu từ bản app cũ: có file nhưng chưa từng đồng bộ → giữ và gửi lên.
+    if (localPath != null && syncedId == null) {
+      return track.put(merged, localPath, null).copyWith(syncPending: true);
     }
-    final syncedId = local.voiceMediaId?.toLowerCase();
-    // Dữ liệu từ bản app cũ: có giọng nhưng chưa từng đồng bộ → giữ và gửi lên.
-    if (local.voicePath != null && syncedId == null) {
-      return remote.copyWith(voicePath: local.voicePath, syncPending: true);
+    if (serverId == syncedId &&
+        localPath != null &&
+        await _hasFile(localPath)) {
+      return track.put(merged, localPath, syncedId);
     }
-    if (serverVoiceId == syncedId &&
-        local.voicePath != null &&
-        await _hasFile(local.voicePath!)) {
-      return remote.copyWith(
-        voicePath: local.voicePath,
-        voiceMediaId: syncedId,
-      );
-    }
-    // Máy khác đã đổi/xoá giọng, hoặc file trên máy bị mất: theo bản trên server.
-    return _withServerVoice(remote, serverVoiceId, fallback: local);
+    // Máy khác đã đổi/xoá file, hoặc file trên máy bị mất: theo bản trên server.
+    return _withServerMedia(track, merged, serverId, fallback: local);
   }
 
-  Future<ComboModel> _withServerVoice(
-    ComboModel remote,
-    String? serverVoiceId, {
+  Future<ComboModel> _withServerMedia(
+    MediaTrack track,
+    ComboModel merged,
+    String? serverId, {
     ComboModel? fallback,
   }) async {
-    if (serverVoiceId == null) {
-      return remote;
+    if (serverId == null) {
+      return merged;
     }
-    final path = await _downloadVoice(serverVoiceId);
+    final path = await _download(track, serverId);
     if (path != null) {
-      return remote.copyWith(voicePath: path, voiceMediaId: serverVoiceId);
+      return track.put(merged, path, serverId);
     }
-    // Tải về lỗi: giữ giọng cũ trên máy (nếu có), lần tải sau thử lại.
-    final keep = fallback?.voicePath;
+    // Tải về lỗi: giữ file cũ trên máy (nếu có), lần tải sau thử lại.
+    final keep = fallback == null ? null : track.pathOf(fallback);
     return keep == null
-        ? remote
-        : remote.copyWith(
-            voicePath: keep,
-            voiceMediaId: fallback!.voiceMediaId,
-          );
+        ? merged
+        : track.put(merged, keep, track.mediaIdOf(fallback!));
   }
 
-  static String? _serverVoiceId(Map<String, dynamic> map) {
-    final id = (map['voiceMediaId'] as String?)?.toLowerCase();
+  static String? _serverMediaId(Map<String, dynamic> map, MediaTrack track) {
+    final id = (map[track.field] as String?)?.toLowerCase();
     return id == null || id == clearVoiceId ? null : id;
   }
 
@@ -203,8 +209,8 @@ class ComboRepository {
         .toList();
   }
 
-  /// Lưu danh sách, rồi xoá các file giọng không còn combo nào dùng
-  /// (giọng bị thay, bị xoá, hoặc combo bị xoá). Combo nhân bản dùng chung file
+  /// Lưu danh sách, rồi xoá các file giọng/video tự thu không còn combo nào dùng
+  /// (bị thay, bị xoá, hoặc combo bị xoá). Combo nhân bản dùng chung file
   /// nên chỉ xoá khi không còn combo nào trỏ tới.
   Future<void> save(
     List<ComboModel> combos, {
@@ -220,19 +226,16 @@ class ComboRepository {
     }
     final inUse = {
       ...keepFiles,
-      for (final combo in combos) ...combo.customAudioPaths,
+      for (final combo in combos) ...combo.customMediaPaths,
     };
-    final old = {
-      for (final combo in before)
-        if (combo.voicePath != null) combo.voicePath!,
-    };
+    final old = {for (final combo in before) ...combo.recordedMediaPaths};
     for (final path in old.difference(inUse)) {
       await files!.deleteAudio(path);
     }
   }
 
-  /// Gửi combo lên server. Trả về combo đã đánh dấu đồng bộ giọng, hoặc `null`
-  /// nếu chưa đăng nhập hay giọng chưa gửi được (sẽ thử lại ở lần tải sau).
+  /// Gửi combo lên server. Trả về combo đã đánh dấu đồng bộ giọng và video, hoặc
+  /// `null` nếu chưa đăng nhập hay file chưa gửi được (sẽ thử lại ở lần tải sau).
   Future<ComboModel?> upsertRemote(ComboModel combo) async {
     if (api == null || !await api!.hasToken()) return null;
     final payload = toServerMap(combo);
@@ -240,48 +243,74 @@ class ComboRepository {
       await api!.postJson('/combos', payload);
       return combo.copyWith(syncPending: false);
     }
-    final voicePath = combo.voicePath;
-    // Giọng đã có trên server (form bỏ id khi thu lại/xoá) thì gửi id, khỏi tải lên lại.
-    final reuseId = voicePath != null ? combo.voiceMediaId : null;
-    var voiceId = voicePath == null
-        ? clearVoiceId
-        : reuseId ?? await _uploadVoice(voicePath);
-    // Tải giọng lên lỗi thì không gửi trường này, để server giữ bản cũ.
-    if (voiceId != null) {
-      payload['voiceMediaId'] = voiceId;
-    }
+    var ids = await _trackIds(combo, reuse: true);
+    _putIds(payload, ids);
     try {
       await api!.postJson('/combos', payload);
     } on ApiException catch (error) {
-      // Giọng đã đồng bộ trước đây không còn trên server: tải lên lại một lần.
-      if (reuseId == null || error.errorCode != 'MEDIA_NOT_FOUND') {
+      // File đã đồng bộ trước đây không còn trên server: tải lên lại một lần.
+      final reused = MediaTrack.values.any(
+        (t) => t.pathOf(combo) != null && t.mediaIdOf(combo) != null,
+      );
+      if (!reused || error.errorCode != 'MEDIA_NOT_FOUND') {
         rethrow;
       }
-      voiceId = await _uploadVoice(voicePath!);
-      payload.remove('voiceMediaId');
-      if (voiceId != null) {
-        payload['voiceMediaId'] = voiceId;
-      }
+      ids = await _trackIds(combo, reuse: false);
+      _putIds(payload, ids);
       await api!.postJson('/combos', payload);
     }
-    if (voiceId == null) {
+    if (ids.values.contains(null)) {
       return null;
     }
-    return voicePath == null
-        ? combo.copyWith(clearVoiceMediaId: true, syncPending: false)
-        : combo.copyWith(voiceMediaId: voiceId, syncPending: false);
+    var synced = combo.copyWith(syncPending: false);
+    for (final track in MediaTrack.values) {
+      synced = track.put(synced, track.pathOf(combo), ids[track]);
+    }
+    return synced;
+  }
+
+  /// Id gửi lên cho từng loại file: [clearVoiceId] khi không có file, id cũ khi
+  /// file chưa đổi (form bỏ id khi thu lại/xoá), hoặc id sau khi tải lên.
+  /// `null` nghĩa là tải lên lỗi.
+  Future<Map<MediaTrack, String?>> _trackIds(
+    ComboModel combo, {
+    required bool reuse,
+  }) async => {
+    for (final track in MediaTrack.values)
+      track: switch (track.pathOf(combo)) {
+        null => clearVoiceId,
+        final path =>
+          (reuse ? track.mediaIdOf(combo) : null) ??
+              await uploadMedia(path, track.kind),
+      },
+  };
+
+  /// Tải file lên lỗi thì không gửi trường đó, để server giữ bản cũ.
+  static void _putIds(
+    Map<String, dynamic> payload,
+    Map<MediaTrack, String?> ids,
+  ) {
+    for (final MapEntry(key: track, value: id) in ids.entries) {
+      payload.remove(track.field);
+      if (id != null) {
+        payload[track.field] = id;
+      }
+    }
   }
 
   /// Tải giọng tự thu lên server (dùng lại file đã có nếu trùng nội dung).
   /// Trả về id trên server, hoặc `null` nếu lỗi.
-  Future<String?> uploadVoice(String path) => _uploadVoice(path);
+  Future<String?> uploadVoice(String path) =>
+      uploadMedia(path, MediaTrack.voice.kind);
 
-  Future<String?> _uploadVoice(String path) async {
+  /// Tải file riêng (giọng: `Voice`, video: `Video`) lên server, dùng lại file
+  /// đã có nếu trùng nội dung. Trả về id trên server, hoặc `null` nếu lỗi.
+  Future<String?> uploadMedia(String path, String kind) async {
     if (api == null || files == null) {
       return null;
     }
     try {
-      final bytes = await files!.readAudio(path);
+      final bytes = await files!.readMedia(path);
       final hash = sha256.convert(bytes).toString();
       final check = await api!.postJson('/media/check', {
         'sha256List': [hash],
@@ -294,7 +323,7 @@ class ComboRepository {
         '/media',
         fileName: path.substring('media:'.length),
         bytes: bytes,
-        kind: 'Voice',
+        kind: kind,
       );
       return uploaded['mediaId'] as String;
     } catch (_) {
@@ -302,15 +331,15 @@ class ComboRepository {
     }
   }
 
-  /// Tải giọng tự thu từ server về máy; lỗi thì để combo dùng giọng máy đọc.
-  Future<String?> _downloadVoice(String? mediaId) async {
-    if (files == null || mediaId == null || mediaId == clearVoiceId) {
+  /// Tải file từ server về máy; lỗi thì combo dùng giọng máy đọc / tắt camera.
+  Future<String?> _download(MediaTrack track, String mediaId) async {
+    if (files == null || mediaId == clearVoiceId) {
       return null;
     }
     try {
-      return await files!.storeAudio(
+      return await files!.storeMedia(
         await api!.getBytes('/media/$mediaId'),
-        'wav',
+        track.extension,
       );
     } catch (_) {
       return null;
@@ -339,6 +368,7 @@ class ComboRepository {
     'name': combo.name,
     'scenarioId': combo.scenarioId,
     'callInterface': combo.callInterface.name,
+    'callType': combo.callType.name,
     'ringtoneType': combo.ringtoneType == RingtoneType.custom
         ? RingtoneType.interfaceDefault.name
         : combo.ringtoneType.name,
@@ -371,6 +401,11 @@ class ComboRepository {
       (e) => e.name.toLowerCase() == ringtoneTypeStr,
       orElse: () => RingtoneType.interfaceDefault,
     );
+    final callTypeStr = (map['callType'] as String? ?? '').toLowerCase();
+    final callType = CallType.values.firstWhere(
+      (e) => e.name == callTypeStr,
+      orElse: () => CallType.voice,
+    );
     return ComboModel(
       id:
           (map['id'] as String?) ??
@@ -379,10 +414,61 @@ class ComboRepository {
       scenarioId: (map['scenarioId'] as String?) ?? 'mother',
       callInterface: callInterface,
       ringtoneType: ringtoneType,
+      callType: callType,
       backgroundSoundPaths: bgList,
       createdAt:
           DateTime.tryParse(map['createdAt'] as String? ?? '') ??
           DateTime.now(),
     );
   }
+}
+
+/// Hai loại file tự thu/quay của combo, đồng bộ với server theo cùng một cách:
+/// không gửi trường = server giữ nguyên, [ComboRepository.clearVoiceId] = xoá.
+enum MediaTrack {
+  voice('voiceMediaId', 'Voice', 'wav'),
+  video('videoMediaId', 'Video', 'mp4');
+
+  const MediaTrack(this.field, this.kind, this.extension);
+
+  /// Tên trường id trên server.
+  final String field;
+
+  /// Loại file khi tải lên `/media`.
+  final String kind;
+
+  /// Đuôi file khi lưu bản tải về.
+  final String extension;
+
+  String? pathOf(ComboModel combo) => switch (this) {
+    voice => combo.voicePath,
+    video => combo.videoPath,
+  };
+
+  String? mediaIdOf(ComboModel combo) => switch (this) {
+    voice => combo.voiceMediaId,
+    video => combo.videoMediaId,
+  };
+
+  /// Gán file cho combo: `path` null thì bỏ file; `mediaId` null thì file chưa
+  /// có trên server.
+  ComboModel put(ComboModel combo, String? path, String? mediaId) =>
+      switch (this) {
+        voice =>
+          path == null
+              ? combo.copyWith(clearVoice: true)
+              : combo.copyWith(
+                  voicePath: path,
+                  voiceMediaId: mediaId,
+                  clearVoiceMediaId: mediaId == null,
+                ),
+        video =>
+          path == null
+              ? combo.copyWith(clearVideo: true)
+              : combo.copyWith(
+                  videoPath: path,
+                  videoMediaId: mediaId,
+                  clearVideoMediaId: mediaId == null,
+                ),
+      };
 }
