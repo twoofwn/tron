@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/app_colors.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/services/video_recorder.dart';
 import '../../../shared/widgets/screen_shell.dart';
 
@@ -154,7 +155,8 @@ class _VideoRecordScreenState extends ConsumerState<VideoRecordScreen>
     });
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       setState(() => _elapsed += const Duration(seconds: 1));
-      if (_elapsed >= VideoRecorder.maxDuration) {
+      // Không giới hạn độ dài, chỉ dừng khi bản quay sắp chạm giới hạn dung lượng.
+      if (_elapsed >= VideoRecorder.autoStopAfter) {
         _stop();
       }
     });
@@ -212,6 +214,15 @@ class _VideoRecordScreenState extends ConsumerState<VideoRecordScreen>
     _open(next);
   }
 
+  /// Báo trước khi sắp chạm giới hạn dung lượng, để người quay kịp kết câu.
+  static const _warnBefore = Duration(seconds: 10);
+  Duration get _remaining => VideoRecorder.autoStopAfter - _elapsed;
+
+  /// Dung lượng ước tính của bản đang quay, so với giới hạn.
+  String get _sizeProgress =>
+      '~${sizeLabel(VideoRecorder.estimatedBytes(_elapsed))} / '
+      '${sizeLabel(AppConstants.maxVideoBytes)}';
+
   String _format(Duration d) =>
       '${d.inMinutes.toString().padLeft(2, '0')}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
 
@@ -260,20 +271,32 @@ class _VideoRecordScreenState extends ConsumerState<VideoRecordScreen>
                         ),
                         const Spacer(),
                         _TimerPill(
-                          label:
-                              '${_format(_elapsed)} / ${_format(VideoRecorder.maxDuration)}',
+                          label: _isRecording && _remaining <= _warnBefore
+                              ? 'Còn ${_remaining.inSeconds} giây'
+                              : _isRecording
+                              ? '${_format(_elapsed)} · $_sizeProgress'
+                              : _format(_elapsed),
                           isRecording: _isRecording,
                         ),
                       ],
                     ),
                   ),
                   const Spacer(),
+                  if (_isRecording && _remaining <= _warnBefore)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 32),
+                      child: Text(
+                        'Sắp chạm giới hạn 20 MB: video sẽ tự dừng và được lưu.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white, fontSize: 13),
+                      ),
+                    ),
                   if (!_isRecording && !_isSaving)
                     const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 32),
                       child: Text(
                         'Quay người gọi nói như đang gọi video cho bạn. '
-                        'Video sẽ phát khi bạn bắt máy.',
+                        'Video sẽ phát khi bạn bắt máy. Tối đa 20 MB.',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Colors.white, fontSize: 13),
                       ),

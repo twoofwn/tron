@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:js_interop';
 import 'dart:typed_data';
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:web/web.dart' as web;
 
 Future<void> writeMediaFile(String name, Uint8List bytes) async {
   if (!await (await SharedPreferences.getInstance()).setString(
@@ -22,17 +24,34 @@ Future<Uint8List> readMediaFile(String name) async {
   return base64Decode(value);
 }
 
+String _mimeType(String name) => name.endsWith('.mp3')
+    ? 'audio/mpeg'
+    : name.endsWith('.mp4')
+    ? 'video/mp4'
+    : 'audio/wav';
+
 Future<String> mediaFileUri(String name) async => Uri.dataFromBytes(
   await readMediaFile(name),
-  mimeType: name.endsWith('.mp3')
-      ? 'audio/mpeg'
-      : name.endsWith('.mp4')
-      ? 'video/mp4'
-      : 'audio/wav',
+  mimeType: _mimeType(name),
 ).toString();
 
-/// Trên web không có file thật: trình phát video đọc data URI.
-Future<String> mediaFileLocation(String name) => mediaFileUri(name);
+/// Trên web không có file thật: tạo blob URL một lần (nhẹ hơn nhiều so với data
+/// URI cho video vài chục MB); [FileService] nhớ và dùng lại URL này.
+Future<String> mediaFileLocation(String name) async {
+  final bytes = await readMediaFile(name);
+  final blob = web.Blob(
+    <JSAny>[bytes.toJS].toJS,
+    web.BlobPropertyBag(type: _mimeType(name)),
+  );
+  return web.URL.createObjectURL(blob);
+}
+
+/// Giải phóng blob URL khi file bị xoá.
+void releaseMediaLocation(String location) {
+  if (location.startsWith('blob:')) {
+    web.URL.revokeObjectURL(location);
+  }
+}
 
 /// Trên web, thư viện thu âm tự giữ bản thu và trả về blob URL.
 Future<String> tempRecordingPath(String name) async => '';
@@ -45,3 +64,11 @@ Future<bool> mediaFileExists(String name) async =>
 
 Future<void> deleteMediaFile(String name) async =>
     (await SharedPreferences.getInstance()).remove('tron.audio.$name');
+
+/// Số byte thật của file (chuỗi base64 dài hơn khoảng 4/3).
+Future<int> mediaFileSize(String name) async {
+  final value = (await SharedPreferences.getInstance()).getString(
+    'tron.audio.$name',
+  );
+  return value == null ? 0 : value.length * 3 ~/ 4;
+}

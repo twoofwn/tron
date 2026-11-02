@@ -81,18 +81,17 @@ class _ScenarioEditorSheetState extends State<ScenarioEditorSheet> {
 
   Future<void> _chooseAudio(_EditableLine line) async {
     try {
-      final file = await openFile();
-      if (file == null) return;
-      final path = await widget.repository.importAudio(
-        await file.readAsBytes(),
-        file.name,
+      final file = await openFile(
+        acceptedTypeGroups: ScenarioRepository.audioTypeGroups,
       );
+      if (file == null) return;
+      final path = await widget.repository.importAudioFile(file);
       if (mounted) setState(() => line.audioPath = path);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Không nhập được audio: $error')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ScenarioRepository.importErrorMessage(error))),
+      );
     }
   }
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tron/core/services/file_service.dart';
+import 'package:tron/core/services/video_recorder.dart';
 import 'package:tron/features/combo/models/combo_model.dart';
 import 'package:tron/features/combo/widgets/call_type_selector.dart';
 import 'package:tron/features/combo/widgets/video_recorder_card.dart';
@@ -23,7 +24,16 @@ void main() {
     String? current = videoPath;
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [fileServiceProvider.overrideWithValue(PickedVideoFiles())],
+        overrides: [
+          fileServiceProvider.overrideWithValue(PickedVideoFiles()),
+          // Video chọn từ máy dài 30 giây, trong giới hạn.
+          videoRecorderProvider.overrideWithValue(
+            VideoRecorder(
+              PickedVideoFiles(),
+              probeDuration: (_) async => const Duration(seconds: 30),
+            ),
+          ),
+        ],
         child: MaterialApp(
           home: Scaffold(
             body: StatefulBuilder(

@@ -108,7 +108,7 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
         setState(() => _elapsed = DateTime.now().difference(_answeredAt!));
       }
     });
-    // Gọi video có video người gọi: video tự phát tiếng, chỉ cần âm nền.
+    // Gọi video có video người gọi: video tự phát tiếng, chỉ tắt chuông.
     await _playConversation(
       withVoice: !(_combo.isVideoCall && _combo.videoPath != null),
     );

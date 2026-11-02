@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
@@ -54,6 +55,44 @@ class _VideoInCallViewState extends ConsumerState<VideoInCallView>
   CameraController? _self;
   bool _selfFailed = false;
   bool _cameraOff = false;
+
+  /// Vị trí góc trên trái của khung camera bản thân; `null` = góc trên phải.
+  Offset? _selfOffset;
+  bool _isDragging = false;
+
+  static const _edge = 12.0;
+
+  /// Chừa hàng nút điều khiển phía dưới để khung không che nút.
+  static const _controlsHeight = 130.0;
+
+  /// Vùng khung camera bản thân được đặt trong màn hình [size].
+  Rect _selfBounds(Size size, EdgeInsets insets) => Rect.fromLTRB(
+    _edge + insets.left,
+    _edge + insets.top,
+    math.max(
+      _edge + insets.left,
+      size.width - insets.right - _edge - _SelfView.width,
+    ),
+    math.max(
+      _edge + insets.top,
+      size.height - insets.bottom - _controlsHeight - _SelfView.height,
+    ),
+  );
+
+  Offset _clampTo(Rect bounds, Offset offset) => Offset(
+    offset.dx.clamp(bounds.left, bounds.right),
+    offset.dy.clamp(bounds.top, bounds.bottom),
+  );
+
+  /// Thả tay: khung trượt về góc gần nhất.
+  Offset _nearestCorner(Rect bounds, Offset offset) => Offset(
+    offset.dx - bounds.left < bounds.right - offset.dx
+        ? bounds.left
+        : bounds.right,
+    offset.dy - bounds.top < bounds.bottom - offset.dy
+        ? bounds.top
+        : bounds.bottom,
+  );
 
   @override
   void initState() {
@@ -210,150 +249,205 @@ class _VideoInCallViewState extends ConsumerState<VideoInCallView>
       ),
     );
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        // Video người gọi, hoặc avatar khi người gọi "tắt camera".
-        if (remote != null && remote.value.isInitialized)
-          FittedBox(
-            fit: BoxFit.cover,
-            clipBehavior: Clip.hardEdge,
-            child: SizedBox(
-              width: remote.value.size.width,
-              height: remote.value.size.height,
-              child: VideoPlayer(remote),
-            ),
-          )
-        else
-          ColoredBox(
-            color: theme.background,
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CallAvatar(
-                    initial: widget.initial,
-                    color: theme.avatar,
-                    textColor: theme.avatarText,
-                    size: 112,
-                    fontSize: 42,
+    final insets = MediaQuery.paddingOf(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bounds = _selfBounds(constraints.biggest, insets);
+        final selfOffset = _clampTo(
+          bounds,
+          _selfOffset ?? Offset(bounds.right, bounds.top),
+        );
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            ..._layers(theme, remote, control),
+            AnimatedPositioned(
+              duration: _isDragging
+                  ? Duration.zero
+                  : const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              left: selfOffset.dx,
+              top: selfOffset.dy,
+              child: GestureDetector(
+                onPanStart: (_) => setState(() {
+                  _isDragging = true;
+                  _selfOffset = selfOffset;
+                }),
+                onPanUpdate: (details) => setState(
+                  () => _selfOffset = _clampTo(
+                    bounds,
+                    (_selfOffset ?? selfOffset) + details.delta,
                   ),
-                  const SizedBox(height: 14),
-                  Text(
-                    _remoteUnavailable ? 'Camera đang tắt' : 'Đang kết nối…',
-                    style: TextStyle(color: theme.subtle, fontSize: 14),
+                ),
+                onPanEnd: (_) => setState(() {
+                  _isDragging = false;
+                  _selfOffset = _nearestCorner(
+                    bounds,
+                    _selfOffset ?? selfOffset,
+                  );
+                }),
+                child: _SelfView(
+                  controller: _self,
+                  isOff: _cameraOff || _selfFailed,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  List<Widget> _layers(
+    CallTheme theme,
+    VideoPlayerController? remote,
+    Widget Function(
+      IconData icon,
+      String label, {
+      bool active,
+      VoidCallback? onTap,
+    })
+    control,
+  ) {
+    return [
+      // Video người gọi, hoặc avatar khi người gọi "tắt camera".
+      if (remote != null && remote.value.isInitialized)
+        FittedBox(
+          fit: BoxFit.cover,
+          clipBehavior: Clip.hardEdge,
+          child: SizedBox(
+            width: remote.value.size.width,
+            height: remote.value.size.height,
+            child: VideoPlayer(remote),
+          ),
+        )
+      else
+        ColoredBox(
+          color: theme.background,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CallAvatar(
+                  initial: widget.initial,
+                  color: theme.avatar,
+                  textColor: theme.avatarText,
+                  size: 112,
+                  fontSize: 42,
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  _remoteUnavailable ? 'Camera đang tắt' : 'Đang kết nối…',
+                  style: TextStyle(color: theme.subtle, fontSize: 14),
+                ),
+              ],
+            ),
+          ),
+        ),
+      // Lớp tối trên/dưới để chữ và nút luôn đọc được trên nền video.
+      const DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0x99000000),
+              Colors.transparent,
+              Colors.transparent,
+              Color(0xB3000000),
+            ],
+            stops: [0, 0.25, 0.65, 1],
+          ),
+        ),
+      ),
+      SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 16, 24),
+          child: Column(
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.caller,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _time,
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 15,
+                            fontFeatures: [FontFeature.tabularFigures()],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Chừa chỗ cho khung camera bản thân ở góc trên phải.
+                  const SizedBox(width: _SelfView.width + 8),
+                ],
+              ),
+              const Spacer(),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  control(
+                    Icons.flip_camera_ios_rounded,
+                    'đổi camera',
+                    onTap: _cameras.length < 2 || _cameraOff ? null : _flip,
+                  ),
+                  control(
+                    Icons.videocam_off_rounded,
+                    'tắt camera',
+                    active: _cameraOff,
+                    onTap: _toggleCamera,
+                  ),
+                  control(
+                    Icons.mic_off_rounded,
+                    'tắt tiếng',
+                    active: widget.isMuted,
+                    onTap: widget.onToggleMute,
+                  ),
+                  Expanded(
+                    child: CallButton(
+                      label: 'Kết thúc',
+                      icon: Icons.call_end_rounded,
+                      color: theme.decline,
+                      size: 56,
+                      iconSize: 26,
+                      labelSize: 12,
+                      onTap: widget.onHangUp,
+                    ),
                   ),
                 ],
               ),
-            ),
-          ),
-        // Lớp tối trên/dưới để chữ và nút luôn đọc được trên nền video.
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                Color(0x99000000),
-                Colors.transparent,
-                Colors.transparent,
-                Color(0xB3000000),
-              ],
-              stops: [0, 0.25, 0.65, 1],
-            ),
+            ],
           ),
         ),
-        SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 16, 24),
-            child: Column(
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.caller,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _time,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 15,
-                              fontFeatures: [FontFeature.tabularFigures()],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    _SelfView(
-                      controller: _self,
-                      isOff: _cameraOff || _selfFailed,
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    control(
-                      Icons.flip_camera_ios_rounded,
-                      'đổi camera',
-                      onTap: _cameras.length < 2 || _cameraOff ? null : _flip,
-                    ),
-                    control(
-                      Icons.videocam_off_rounded,
-                      'tắt camera',
-                      active: _cameraOff,
-                      onTap: _toggleCamera,
-                    ),
-                    control(
-                      Icons.mic_off_rounded,
-                      'tắt tiếng',
-                      active: widget.isMuted,
-                      onTap: widget.onToggleMute,
-                    ),
-                    Expanded(
-                      child: CallButton(
-                        label: 'Kết thúc',
-                        icon: Icons.call_end_rounded,
-                        color: theme.decline,
-                        size: 56,
-                        iconSize: 26,
-                        labelSize: 12,
-                        onTap: widget.onHangUp,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
+      ),
+    ];
   }
 }
 
-/// Khung nhỏ hiện camera trước của người dùng.
+/// Khung nhỏ hiện camera trước của người dùng (kéo được, xem
+/// [_VideoInCallViewState.build]).
 class _SelfView extends StatelessWidget {
   const _SelfView({required this.controller, required this.isOff});
   final CameraController? controller;
   final bool isOff;
 
-  static const _width = 104.0;
-  static const _height = 152.0;
+  static const width = 104.0;
+  static const height = 152.0;
 
   @override
   Widget build(BuildContext context) {
@@ -363,8 +457,8 @@ class _SelfView extends StatelessWidget {
     return Semantics(
       label: ready ? 'Camera của bạn' : 'Camera của bạn đang tắt',
       child: Container(
-        width: _width,
-        height: _height,
+        width: width,
+        height: height,
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: const Color(0xFF2A2D35),
@@ -377,8 +471,8 @@ class _SelfView extends StatelessWidget {
                 clipBehavior: Clip.hardEdge,
                 // Ở màn dọc, khung xem trước cao gấp `aspectRatio` lần bề ngang.
                 child: SizedBox(
-                  width: _width,
-                  height: _width * controller.value.aspectRatio,
+                  width: width,
+                  height: width * controller.value.aspectRatio,
                   child: CameraPreview(controller),
                 ),
               )

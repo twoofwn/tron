@@ -79,12 +79,11 @@ class _ScenarioLibraryScreenState extends State<ScenarioLibraryScreen> {
 
   Future<void> _addBackground() async {
     try {
-      final file = await openFile();
-      if (file == null) return;
-      final path = await widget.repository.importAudio(
-        await file.readAsBytes(),
-        file.name,
+      final file = await openFile(
+        acceptedTypeGroups: ScenarioRepository.audioTypeGroups,
       );
+      if (file == null) return;
+      final path = await widget.repository.importAudioFile(file);
       final name = file.name.replaceFirst(RegExp(r'\.[^.]+$'), '');
       final sound = AmbientSound(
         id: 'custom-${DateTime.now().microsecondsSinceEpoch}',
@@ -102,9 +101,9 @@ class _ScenarioLibraryScreenState extends State<ScenarioLibraryScreen> {
           .showSnackBar(SnackBar(content: Text('Đã thêm âm nền “$name”.')));
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Không thêm được âm nền: $error')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ScenarioRepository.importErrorMessage(error))),
+      );
     }
   }
 

@@ -47,7 +47,10 @@ class ComboListNotifier extends AsyncNotifier<List<ComboModel>> {
     state = AsyncData(List.unmodifiable(combos));
   }
 
-  Future<void> saveCombo(ComboModel edited) async {
+  /// Lưu combo trên máy rồi gửi lên server. Trả về lý do nếu server từ chối
+  /// file giọng/video (ví dụ vượt hạn mức) để màn hình báo cho người dùng;
+  /// combo vẫn được lưu trên máy.
+  Future<String?> saveCombo(ComboModel edited) async {
     // Đánh dấu chờ gửi; bỏ dấu khi server đã nhận (xem _applySync).
     final combo = edited.copyWith(syncPending: true);
     final combos = [...await future];
@@ -59,13 +62,13 @@ class ComboListNotifier extends AsyncNotifier<List<ComboModel>> {
     }
     await _commit(combos);
     ref.read(selectedComboIdProvider.notifier).selectCombo(combo.id);
+    final repository = ref.read(comboRepositoryProvider);
     try {
-      await _applySync(
-        await ref.read(comboRepositoryProvider).upsertRemote(combo),
-      );
+      await _applySync(await repository.upsertRemote(combo));
     } catch (_) {
       // Keep local change even if offline; syncPending makes load() retry.
     }
+    return repository.takeUploadRejection();
   }
 
   /// Ghi kết quả đồng bộ vào combo hiện có trong danh sách (theo id), chỉ khi

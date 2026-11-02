@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/theme/app_colors.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/services/audio_service.dart';
 import '../../../core/services/voice_recorder.dart';
 import '../../../core/widgets/glass_card.dart';
@@ -83,7 +84,7 @@ class _VoiceRecorderCardState extends ConsumerState<VoiceRecorderCard> {
       _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
         setState(() => _elapsed += const Duration(seconds: 1));
         if (_elapsed >= VoiceRecorder.maxDuration) {
-          _stop();
+          _stop(reachedLimit: true);
         }
       });
     } catch (_) {
@@ -97,7 +98,7 @@ class _VoiceRecorderCardState extends ConsumerState<VoiceRecorderCard> {
     }
   }
 
-  Future<void> _stop() async {
+  Future<void> _stop({bool reachedLimit = false}) async {
     if (!_isRecording) {
       return;
     }
@@ -110,9 +111,19 @@ class _VoiceRecorderCardState extends ConsumerState<VoiceRecorderCard> {
         return;
       }
       if (path == null) {
-        showMessage(context, 'Bản thu trống. Hãy thử lại.');
+        showMessage(
+          context,
+          'Bản thu quá ngắn hoặc không có tiếng. Hãy nói ít nhất 1 giây.',
+        );
       } else {
         widget.onChanged(path);
+        if (reachedLimit) {
+          showMessage(
+            context,
+            'Đã đủ ${durationLabel(VoiceRecorder.maxDuration)} nên bản thu '
+            'tự dừng và được lưu.',
+          );
+        }
       }
     } catch (_) {
       if (mounted) {
@@ -184,7 +195,10 @@ class _VoiceRecorderCardState extends ConsumerState<VoiceRecorderCard> {
             Icons.fiber_manual_record_rounded,
             AppColors.red,
             'Đang thu  ${_format(_elapsed)} / ${_format(VoiceRecorder.maxDuration)}',
-            'Nói như người gọi thật, ví dụ “Alo, về nhà ngay con”.',
+            VoiceRecorder.maxDuration - _elapsed <= const Duration(seconds: 10)
+                ? 'Còn ${(VoiceRecorder.maxDuration - _elapsed).inSeconds} giây, '
+                      'hết giờ bản thu tự dừng và được lưu.'
+                : 'Nói như người gọi thật, ví dụ “Alo, về nhà ngay con”.',
           )
         : hasVoice
         ? (

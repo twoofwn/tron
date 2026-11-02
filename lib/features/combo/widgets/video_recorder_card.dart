@@ -86,10 +86,13 @@ class _VideoRecorderCardState extends ConsumerState<VideoRecorderCard> {
     'Không quay được video trên thiết bị này.',
   );
 
-  Future<void> _pick() => _run(
-    () => ref.read(fileServiceProvider).pickVideo(),
-    'Không thể nhập video. Chọn file MP4 tối đa 20 MB.',
-  );
+  Future<void> _pick() => _run(() async {
+    final path = await ref.read(fileServiceProvider).pickVideo();
+    // Chỉ giới hạn dung lượng (kiểm tra khi chọn); ở đây chỉ xem file phát được không.
+    return path == null
+        ? null
+        : ref.read(videoRecorderProvider).checkPickedVideo(path);
+  }, 'Không thể nhập video. Chọn file MP4 tối đa 20 MB.');
 
   Future<void> _watch() async {
     final path = widget.videoPath;
@@ -140,7 +143,7 @@ class _VideoRecorderCardState extends ConsumerState<VideoRecorderCard> {
                   hasVideo
                       ? 'Bắt máy sẽ phát video này, kèm camera trước của bạn.'
                       : 'Chưa có video: người gọi như đang tắt camera. '
-                            'Quay tối đa 60 giây.',
+                            'Tối đa 20 MB.',
                   style: const TextStyle(color: AppColors.muted, fontSize: 11),
                 ),
               ],
