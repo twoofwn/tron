@@ -1,3 +1,4 @@
+import '../../fake_call/models/call_script.dart';
 import '../../scenario/repositories/scenario_repository.dart' as legacy;
 import '../models/scenario.dart';
 import 'scenario_repository.dart';
@@ -9,12 +10,16 @@ class ScenarioInfo {
     required this.title,
     required this.caller,
     required this.dialogue,
+    required this.script,
   });
 
   final String id;
   final String title;
   final String caller;
   final String dialogue;
+
+  /// Hội thoại theo lượt: người gọi nói một câu rồi chờ người dùng đáp.
+  final CallScript script;
 }
 
 /// Cầu nối giữa ID kịch bản cũ trong combo đã lưu và kho kịch bản mới.
@@ -50,6 +55,7 @@ abstract final class ScenarioLookup {
       title: old.title,
       caller: old.caller,
       dialogue: old.dialogue,
+      script: CallScript.fromText(old.dialogue),
     );
   }
 
@@ -61,5 +67,6 @@ abstract final class ScenarioLookup {
         .where((step) => step.type == DialogueStepType.speech)
         .map((step) => step.text)
         .join(' '),
+    script: CallScript.fromSteps(scenario.steps),
   );
 }

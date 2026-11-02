@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,8 +16,10 @@ import '../../scenarios/data/scenario_lookup.dart';
 import '../../scenarios/providers/scenario_provider.dart';
 import '../../settings/models/app_settings.dart';
 import '../../settings/providers/settings_provider.dart';
+import '../models/call_script.dart';
 import '../providers/call_provider.dart';
 import '../services/call_device_service.dart';
+import '../services/reply_listener.dart';
 import '../themes/call_theme.dart';
 import '../widgets/in_call_view.dart';
 import '../widgets/incoming/messenger_incoming_view.dart';
@@ -60,6 +63,9 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
   // Đã bấm phím âm lượng: chuông im nhưng màn gọi vẫn chờ trả lời.
   bool _ringSilenced = false;
   late final CallDeviceService _device;
+  late final ReplyListener _replies;
+  // Micro mở xong (hoặc không mở được) thì mới bắt đầu nghe lượt chờ đầu tiên.
+  Future<bool>? _micReady;
   StreamSubscription<void>? _volumeKeys;
 
   ComboModel get _combo => widget.arguments.combo;
@@ -67,12 +73,13 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
     _combo.scenarioId,
     ref.read(scenarioLibraryProvider).value,
   );
-  String get _dialogue => _scenario.dialogue;
+  CallScript get _script => _scenario.script;
 
   @override
   void initState() {
     super.initState();
     _device = ref.read(callDeviceServiceProvider);
+    _replies = ref.read(replyListenerProvider);
     _volumeKeys = _device.volumeKeyPresses.listen((_) => _silenceRinging());
     WidgetsBinding.instance.addPostFrameCallback((_) => _startRinging());
   }
@@ -83,6 +90,7 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
     _vibration?.cancel();
     unawaited(_volumeKeys?.cancel());
     unawaited(_device.setSilenceKeys(false));
+    unawaited(_replies.close());
     // Màn gọi đóng mà chưa qua nút Kết thúc: vẫn trả âm thanh về bình thường.
     if (_answeredAt != null) {
       unawaited(_device.endCallAudio());
@@ -108,7 +116,7 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
       unawaited(
         ref
             .read(audioServiceProvider)
-            .prepareSpeech(_dialogue)
+            .prepareSpeech(_script)
             .catchError((Object _) {}),
       );
     }
@@ -213,10 +221,26 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
   }
 
   Future<void> _playConversation({bool withVoice = true}) async {
+    // Giọng thu liền một file thì phát cả file, không có lượt chờ nên không
+    // cần micro.
+    final listen =
+        withVoice &&
+        _combo.voicePath == null &&
+        (ref.read(settingsProvider).value?.waitForReply ?? true);
+    if (listen) {
+      // Bản xem thử được hỏi quyền micro; cuộc gọi thật thì không, vì hộp
+      // thoại xin quyền sẽ làm lộ cuộc gọi giả.
+      _micReady ??= _replies.open(askPermission: widget.arguments.isPreview);
+    }
     try {
       await ref
           .read(audioServiceProvider)
-          .conversation(_combo, _dialogue, withVoice: withVoice);
+          .conversation(
+            _combo,
+            _script,
+            withVoice: withVoice,
+            waitForReply: listen ? _waitForReply : null,
+          );
     } catch (_) {
       if (mounted) {
         showMessage(
@@ -227,12 +251,27 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
     }
   }
 
+  /// Lượt chờ người dùng đáp. Đang tắt tiếng thì người gọi không nghe được
+  /// mình, nên chờ theo thời gian cố định.
+  Future<void> _waitForReply(Duration fallback) async {
+    await _micReady;
+    if (!mounted) {
+      return;
+    }
+    if (_isMuted) {
+      await Future<void>.delayed(fallback);
+      return;
+    }
+    await _replies.waitForReply(fallback);
+  }
+
   Future<void> _stop() async {
     _timer?.cancel();
     _vibration?.cancel();
     if (!widget.arguments.isPreview) {
       ref.read(callProvider.notifier).cancel();
     }
+    await _replies.close();
     await ref.read(audioServiceProvider).stop();
     await _device.setSilenceKeys(false);
     if (_answeredAt != null) {
@@ -305,6 +344,9 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
         onToggleSpeaker: _toggleSpeaker,
         onHangUp: _hangUp,
         onSos: _startSos,
+        statusHint: widget.arguments.isPreview
+            ? _ListeningHint(_replies.listening)
+            : null,
       );
     } else {
       view = switch (combo.callInterface) {
@@ -413,6 +455,33 @@ class _CallScaffold extends StatelessWidget {
           ),
           child: child,
         ),
+      ),
+    ),
+  );
+}
+
+/// Bản xem thử: cho biết app đang chờ người dùng nói, để thử ngưỡng chuyển
+/// lượt. Cuộc gọi thật không hiện gì.
+class _ListeningHint extends StatelessWidget {
+  const _ListeningHint(this.listening);
+  final ValueListenable<bool> listening;
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<bool>(
+    valueListenable: listening,
+    builder: (context, on, _) => AnimatedOpacity(
+      opacity: on ? 1 : 0,
+      duration: const Duration(milliseconds: 150),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.mic_rounded, size: 14, color: Colors.greenAccent),
+          SizedBox(width: 4),
+          Text(
+            'Đang nghe bạn…',
+            style: TextStyle(fontSize: 12, color: Colors.white70),
+          ),
+        ],
       ),
     ),
   );

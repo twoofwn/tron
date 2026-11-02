@@ -10,6 +10,7 @@ import '../../../core/widgets/app_loading.dart';
 import '../../../core/widgets/glass_card.dart';
 import '../../../shared/widgets/screen_shell.dart';
 import '../../activation/services/permission_service.dart';
+import '../../fake_call/services/reply_listener.dart';
 import '../../home/widgets/delay_selector.dart';
 import '../models/app_settings.dart';
 import '../providers/settings_provider.dart';
@@ -58,6 +59,37 @@ class SettingsScreen extends ConsumerWidget {
       ref,
       (current) => current.copyWith(backgroundArmed: on),
     );
+  }
+
+  /// Bật chờ người dùng đáp thì xin quyền micro luôn, vì lúc cuộc gọi giả đổ
+  /// chuông không được hiện hộp thoại xin quyền.
+  Future<void> _setWaitForReply(
+    BuildContext context,
+    WidgetRef ref,
+    bool on,
+  ) async {
+    await _update(
+      context,
+      ref,
+      (current) => current.copyWith(waitForReply: on),
+    );
+    if (!on || !context.mounted) {
+      return;
+    }
+    final listener = ref.read(replyListenerProvider);
+    if (!listener.isSupported) {
+      showMessage(
+        context,
+        'Máy này chưa nghe được qua micro: người gọi chờ khoảng 3 giây rồi nói tiếp.',
+      );
+      return;
+    }
+    if (!await listener.hasPermission(request: true) && context.mounted) {
+      showMessage(
+        context,
+        'Chưa có quyền micro: người gọi chờ khoảng 3 giây rồi nói tiếp.',
+      );
+    }
   }
 
   @override
@@ -231,6 +263,16 @@ class SettingsScreen extends ConsumerWidget {
                       ref,
                       (current) => current.copyWith(vibrateOnCall: on),
                     ),
+                  ),
+                  SwitchListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    title: const Text('Chờ tôi nói xong mới nói tiếp'),
+                    subtitle: const Text(
+                      'Nghe qua micro, không lưu giọng của bạn. Không có micro thì chờ khoảng 3 giây.',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    value: value.waitForReply,
+                    onChanged: (on) => _setWaitForReply(context, ref, on),
                   ),
                   SwitchListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16),

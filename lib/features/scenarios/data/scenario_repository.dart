@@ -279,6 +279,38 @@ class ScenarioRepository extends ChangeNotifier {
     }
   }
 
+  /// Audio có sẵn trong app (`audio/voice/...`), không phải file người dùng
+  /// thu hay nhập.
+  static bool isBundledAudio(String path) =>
+      !(path.startsWith('/') ||
+          RegExp(r'^[a-zA-Z]:[\\/]').hasMatch(path) ||
+          path.startsWith('data:') ||
+          path.startsWith('blob:') ||
+          path.startsWith('http://') ||
+          path.startsWith('https://') ||
+          path.startsWith('media:'));
+
+  /// Xoá file âm thanh do app thu hoặc nhập cho kịch bản. Chỉ xoá file nằm
+  /// trong thư mục audio của kho kịch bản; audio có sẵn, data URI và mọi file
+  /// khác được bỏ qua.
+  Future<void> deleteAudio(String path) async {
+    final storage = await _getStorageDirectory();
+    if (storage == null) return;
+    final audioDirectory = '${storage.path}/audio/'.replaceAll(r'\', '/');
+    final normalized = path.replaceAll(r'\', '/');
+    if (!normalized.startsWith(audioDirectory) ||
+        normalized.substring(audioDirectory.length).contains('/') ||
+        normalized.contains('/../')) {
+      return;
+    }
+    try {
+      final file = io.File(path);
+      if (await file.exists()) await file.delete();
+    } catch (_) {
+      // File đang được dùng hoặc đã bị xoá: để lần dọn sau.
+    }
+  }
+
   /// Bộ lọc của hộp chọn file: chỉ hiện file âm thanh được hỗ trợ.
   static const audioTypeGroups = [
     XTypeGroup(

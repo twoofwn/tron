@@ -9,6 +9,8 @@ import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../features/combo/models/combo_model.dart';
+import '../../features/fake_call/models/call_script.dart';
+import '../../features/fake_call/services/call_script_runner.dart';
 import '../../features/settings/models/app_settings.dart';
 import '../../shared/enums/call_interface.dart';
 import '../constants/asset_paths.dart';
@@ -62,8 +64,8 @@ class AudioService {
   final _backgrounds = <AudioPlayer>[];
   FlutterTts? _speech;
   bool _speaking = false;
-  String? _speechText;
-  Future<String?>? _speechFile;
+  final _speechFiles = <String, Future<String?>>{};
+  Future<void> _synthesisQueue = Future.value();
   int _generation = 0;
 
   Future<void> speak(String dialogue) async {
@@ -119,10 +121,15 @@ class AudioService {
   /// Phát âm nền rồi hội thoại. `withVoice: false` dùng cho cuộc gọi video
   /// đang phát video người gọi: video đã có tiếng (cả tiếng môi trường lúc
   /// quay), nên chỉ tắt chuông, không phát âm nền chồng lên gây ồn.
+  ///
+  /// Combo có giọng thu sẵn thì phát cả file một lần. Không thì người gọi nói
+  /// từng câu của [script], tới lượt chờ thì gọi [waitForReply] (không có thì
+  /// chờ theo thời gian cố định của lượt đó).
   Future<void> conversation(
     ComboModel combo,
-    String dialogue, {
+    CallScript script, {
     bool withVoice = true,
+    ReplyWaiter? waitForReply,
   }) async {
     await stop();
     if (!withVoice) {
@@ -158,7 +165,9 @@ class AudioService {
     final voicePath = combo.voicePath;
     if (voicePath != null) {
       try {
-        await _playCallVoice(Uri.parse(await files.audioUri(voicePath)));
+        await _playCallVoice(
+          AudioSource.uri(Uri.parse(await files.audioUri(voicePath))),
+        );
         return;
       } catch (_) {
         // File giọng mất hoặc hỏng: đọc kịch bản để cuộc gọi không im lặng.
@@ -167,13 +176,21 @@ class AudioService {
         }
       }
     }
-    final speechFile = await _speechFileFor(dialogue);
-    if (generation != _generation) {
-      return;
-    }
-    if (speechFile != null) {
+    await CallScriptRunner(
+      speak: (line) => _speakLine(line, generation),
+      waitForReply:
+          waitForReply ?? (fallback) => Future<void>.delayed(fallback),
+      isCancelled: () => generation != _generation,
+    ).run(script);
+  }
+
+  /// Một câu của người gọi: file thoại của câu, không có hoặc lỗi thì giọng
+  /// đọc dạng file (đi loa trong), cuối cùng mới đọc trực tiếp ra loa ngoài.
+  Future<void> _speakLine(SpeakTurn line, int generation) async {
+    final audioPath = line.audioPath;
+    if (audioPath != null) {
       try {
-        await _playCallVoice(Uri.file(speechFile));
+        await _playCallVoice(await _lineSource(audioPath));
         return;
       } catch (_) {
         if (generation != _generation) {
@@ -181,30 +198,85 @@ class AudioService {
         }
       }
     }
-    // Không tạo được file giọng đọc: đọc trực tiếp, chỉ ra được loa ngoài.
-    await speak(dialogue);
+    if (line.text.trim().isEmpty) {
+      return;
+    }
+    final speechFile = await _speechFileFor(line.text);
+    if (generation != _generation) {
+      return;
+    }
+    if (speechFile != null) {
+      try {
+        await _playCallVoice(AudioSource.file(speechFile));
+        return;
+      } catch (_) {
+        if (generation != _generation) {
+          return;
+        }
+      }
+    }
+    await speak(line.text);
   }
 
-  /// Tạo trước file giọng đọc trong lúc đổ chuông để trả lời là nghe ngay.
-  Future<void> prepareSpeech(String dialogue) async {
-    await _speechFileFor(dialogue);
+  /// File thoại của kịch bản: tài nguyên có sẵn (`audio/voice/...`), file nhập
+  /// từ máy (đường dẫn tuyệt đối) hoặc âm thanh riêng (`media:`).
+  Future<AudioSource> _lineSource(String path) async {
+    if (path.startsWith('media:')) {
+      return AudioSource.uri(Uri.parse(await files.audioUri(path)));
+    }
+    if (path.startsWith('http://') ||
+        path.startsWith('https://') ||
+        path.startsWith('data:') ||
+        path.startsWith('blob:')) {
+      return AudioSource.uri(Uri.parse(path));
+    }
+    if (!kIsWeb &&
+        (path.startsWith('/') || RegExp(r'^[a-zA-Z]:[\/]').hasMatch(path))) {
+      return AudioSource.file(path);
+    }
+    return AudioSource.asset(
+      path.startsWith('assets/') ? path : 'assets/$path',
+    );
+  }
+
+  /// Tạo trước giọng đọc cho các câu không có file thoại, trong lúc đổ chuông,
+  /// để trả lời là nghe ngay. Xóa file của kịch bản trước.
+  Future<void> prepareSpeech(CallScript script) async {
+    final texts = {
+      for (final line in script.lines)
+        if (line.audioPath == null && line.text.trim().isNotEmpty) line.text,
+    };
+    _forgetSpeechExcept(texts);
+    await Future.wait(texts.map(_speechFileFor));
   }
 
   /// Giọng đọc dạng file phát được qua loa trong. Chỉ Android: thư viện đọc
   /// không cho chọn loa, nên đọc ra file rồi phát như giọng thu.
-  Future<String?> _speechFileFor(String dialogue) {
+  Future<String?> _speechFileFor(String text) {
     if (defaultTargetPlatform != TargetPlatform.android ||
-        dialogue.trim().isEmpty) {
+        text.trim().isEmpty) {
       return Future.value();
     }
-    if (_speechText != dialogue || _speechFile == null) {
-      final previous = _speechFile;
-      _speechText = dialogue;
-      _speechFile = _synthesize(dialogue);
-      // Xóa file của kịch bản trước, không để thư mục tạm đầy dần.
+    return _speechFiles[text] ??= _queueSynthesis(text);
+  }
+
+  /// Máy đọc chỉ tạo được từng file một: câu sau chờ câu trước xong.
+  Future<String?> _queueSynthesis(String text) {
+    final result = _synthesisQueue.then((_) => _synthesize(text));
+    _synthesisQueue = result.then((_) {});
+    return result;
+  }
+
+  void _forgetSpeechExcept(Set<String> keep) {
+    final stale = [
+      for (final text in _speechFiles.keys)
+        if (!keep.contains(text)) text,
+    ];
+    for (final text in stale) {
+      final file = _speechFiles.remove(text)!;
       unawaited(
-        previous
-            ?.then((path) async {
+        file
+            .then((path) async {
               if (path != null) {
                 await File(path).delete();
               }
@@ -212,10 +284,9 @@ class AudioService {
             .catchError((Object _) {}),
       );
     }
-    return _speechFile!;
   }
 
-  Future<String?> _synthesize(String dialogue) async {
+  Future<String?> _synthesize(String text) async {
     try {
       final speech = _speech ??= FlutterTts();
       await speech.setLanguage('vi-VN');
@@ -225,7 +296,7 @@ class AudioService {
       final path =
           '${directory.path}/call_speech_${DateTime.now().microsecondsSinceEpoch}.wav';
       final result = await speech
-          .synthesizeToFile(dialogue, path, true)
+          .synthesizeToFile(text, path, true)
           .timeout(const Duration(seconds: 10));
       if (result == 1 && await File(path).exists()) {
         return path;
@@ -249,10 +320,11 @@ class AudioService {
     return player;
   }
 
-  Future<void> _playCallVoice(Uri uri) async {
+  /// Phát một đoạn giọng người gọi, chờ tới khi phát xong hoặc bị dừng.
+  Future<void> _playCallVoice(AudioSource source) async {
     final generation = _generation;
     final voice = _callVoice ??= await _callPlayer();
-    await voice.setAudioSource(AudioSource.uri(uri));
+    await voice.setAudioSource(source);
     if (generation != _generation) {
       return;
     }

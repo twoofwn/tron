@@ -10,11 +10,16 @@ import 'package:tron/features/activation/providers/activation_provider.dart';
 import 'package:tron/features/activation/services/permission_service.dart';
 import 'package:tron/features/combo/models/combo_model.dart';
 import 'package:tron/features/combo/providers/combo_provider.dart';
+import 'package:tron/features/fake_call/models/call_script.dart';
+import 'package:tron/features/fake_call/services/call_script_runner.dart';
+import 'package:tron/features/fake_call/services/reply_listener.dart';
 import 'package:tron/features/fake_call/providers/call_provider.dart';
 import 'package:tron/features/fake_call/services/call_device_service.dart';
 import 'package:tron/features/settings/models/app_settings.dart';
 import 'package:tron/shared/enums/call_interface.dart';
 import 'package:tron/features/sharing/repositories/sharing_repository.dart';
+
+import 'features/fake_call/fake_reply_listener.dart';
 
 class NoDeepLinks implements DeepLinkSource {
   @override
@@ -36,13 +41,14 @@ class SilentAudioService extends AudioService {
   @override
   Future<void> conversation(
     ComboModel combo,
-    String dialogue, {
+    CallScript script, {
     bool withVoice = true,
+    ReplyWaiter? waitForReply,
   }) async {}
   @override
   Future<void> speak(String dialogue) async {}
   @override
-  Future<void> prepareSpeech(String dialogue) async {}
+  Future<void> prepareSpeech(CallScript script) async {}
   @override
   void dispose() {}
 }
@@ -90,6 +96,7 @@ void main() {
         overrides: [
           audioServiceProvider.overrideWithValue(SilentAudioService()),
           callDeviceServiceProvider.overrideWithValue(SilentCallDevice()),
+          replyListenerProvider.overrideWithValue(FakeReplyListener()),
           deepLinkSourceProvider.overrideWithValue(NoDeepLinks()),
           // Quyền thật phụ thuộc máy; cố định để giao diện và golden ổn định.
           permissionSnapshotProvider.overrideWith(
