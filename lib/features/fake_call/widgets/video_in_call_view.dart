@@ -28,6 +28,7 @@ class VideoInCallView extends ConsumerStatefulWidget {
     required this.onToggleMute,
     required this.onHangUp,
     required this.onVideoUnavailable,
+    this.onSos,
   });
   final String caller;
   final String initial;
@@ -40,6 +41,9 @@ class VideoInCallView extends ConsumerStatefulWidget {
   final VoidCallback onToggleMute;
   final VoidCallback onHangUp;
   final VoidCallback onVideoUnavailable;
+
+  /// Giữ nút gác máy 2 giây: gửi SOS.
+  final VoidCallback? onSos;
 
   @override
   ConsumerState<VideoInCallView> createState() => _VideoInCallViewState();
@@ -427,6 +431,7 @@ class _VideoInCallViewState extends ConsumerState<VideoInCallView>
                       iconSize: 26,
                       labelSize: 12,
                       onTap: widget.onHangUp,
+                      onHold: widget.onSos,
                     ),
                   ),
                 ],

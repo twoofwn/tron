@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers/app_foreground_provider.dart';
+import '../../../app/router/route_names.dart';
 import '../../../core/services/audio_service.dart';
 import '../../../shared/enums/call_interface.dart';
 import '../../../shared/widgets/screen_shell.dart';
@@ -246,6 +247,18 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
     }
   }
 
+  /// Giữ nút gác máy: kết thúc cuộc gọi giả và mở màn SOS (bản xem thử thì không).
+  Future<void> _startSos() async {
+    if (widget.arguments.isPreview) {
+      return;
+    }
+    unawaited(HapticFeedback.heavyImpact());
+    await _stop();
+    if (mounted) {
+      unawaited(Navigator.pushReplacementNamed(context, RouteNames.sosAlert));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen(appForegroundProvider, _onForegroundChanged);
@@ -273,6 +286,7 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
           isMuted: _isMuted,
           onToggleMute: () => setState(() => _isMuted = !_isMuted),
           onHangUp: _hangUp,
+          onSos: _startSos,
           // Video hỏng: phát giọng như gọi thoại để cuộc gọi không im lặng.
           onVideoUnavailable: _playConversation,
         ),
@@ -290,6 +304,7 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
         onToggleMute: () => setState(() => _isMuted = !_isMuted),
         onToggleSpeaker: _toggleSpeaker,
         onHangUp: _hangUp,
+        onSos: _startSos,
       );
     } else {
       view = switch (combo.callInterface) {

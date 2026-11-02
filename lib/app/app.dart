@@ -10,6 +10,7 @@ import '../features/combo/providers/combo_provider.dart';
 import '../features/fake_call/providers/call_provider.dart';
 import '../features/fake_call/screens/fake_call_screen.dart';
 import '../features/scenarios/providers/scenario_provider.dart';
+import '../features/sos/providers/sos_providers.dart';
 import '../shared/enums/call_interface.dart';
 import 'providers/app_foreground_provider.dart';
 import 'providers/theme_provider.dart';
@@ -55,6 +56,7 @@ class _TronAppState extends ConsumerState<TronApp> with WidgetsBindingObserver {
     // Người dùng có thể vừa đổi quyền trong cài đặt hệ thống.
     if (state == AppLifecycleState.resumed) {
       ref.invalidate(permissionSnapshotProvider);
+      ref.invalidate(sosPermissionsProvider);
     }
   }
 

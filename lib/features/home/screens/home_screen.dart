@@ -18,7 +18,8 @@ import '../../fake_call/providers/call_provider.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../widgets/combo_card.dart';
 import '../widgets/delay_selector.dart';
-import '../widgets/emergency_sheet.dart';
+import '../../sos/providers/sos_providers.dart';
+import '../../sos/widgets/check_in_card.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -226,6 +227,7 @@ class HomeScreen extends ConsumerWidget {
                         CallSchedulerCard(combo: selected),
                         const SizedBox(height: 24),
                         const Spacer(),
+                        const CheckInBanner(),
                         const HomeQuickActions(),
                         const SizedBox(height: 14),
                         Center(
@@ -506,6 +508,8 @@ class HomeQuickActions extends ConsumerWidget {
       settings?.flipEnabled,
       settings?.knockEnabled,
     ].where((on) => on == true).length;
+    final sosCount = ref.watch(sosSettingsProvider).value?.contacts.length ?? 0;
+    final sosReady = sosCount > 0;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -536,16 +540,16 @@ class HomeQuickActions extends ConsumerWidget {
             tint: Theme.of(context).brightness == Brightness.dark
                 ? const Color(0xFF301C22)
                 : const Color(0xFFFFE8E9),
-            onTap: () => showModalBottomSheet<void>(
-              context: context,
-              isScrollControlled: true,
-              showDragHandle: true,
-              builder: (_) => const EmergencySheet(),
+            // Chạm: gửi SOS (có đếm ngược để hủy). Giữ: mở cài đặt SOS.
+            onTap: () => Navigator.pushNamed(
+              context,
+              sosReady ? RouteNames.sosAlert : RouteNames.sos,
             ),
-            child: const Column(
+            onLongPress: () => Navigator.pushNamed(context, RouteNames.sos),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'SOS khẩn cấp',
                   style: TextStyle(
                     color: AppColors.red,
@@ -553,10 +557,12 @@ class HomeQuickActions extends ConsumerWidget {
                     fontSize: 13,
                   ),
                 ),
-                SizedBox(height: 5),
+                const SizedBox(height: 5),
                 Text(
-                  'Liên hệ người tin cậy',
-                  style: TextStyle(color: AppColors.red, fontSize: 11),
+                  sosReady
+                      ? 'Chạm để gửi · $sosCount người · giữ để cài đặt'
+                      : 'Chạm để thiết lập',
+                  style: const TextStyle(color: AppColors.red, fontSize: 11),
                 ),
               ],
             ),
