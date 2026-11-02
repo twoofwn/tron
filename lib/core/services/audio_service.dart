@@ -94,14 +94,18 @@ class AudioService {
     unawaited(ringtone.play().catchError((Object _) {}));
   }
 
-  /// Phát âm nền rồi hội thoại. `withVoice: false` chỉ phát âm nền, dùng cho
-  /// cuộc gọi video đang phát video người gọi (video đã có tiếng).
+  /// Phát âm nền rồi hội thoại. `withVoice: false` dùng cho cuộc gọi video
+  /// đang phát video người gọi: video đã có tiếng (cả tiếng môi trường lúc
+  /// quay), nên chỉ tắt chuông, không phát âm nền chồng lên gây ồn.
   Future<void> conversation(
     ComboModel combo,
     String dialogue, {
     bool withVoice = true,
   }) async {
     await stop();
+    if (!withVoice) {
+      return;
+    }
     final generation = _generation;
     final sources = [
       for (final key in combo.backgroundSoundPaths)
@@ -126,7 +130,7 @@ class AudioService {
       }
       unawaited(player.play().catchError((Object _) {}));
     }
-    if (generation != _generation || !withVoice) {
+    if (generation != _generation) {
       return;
     }
     final voicePath = combo.voicePath;

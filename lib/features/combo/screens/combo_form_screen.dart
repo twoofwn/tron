@@ -155,6 +155,11 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
           }
         });
       }
+    } on FormatException catch (error) {
+      // Vượt dung lượng, file trống...: báo đúng lý do kèm dung lượng thật.
+      if (mounted) {
+        showMessage(context, error.message);
+      }
     } catch (_) {
       if (mounted) {
         showMessage(
@@ -179,8 +184,16 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
     setState(() => _isSaving = true);
     try {
       await ref.read(scenarioPlaybackProvider.notifier).stop();
-      await ref.read(comboListProvider.notifier).saveCombo(_draft());
+      final rejection = await ref
+          .read(comboListProvider.notifier)
+          .saveCombo(_draft());
       _committed = true;
+      if (mounted && rejection != null) {
+        showMessage(
+          context,
+          'Đã lưu combo trên máy nhưng chưa đồng bộ được file: $rejection',
+        );
+      }
       if (mounted) {
         setState(() {
           _hasSaved = true;

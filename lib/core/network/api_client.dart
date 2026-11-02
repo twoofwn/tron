@@ -230,6 +230,11 @@ class ApiClient {
     }
     var code = 'SERVER_ERROR';
     var detail = 'Yêu cầu không thành công (${response.statusCode}).';
+    // Server chặn request quá lớn trước khi tới API nên không có lời giải thích.
+    if (response.statusCode == 413) {
+      code = 'MEDIA_TOO_LARGE';
+      detail = 'File quá lớn, vượt giới hạn tải lên của server.';
+    }
     if (response.bodyBytes.isNotEmpty) {
       try {
         final json = jsonDecode(utf8.decode(response.bodyBytes));

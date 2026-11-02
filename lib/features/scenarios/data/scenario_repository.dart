@@ -3,11 +3,14 @@ import 'dart:io' as io;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/config/app_config.dart';
+import '../../../core/constants/app_constants.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/services/file_service.dart';
 import '../models/scenario.dart';
 
 class ScenarioRepository extends ChangeNotifier {
@@ -276,12 +279,50 @@ class ScenarioRepository extends ChangeNotifier {
     }
   }
 
-  Future<String> importAudio(Uint8List bytes, String originalName) async {
-    final extension = originalName.split('.').last.toLowerCase();
+  /// Bộ lọc của hộp chọn file: chỉ hiện file âm thanh được hỗ trợ.
+  static const audioTypeGroups = [
+    XTypeGroup(
+      label: 'Âm thanh',
+      extensions: ['mp3', 'm4a', 'wav'],
+      mimeTypes: ['audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/wav'],
+      uniformTypeIdentifiers: ['public.audio'],
+    ),
+  ];
+
+  /// Câu báo lỗi cho người dùng khi nhập audio (không lộ tên lớp lỗi).
+  static String importErrorMessage(Object error) => error is FormatException
+      ? error.message
+      : 'Không nhập được file âm thanh. Hãy thử file khác.';
+
+  /// Nhập file người dùng chọn: kiểm tra đuôi và dung lượng TRƯỚC khi đọc,
+  /// để file quá lớn bị từ chối ngay thay vì nạp hết vào bộ nhớ.
+  Future<String> importAudioFile(XFile file) async {
+    _checkExtension(file.name);
+    FileService.ensureSize(
+      await file.length(),
+      limit: AppConstants.maxAudioBytes,
+      what: 'File “${file.name}”',
+    );
+    return importAudio(await file.readAsBytes(), file.name);
+  }
+
+  static String _checkExtension(String name) {
+    final extension = name.split('.').last.toLowerCase();
     if (!{'mp3', 'm4a', 'wav'}.contains(extension)) {
-      throw const FormatException('Chỉ hỗ trợ MP3, M4A hoặc WAV.');
+      throw const FormatException(
+        'Chỉ hỗ trợ file âm thanh MP3, M4A hoặc WAV.',
+      );
     }
-    if (bytes.isEmpty) throw const FormatException('File âm thanh trống.');
+    return extension;
+  }
+
+  Future<String> importAudio(Uint8List bytes, String originalName) async {
+    final extension = _checkExtension(originalName);
+    FileService.ensureSize(
+      bytes.length,
+      limit: AppConstants.maxAudioBytes,
+      what: 'File “$originalName”',
+    );
 
     final storage = await _getStorageDirectory();
     if (storage != null && !_hasCustomDir && !kIsWeb) {

@@ -67,6 +67,9 @@ class FakeServer {
   var listCalls = 0;
   var failDownloads = false;
   var offline = false;
+
+  /// Lỗi server trả về khi tải file lên, ví dụ `QUOTA_EXCEEDED`.
+  String? rejectUploads;
   var _next = 1;
 
   String addMedia(Uint8List bytes) {
@@ -123,6 +126,12 @@ class FakeServer {
       return _json({'existing': existing});
     }
     if (path == '/media' && request.method == 'POST') {
+      if (rejectUploads != null) {
+        return _json({
+          'errorCode': rejectUploads,
+          'detail': 'Đã vượt hạn mức lưu trữ âm thanh (200 MB).',
+        }, 400);
+      }
       uploads++;
       final form = latin1.decode(request.bodyBytes);
       final isVideo = form.contains('\r\n\r\nVideo\r\n');
@@ -457,6 +466,20 @@ void main() {
         );
         expect(synced!.videoMediaId, server.combos[id]!['videoMediaId']);
         expect(synced.syncPending, isFalse);
+      },
+    );
+
+    test(
+      'A file the server refuses is reported once, combo stays pending',
+      () async {
+        files.audio['media:clip.mp4'] = mp4(7);
+        server.rejectUploads = 'QUOTA_EXCEEDED';
+        final result = await repository.upsertRemote(
+          combo(videoPath: 'media:clip.mp4', pending: true),
+        );
+        expect(result, isNull);
+        expect(repository.takeUploadRejection(), contains('hạn mức'));
+        expect(repository.takeUploadRejection(), isNull);
       },
     );
 

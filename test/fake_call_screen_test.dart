@@ -175,13 +175,33 @@ void main() {
     );
     await tester.tap(find.text('Trả lời'));
     await tester.pump();
-    // Có video: chỉ phát âm nền, tiếng nằm trong video.
+    // Có video: không phát âm nền hay giọng, tiếng nằm trong video.
     expect(audio.events, contains('conversation:silent'));
     // Video không mở được → quay về giọng.
     await tester.pump();
     await tester.pump();
     expect(audio.events.last, 'conversation');
     expect(find.text('Camera đang tắt'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('The self view can be dragged and snaps to a corner', (
+    tester,
+  ) async {
+    await open(tester, CallInterface.zalo, callType: CallType.video);
+    await tester.tap(find.text('Trả lời'));
+    await tester.pump();
+    final self = find.bySemanticsLabel('Camera của bạn đang tắt');
+    final start = tester.getTopLeft(self);
+    // Mặc định ở góc trên phải.
+    expect(start.dx, greaterThan(390 / 2));
+    await tester.drag(self, const Offset(-300, 400));
+    await tester.pumpAndSettle();
+    final end = tester.getTopLeft(self);
+    // Thả gần góc dưới trái thì dính vào góc đó, vẫn nằm trên hàng nút.
+    expect(end.dx, lessThan(390 / 2));
+    expect(end.dy, greaterThan(start.dy));
+    expect(end.dy + 152, lessThanOrEqualTo(844 - 130));
     expect(tester.takeException(), isNull);
   });
 

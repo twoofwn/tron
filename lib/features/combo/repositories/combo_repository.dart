@@ -23,6 +23,24 @@ class ComboRepository {
 
   Future<List<ComboModel>>? _loading;
 
+  /// Mã lỗi server nghĩa là file bị từ chối hẳn (thử lại cũng không qua).
+  static const _rejectedCodes = {
+    'MEDIA_TOO_LARGE',
+    'QUOTA_EXCEEDED',
+    'MEDIA_INVALID_EXTENSION',
+    'MEDIA_SIGNATURE_MISMATCH',
+    'MEDIA_EMPTY_OR_CORRUPT',
+  };
+  String? _uploadRejection;
+
+  /// Lý do server từ chối file ở lần tải lên gần nhất (ví dụ vượt hạn mức),
+  /// để báo cho người dùng; đọc xong thì xoá.
+  String? takeUploadRejection() {
+    final message = _uploadRejection;
+    _uploadRejection = null;
+    return message;
+  }
+
   /// Chỉ chạy một lần tải tại một thời điểm; lần gọi chồng lên dùng chung kết quả,
   /// tránh lần tải cũ ghi đè danh sách mới hơn.
   Future<List<ComboModel>> load() =>
@@ -326,6 +344,11 @@ class ComboRepository {
         kind: kind,
       );
       return uploaded['mediaId'] as String;
+    } on ApiException catch (error) {
+      if (_rejectedCodes.contains(error.errorCode)) {
+        _uploadRejection = error.message;
+      }
+      return null;
     } catch (_) {
       return null;
     }

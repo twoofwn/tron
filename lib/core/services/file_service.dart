@@ -10,6 +10,40 @@ import 'media_files.dart' as media;
 final fileServiceProvider = Provider((ref) => FileService());
 
 class FileService {
+  /// Báo lỗi dễ hiểu khi file trống hoặc vượt giới hạn, kèm dung lượng thật.
+  /// `what` là tên loại file trong câu báo, ví dụ "File MP3".
+  static void ensureSize(
+    int bytes, {
+    required int limit,
+    required String what,
+  }) {
+    if (bytes <= 0) {
+      throw FormatException('$what trống. Hãy chọn file khác.');
+    }
+    if (bytes > limit) {
+      throw FormatException(
+        '$what nặng ${sizeLabel(bytes)}, vượt giới hạn ${sizeLabel(limit)}. '
+        'Hãy chọn file nhỏ hơn.',
+      );
+    }
+  }
+
+  /// Kiểm tra dung lượng trước khi đọc (không nạp file quá lớn vào bộ nhớ),
+  /// rồi kiểm tra lại số byte thật đã đọc.
+  static Future<Uint8List> _readWithin(
+    PlatformFile file, {
+    required int limit,
+    required String what,
+  }) async {
+    final length = await file.length();
+    if (length != null) {
+      ensureSize(length, limit: limit, what: what);
+    }
+    final bytes = await file.readAsBytes();
+    ensureSize(bytes.length, limit: limit, what: what);
+    return bytes;
+  }
+
   Future<String?> pickAudio() async {
     final file = await FilePicker.pickFile(
       type: FileType.custom,
@@ -18,11 +52,12 @@ class FileService {
     if (file == null) {
       return null;
     }
-    final length = await file.length();
-    if (length == null || length > AppConstants.maxAudioBytes) {
-      throw const FormatException('Chọn file MP3 tối đa 10 MB.');
-    }
-    return storeAudio(await file.readAsBytes(), 'mp3');
+    final bytes = await _readWithin(
+      file,
+      limit: AppConstants.maxAudioBytes,
+      what: 'File MP3',
+    );
+    return storeAudio(bytes, 'mp3');
   }
 
   /// Chọn video MP4 có sẵn trên máy làm video người gọi.
@@ -34,11 +69,17 @@ class FileService {
     if (file == null) {
       return null;
     }
-    final length = await file.length();
-    if (length == null || length > AppConstants.maxVideoBytes) {
-      throw const FormatException('Chọn video MP4 tối đa 20 MB.');
+    final bytes = await _readWithin(
+      file,
+      limit: AppConstants.maxVideoBytes,
+      what: 'Video',
+    );
+    if (!isMp4(bytes)) {
+      throw const FormatException(
+        'File này không phải video MP4 hợp lệ. Hãy chọn file MP4 khác.',
+      );
     }
-    return storeVideo(await file.readAsBytes());
+    return storeVideo(bytes);
   }
 
   /// Lưu video MP4 vào thư mục media của app, trả về `media:UUID.mp4`.
@@ -93,9 +134,45 @@ class FileService {
   Future<Uint8List> readMedia(String path) => media.readMediaFile(_name(path));
   Future<String> audioUri(String path) => media.mediaFileUri(_name(path));
 
-  /// Vị trí video cho trình phát: đường dẫn file trên máy, hoặc data URI trên web.
-  Future<String> videoLocation(String path) =>
-      media.mediaFileLocation(_name(path));
+  /// Vị trí phát đã tìm cho từng video (`media:...mp4`), dùng lại cho các lần
+  /// xem lại, đo độ dài và gọi video sau, khỏi phải nạp lại file mỗi lần.
+  final _videoLocations = <String, Future<String>>{};
+
+  /// Vị trí video cho trình phát: đường dẫn file trên máy, hoặc blob URL trên
+  /// web. Chỉ tìm một lần cho mỗi file; lỗi thì lần sau tìm lại.
+  Future<String> videoLocation(String path) {
+    final cached = _videoLocations[path];
+    if (cached != null) {
+      return cached;
+    }
+    final Future<String> location;
+    try {
+      location = media.mediaFileLocation(_name(path));
+    } on FormatException catch (error) {
+      return Future.error(error);
+    }
+    _videoLocations[path] = location;
+    location.catchError((Object _) {
+      _videoLocations.remove(path);
+      return '';
+    });
+    return location;
+  }
+
+  /// Bỏ vị trí đã nhớ của file (khi file bị xoá), giải phóng blob URL trên web.
+  void _forgetLocation(String path) {
+    final location = _videoLocations.remove(path);
+    location?.then(media.releaseMediaLocation, onError: (Object _) {});
+  }
+
+  /// Dung lượng file riêng trên máy (byte); lỗi hoặc không có file thì 0.
+  Future<int> mediaSize(String path) async {
+    try {
+      return await media.mediaFileSize(_name(path));
+    } catch (_) {
+      return 0;
+    }
+  }
 
   /// File âm thanh riêng còn trên máy không.
   Future<bool> hasAudio(String path) async {
@@ -108,6 +185,7 @@ class FileService {
 
   /// Xoá file âm thanh riêng không còn combo nào dùng.
   Future<void> deleteAudio(String path) async {
+    _forgetLocation(path);
     try {
       await media.deleteMediaFile(_name(path));
     } on FormatException {
@@ -123,11 +201,11 @@ class FileService {
     if (file == null) {
       return null;
     }
-    final length = await file.length();
-    if (length == null || length > AppConstants.maxPackageBytes) {
-      throw const FormatException('File .ehc tối đa 25 MB.');
-    }
-    return file.readAsBytes();
+    return _readWithin(
+      file,
+      limit: AppConstants.maxPackageBytes,
+      what: 'File .ehc',
+    );
   }
 
   Future<bool> savePackage(Uint8List bytes) async =>
