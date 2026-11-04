@@ -354,6 +354,13 @@ class _ReplyPauseTileState extends State<ReplyPauseTile> {
   Duration? _dragging;
 
   @override
+  void didUpdateWidget(ReplyPauseTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Đã lưu xong giá trị vừa chọn thì thôi giữ số đang kéo.
+    if (widget.pause != oldWidget.pause) _dragging = null;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final step = replyPauseStep.inMilliseconds;
     final min = AppSettings.minReplyPause.inMilliseconds.toDouble();
@@ -385,8 +392,11 @@ class _ReplyPauseTileState extends State<ReplyPauseTile> {
             onChanged: (ms) => setState(() => _dragging = snap(ms)),
             onChangeEnd: (ms) {
               final chosen = snap(ms);
-              setState(() => _dragging = null);
-              if (chosen != widget.pause) {
+              if (chosen == widget.pause) {
+                setState(() => _dragging = null);
+              } else {
+                // Giữ số vừa chọn tới khi lưu xong, tránh nháy về số cũ.
+                setState(() => _dragging = chosen);
                 widget.onChanged(chosen);
               }
             },

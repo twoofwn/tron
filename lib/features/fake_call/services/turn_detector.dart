@@ -74,6 +74,9 @@ class TurnDetector {
   // Tiếng to liên tục kể từ lần im gần nhất, để phân biệt nói lại với tiếng
   // động ngắn (cạch, quạt, vọng) trong lúc người dùng đã im.
   Duration _voiced = Duration.zero;
+
+  /// Chỗ ngắt giữa hai tiếng khi nói nhanh; im ngắn hơn vẫn tính là đang nói.
+  static const syllableGap = Duration(milliseconds: 120);
   Duration? _speechStart;
 
   /// Tiếng ồn nền ước tính, giữ qua các lượt chờ trong cùng cuộc gọi.
@@ -128,8 +131,15 @@ class TurnDetector {
       // Chỉ tính là nói lại khi tiếng to kéo dài như lúc bắt đầu nói; tiếng
       // động ngắn hơn không xoá khoảng im đã đếm, nếu không thì chờ lâu (vài
       // giây) gần như không bao giờ đủ trong phòng có tiếng ồn.
+      // Vừa mới nói (im chưa quá [syllableGap]) mà tiếng to rõ như lúc bắt
+      // đầu nói thì là nói tiếp, kể cả khi nói nhanh từng tiếng ngắn. Tiếng
+      // ồn chập chờn quanh ngưỡng không đủ to nên không kéo dài lượt.
       _voiced += frame;
-      _silence = _voiced >= rules.minSpeech ? Duration.zero : _silence + frame;
+      final loud =
+          level >= math.max(_floor + rules.startMargin, rules.minSpeechLevel);
+      final speaking =
+          _voiced >= rules.minSpeech || (loud && _silence <= syllableGap);
+      _silence = speaking ? Duration.zero : _silence + frame;
     } else {
       _voiced = Duration.zero;
       _silence += frame;

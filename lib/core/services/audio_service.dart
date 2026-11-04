@@ -335,8 +335,15 @@ class AudioService {
   /// hết; nếu không tạm dừng, lần play() sau trên cùng trình phát trả về ngay
   /// và các câu của người gọi đè lên nhau (chỉ nghe rõ câu đầu).
   static Future<void> _playToEnd(AudioPlayer player) async {
-    await player.play();
-    await player.pause();
+    try {
+      await player.play();
+    } finally {
+      try {
+        await player.pause();
+      } catch (_) {
+        // Trình phát đã bị huỷ (thoát màn hình giữa chừng): không cần dừng.
+      }
+    }
   }
 
   /// Phát giọng người gọi đã thu một lần, chờ tới khi phát xong hoặc bị dừng.

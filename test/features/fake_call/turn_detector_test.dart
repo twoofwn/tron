@@ -99,6 +99,24 @@ void main() {
       expect(result.at.inMilliseconds, inInclusiveRange(5070, 5160));
     });
 
+    test('fast choppy speech is not mistaken for silence', () {
+      final detector = TurnDetector(noiseFloor: _quiet)
+        ..reset(endSilence: _ms(1000));
+      // Nói nhanh từng tiếng: 150 ms có giọng, nghỉ 60 ms giữa các tiếng, 3 s.
+      final choppy = <(double, Duration)>[
+        for (var i = 0; i < 15; i++) ...[(_voice, _ms(150)), (_quiet, _ms(60))],
+      ];
+      final result = _feed(detector, [
+        (_quiet, _ms(600)),
+        (_voice, _ms(600)),
+        ...choppy,
+        (_quiet, _ms(3000)),
+      ]);
+      expect(result.outcome, ReplyOutcome.finished);
+      // Hết nói ở 4,35 s; chỉ tới lượt người gọi sau đó, không cắt giữa chừng.
+      expect(result.at.inMilliseconds, greaterThan(4350));
+    });
+
     test('speaking again for a moment does restart the pause', () {
       final detector = TurnDetector(noiseFloor: _quiet)
         ..reset(endSilence: _ms(3000));
