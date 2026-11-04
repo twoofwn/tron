@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tron/app/app.dart';
 import 'package:tron/core/services/audio_service.dart';
+import 'package:tron/core/services/background_preview.dart';
 import 'package:tron/core/services/file_service.dart';
 import 'package:tron/core/services/video_recorder.dart';
 import 'package:tron/features/activation/providers/activation_provider.dart';
@@ -18,9 +19,11 @@ import 'package:tron/features/fake_call/services/reply_listener.dart';
 import 'package:tron/features/fake_call/providers/call_provider.dart';
 import 'package:tron/features/fake_call/services/call_device_service.dart';
 import 'package:tron/features/settings/models/app_settings.dart';
+import 'package:tron/features/settings/providers/settings_provider.dart';
 import 'package:tron/shared/enums/call_interface.dart';
 import 'package:tron/features/sharing/repositories/sharing_repository.dart';
 
+import 'core/fake_background_loop.dart';
 import 'features/fake_call/fake_reply_listener.dart';
 
 class NoDeepLinks implements DeepLinkSource {
@@ -46,6 +49,7 @@ class SilentAudioService extends AudioService {
     CallScript script, {
     bool withVoice = true,
     ReplyWaiter? waitForReply,
+    double backgroundVolume = AppSettings.defaultBackgroundVolume,
   }) async {}
   @override
   Future<void> speak(String dialogue) async {}
@@ -250,6 +254,59 @@ void main() {
       tester.element(find.byType(TronApp)),
     );
     expect((await container.read(comboListProvider.future)).length, 4);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Background sounds can be previewed and their volume saved', (
+    tester,
+  ) async {
+    final loops = LoopFactory();
+    await start(
+      tester,
+      size: const Size(390, 2400),
+      overrides: [backgroundPreviewLoopProvider.overrideWithValue(loops.call)],
+    );
+    await tester.tap(find.text('+ Tạo combo'));
+    await tester.pumpAndSettle();
+    // Chưa chọn âm nền thì chưa nghe thử được.
+    expect(find.text('Chọn ít nhất một âm nền để nghe thử.'), findsOneWidget);
+    await tester.tap(find.text('Nghe thử âm nền'));
+    await tester.pump();
+    expect(loops.loops, isEmpty);
+
+    await tester.tap(find.text('Còi xe'));
+    await tester.pump();
+    await tester.tap(find.text('Nghe thử âm nền'));
+    await tester.pumpAndSettle();
+    expect(find.text('Dừng nghe thử'), findsOneWidget);
+    expect(loops.loops.single.source, 'traffic');
+    expect(loops.loops.single.volume, AppSettings.defaultBackgroundVolume);
+
+    // Đổi lựa chọn khi đang nghe thì nghe ngay danh sách mới.
+    await tester.tap(find.text('Trời mưa'));
+    await tester.pumpAndSettle();
+    final playing = loops.loops.where((loop) => !loop.disposed);
+    expect(playing.map((loop) => loop.source), ['traffic', 'rain']);
+
+    final slider = tester.widget<Slider>(find.byType(Slider));
+    slider.onChanged!(0.3);
+    slider.onChangeEnd!(0.3);
+    await tester.pumpAndSettle();
+    expect(playing.map((loop) => loop.volume), everyElement(0.3));
+    expect(find.text('30%'), findsOneWidget);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(TronApp)),
+    );
+    expect(
+      (await container.read(settingsProvider.future)).backgroundVolume,
+      0.3,
+    );
+
+    // Gọi video không có âm nền: nghe thử dừng.
+    await tester.tap(find.text('Gọi video'));
+    await tester.pumpAndSettle();
+    expect(loops.loops.every((loop) => loop.disposed), isTrue);
+    expect(container.read(backgroundPreviewProvider), isFalse);
     expect(tester.takeException(), isNull);
   });
 

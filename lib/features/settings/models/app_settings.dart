@@ -33,7 +33,12 @@ class AppSettings {
     this.sensitivity = TriggerSensitivity.medium,
     this.backgroundArmed = false,
     this.waitForReply = true,
+    this.backgroundVolume = defaultBackgroundVolume,
   });
+
+  /// Âm lượng âm nền trong cuộc gọi so với giọng người gọi (0–1).
+  static const defaultBackgroundVolume = 0.6;
+  static const minBackgroundVolume = 0.1;
 
   factory AppSettings.fromJson(Map<String, dynamic> json) => AppSettings(
     phoneStyle: _enumByName(
@@ -52,6 +57,7 @@ class AppSettings {
     ),
     backgroundArmed: _bool(json['backgroundArmed'], false),
     waitForReply: _bool(json['waitForReply'], true),
+    backgroundVolume: _volume(json['backgroundVolume']),
   );
 
   final PhoneStyle phoneStyle;
@@ -65,6 +71,9 @@ class AppSettings {
   /// Người gọi chờ người dùng nói xong (nghe qua micro) rồi mới nói câu tiếp.
   final bool waitForReply;
 
+  /// Âm lượng âm nền trong cuộc gọi, dùng chung cho mọi combo.
+  final double backgroundVolume;
+
   Map<String, Object> toJson() => {
     'phoneStyle': phoneStyle.name,
     'vibrateOnCall': vibrateOnCall,
@@ -74,6 +83,7 @@ class AppSettings {
     'sensitivity': sensitivity.name,
     'backgroundArmed': backgroundArmed,
     'waitForReply': waitForReply,
+    'backgroundVolume': backgroundVolume,
   };
 
   AppSettings copyWith({
@@ -85,6 +95,7 @@ class AppSettings {
     TriggerSensitivity? sensitivity,
     bool? backgroundArmed,
     bool? waitForReply,
+    double? backgroundVolume,
   }) => AppSettings(
     phoneStyle: phoneStyle ?? this.phoneStyle,
     vibrateOnCall: vibrateOnCall ?? this.vibrateOnCall,
@@ -94,8 +105,19 @@ class AppSettings {
     sensitivity: sensitivity ?? this.sensitivity,
     backgroundArmed: backgroundArmed ?? this.backgroundArmed,
     waitForReply: waitForReply ?? this.waitForReply,
+    backgroundVolume: backgroundVolume == null
+        ? this.backgroundVolume
+        : clampBackgroundVolume(backgroundVolume),
   );
 }
+
+/// Giữ âm lượng nền trong khoảng nghe được, không tắt hẳn.
+double clampBackgroundVolume(double value) =>
+    value.clamp(AppSettings.minBackgroundVolume, 1.0).toDouble();
+
+double _volume(Object? value) => value is num && value.isFinite
+    ? clampBackgroundVolume(value.toDouble())
+    : AppSettings.defaultBackgroundVolume;
 
 T _enumByName<T extends Enum>(List<T> values, Object? name, T fallback) {
   for (final value in values) {

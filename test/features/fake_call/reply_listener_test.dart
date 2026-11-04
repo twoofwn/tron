@@ -66,9 +66,11 @@ void main() {
     expect(config.encoder, AudioEncoder.pcm16bits);
     expect(config.echoCancel, isTrue);
     expect(config.audioInterruption, AudioInterruptionMode.none);
+    // Nguồn thu và khử ồn kiểu cuộc gọi làm máy cắt âm nền khi chờ đáp.
+    expect(config.noiseSuppress, isFalse);
     expect(
       config.androidConfig.audioSource,
-      AndroidAudioSource.voiceCommunication,
+      AndroidAudioSource.voiceRecognition,
     );
     expect(config.androidConfig.manageBluetooth, isFalse);
     expect(config.androidConfig.speakerphone, isFalse);

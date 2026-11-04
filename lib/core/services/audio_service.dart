@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_tts/flutter_tts.dart';
@@ -13,8 +12,8 @@ import '../../features/fake_call/models/call_script.dart';
 import '../../features/fake_call/services/call_script_runner.dart';
 import '../../features/settings/models/app_settings.dart';
 import '../../shared/enums/call_interface.dart';
-import '../constants/asset_paths.dart';
 import '../constants/built_in_ringtone.dart';
+import 'background_loop.dart';
 import 'file_service.dart';
 
 final audioServiceProvider = Provider((ref) {
@@ -56,12 +55,16 @@ class ScenarioPlaybackNotifier extends Notifier<bool> {
 }
 
 class AudioService {
-  AudioService(this.files);
+  AudioService(this.files, {BackgroundLoop Function()? createBackground})
+    : _createBackground =
+          createBackground ??
+          (() => JustAudioBackgroundLoop(files, inCall: true));
   final FileService files;
+  final BackgroundLoop Function() _createBackground;
   AudioPlayer? _ringtone;
   AudioPlayer? _voice;
   AudioPlayer? _callVoice;
-  final _backgrounds = <AudioPlayer>[];
+  final _backgrounds = <BackgroundLoop>[];
   FlutterTts? _speech;
   bool _speaking = false;
   final _speechFiles = <String, Future<String?>>{};
@@ -124,40 +127,38 @@ class AudioService {
   ///
   /// Combo có giọng thu sẵn thì phát cả file một lần. Không thì người gọi nói
   /// từng câu của [script], tới lượt chờ thì gọi [waitForReply] (không có thì
-  /// chờ theo thời gian cố định của lượt đó).
+  /// chờ theo thời gian cố định của lượt đó). Âm nền phát ở mức
+  /// [backgroundVolume] so với giọng.
   Future<void> conversation(
     ComboModel combo,
     CallScript script, {
     bool withVoice = true,
     ReplyWaiter? waitForReply,
+    double backgroundVolume = AppSettings.defaultBackgroundVolume,
   }) async {
     await stop();
     if (!withVoice) {
       return;
     }
     final generation = _generation;
-    final sources = [
-      for (final key in combo.backgroundSoundPaths)
-        AssetPaths.backgrounds[key]!,
-      if (combo.customBackgroundPath != null) combo.customBackgroundPath!,
-    ];
+    final sources = backgroundSources(
+      combo.backgroundSoundPaths,
+      combo.customBackgroundPath,
+    );
     for (final source in sources) {
       if (generation != _generation) {
         return;
       }
-      final player = await _callPlayer();
-      _backgrounds.add(player);
-      if (source.startsWith('media:')) {
-        await player.setUrl(await files.audioUri(source));
-      } else {
-        await player.setAsset(source);
+      final loop = _createBackground();
+      _backgrounds.add(loop);
+      try {
+        await loop.start(source, backgroundVolume);
+      } catch (_) {
+        // Một âm nền hỏng hoặc mất file thì bỏ qua, cuộc gọi vẫn tiếp tục.
+        if (_backgrounds.remove(loop)) {
+          unawaited(loop.dispose().catchError((Object _) {}));
+        }
       }
-      await player.setVolume(0.18);
-      await player.setLoopMode(LoopMode.one);
-      if (generation != _generation) {
-        return;
-      }
-      unawaited(player.play().catchError((Object _) {}));
     }
     if (generation != _generation) {
       return;
@@ -307,16 +308,11 @@ class AudioService {
     return null;
   }
 
-  /// Giọng và âm nền của người gọi dùng kiểu âm thanh cuộc gọi, nên đi theo
-  /// loa trong / loa ngoài mà màn gọi chọn.
+  /// Giọng người gọi dùng kiểu âm thanh cuộc gọi, nên đi theo loa trong /
+  /// loa ngoài mà màn gọi chọn.
   Future<AudioPlayer> _callPlayer() async {
     final player = AudioPlayer(androidApplyAudioAttributes: false);
-    await player.setAndroidAudioAttributes(
-      const AndroidAudioAttributes(
-        usage: AndroidAudioUsage.voiceCommunication,
-        contentType: AndroidAudioContentType.speech,
-      ),
-    );
+    await player.setAndroidAudioAttributes(androidCallAudioAttributes);
     return player;
   }
 
@@ -361,8 +357,8 @@ class AudioService {
     await _ringtone?.stop();
     await _voice?.stop();
     await _callVoice?.stop();
-    for (final player in backgrounds) {
-      await player.dispose();
+    for (final loop in backgrounds) {
+      await loop.dispose().catchError((Object _) {});
     }
   }
 
@@ -372,8 +368,8 @@ class AudioService {
     unawaited(_ringtone?.dispose());
     unawaited(_voice?.dispose());
     unawaited(_callVoice?.dispose());
-    for (final player in _backgrounds) {
-      unawaited(player.dispose());
+    for (final loop in _backgrounds) {
+      unawaited(loop.dispose().catchError((Object _) {}));
     }
   }
 }

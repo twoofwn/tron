@@ -121,13 +121,13 @@ public static class DbInitializer
 
         Log.Information("Seeding default AmbientSounds...");
         db.AmbientSounds.AddRange(
-            new AmbientSound { Id = "car", Title = "Còi xe", IconName = "car", AssetAudioPath = "audio/ambient/car.wav", LegacyKey = "traffic", SortOrder = 1 },
+            new AmbientSound { Id = "car", Title = "Còi xe", IconName = "car", AssetAudioPath = "audio/backgrounds/traffic.mp3", LegacyKey = "traffic", SortOrder = 1 },
             new AmbientSound { Id = "television", Title = "Tiếng TV", IconName = "tv", AssetAudioPath = "audio/ambient/television.wav", LegacyKey = "television", SortOrder = 2 },
-            new AmbientSound { Id = "office", Title = "Văn phòng", IconName = "office", AssetAudioPath = "audio/ambient/office.wav", LegacyKey = "office", SortOrder = 3 },
-            new AmbientSound { Id = "rain", Title = "Trời mưa", IconName = "rain", AssetAudioPath = "audio/ambient/rain.wav", LegacyKey = "rain", SortOrder = 4 },
-            new AmbientSound { Id = "dog", Title = "Chó sủa", IconName = "dog", AssetAudioPath = "audio/ambient/dog.wav", LegacyKey = null, SortOrder = 5 },
+            new AmbientSound { Id = "office", Title = "Văn phòng", IconName = "office", AssetAudioPath = "audio/backgrounds/office.mp3", LegacyKey = "office", SortOrder = 3 },
+            new AmbientSound { Id = "rain", Title = "Trời mưa", IconName = "rain", AssetAudioPath = "audio/backgrounds/rain.mp3", LegacyKey = "rain", SortOrder = 4 },
+            new AmbientSound { Id = "dog", Title = "Chó sủa", IconName = "dog", AssetAudioPath = "audio/backgrounds/dog.mp3", LegacyKey = null, SortOrder = 5 },
             new AmbientSound { Id = "cafe", Title = "Nhạc cà phê", IconName = "cafe", AssetAudioPath = "audio/ambient/cafe.wav", LegacyKey = "cafe", SortOrder = 6 },
-            new AmbientSound { Id = "traffic", Title = "Còi xe (giao thông)", IconName = "car", AssetAudioPath = "assets/audio/backgrounds/traffic.wav", LegacyKey = "traffic", SortOrder = 7 }
+            new AmbientSound { Id = "traffic", Title = "Còi xe (giao thông)", IconName = "car", AssetAudioPath = "assets/audio/backgrounds/traffic.mp3", LegacyKey = "traffic", SortOrder = 7 }
         );
         await db.SaveChangesAsync(ct);
     }

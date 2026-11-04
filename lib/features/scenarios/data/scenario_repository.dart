@@ -34,7 +34,7 @@ class ScenarioRepository extends ChangeNotifier {
       id: 'car',
       title: 'Còi xe',
       iconName: 'car',
-      audioPath: 'audio/ambient/car.wav',
+      audioPath: 'audio/backgrounds/traffic.mp3',
     ),
     AmbientSound(
       id: 'television',
@@ -46,19 +46,19 @@ class ScenarioRepository extends ChangeNotifier {
       id: 'office',
       title: 'Văn phòng',
       iconName: 'office',
-      audioPath: 'audio/ambient/office.wav',
+      audioPath: 'audio/backgrounds/office.mp3',
     ),
     AmbientSound(
       id: 'rain',
       title: 'Trời mưa',
       iconName: 'rain',
-      audioPath: 'audio/ambient/rain.wav',
+      audioPath: 'audio/backgrounds/rain.mp3',
     ),
     AmbientSound(
       id: 'dog',
       title: 'Chó sủa',
       iconName: 'dog',
-      audioPath: 'audio/ambient/dog.wav',
+      audioPath: 'audio/backgrounds/dog.mp3',
     ),
     AmbientSound(
       id: 'cafe',
