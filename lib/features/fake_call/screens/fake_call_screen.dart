@@ -49,6 +49,9 @@ class FakeCallArguments {
 class FakeCallScreen extends ConsumerStatefulWidget {
   const FakeCallScreen({super.key, required this.arguments});
   final FakeCallArguments arguments;
+
+  /// Gác máy khi đang gọi: màn "Cuộc gọi kết thúc" hiện bấy lâu rồi mới đóng.
+  static const endedHold = Duration(milliseconds: 1500);
   @override
   ConsumerState<FakeCallScreen> createState() => _FakeCallScreenState();
 }
@@ -69,6 +72,10 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
   // Micro mở xong (hoặc không mở được) thì mới bắt đầu nghe lượt chờ đầu tiên.
   Future<bool>? _micReady;
   StreamSubscription<void>? _volumeKeys;
+  // Đã bấm kết thúc (hoặc video hết, hoặc từ chối): bỏ qua lần gác máy sau.
+  bool _ending = false;
+  // Đang hiện trạng thái "Cuộc gọi kết thúc" trước khi đóng màn gọi.
+  bool _ended = false;
 
   ComboModel get _combo => widget.arguments.combo;
   ScenarioInfo get _scenario => ScenarioLookup.resolve(
@@ -290,18 +297,80 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
 
   void _toggleMute() => setState(() => _isMuted = !_isMuted);
 
+  /// Mọi cách kết thúc cuộc gọi đều qua đây: nút kết thúc, từ chối, video hết,
+  /// cuộc gọi nhỡ. Đang gọi thì hiện "Cuộc gọi kết thúc" giây lát như máy thật
+  /// (từ chối thì đóng ngay). Cuộc gọi thật trên Android thì về màn hình chính.
   Future<void> _hangUp() async {
+    if (_ending) {
+      return;
+    }
+    _ending = true;
+    final wasAnswered = _answeredAt != null;
     await _stop();
+    if (!mounted) {
+      return;
+    }
+    if (wasAnswered) {
+      setState(() => _ended = true);
+      await Future<void>.delayed(FakeCallScreen.endedHold);
+      if (!mounted) {
+        return;
+      }
+    }
+    final leave =
+        !widget.arguments.isPreview &&
+        (ref.read(settingsProvider).value?.leaveAppAfterCall ?? true);
+    if (leave && await _device.leaveApp()) {
+      await _waitUntilHidden();
+      // Bỏ màn gọi không chạy hiệu ứng: lúc mở lại app là trang chủ, và lúc
+      // app đang trượt ra không lộ trang chủ.
+      if (!mounted) {
+        return;
+      }
+      final route = ModalRoute.of(context);
+      if (route != null && route.isActive) {
+        Navigator.of(context).removeRoute(route);
+      }
+      return;
+    }
     if (mounted) {
       Navigator.pop(context);
     }
   }
+
+  /// Chờ app thật sự ra nền (tối đa 1 giây) rồi mới đổi màn hình.
+  Future<void> _waitUntilHidden() async {
+    if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+      return;
+    }
+    final hidden = Completer<void>();
+    final listener = AppLifecycleListener(
+      onStateChange: (state) {
+        if (state != AppLifecycleState.resumed && !hidden.isCompleted) {
+          hidden.complete();
+        }
+      },
+    );
+    await hidden.future.timeout(const Duration(seconds: 1), onTimeout: () {});
+    listener.dispose();
+  }
+
+  /// Chữ thay đồng hồ khi cuộc gọi vừa kết thúc, theo từng app.
+  String? get _endedLabel => !_ended
+      ? null
+      : _combo.callInterface == CallInterface.messenger
+      ? 'Cuộc gọi đã kết thúc'
+      : 'Cuộc gọi kết thúc';
 
   /// Giữ nút gác máy: kết thúc cuộc gọi giả và mở màn SOS (bản xem thử thì không).
   Future<void> _startSos() async {
     if (widget.arguments.isPreview) {
       return;
     }
+    if (_ending) {
+      return;
+    }
+    _ending = true;
     unawaited(HapticFeedback.heavyImpact());
     await _stop();
     if (mounted) {
@@ -343,6 +412,7 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
           onSos: _startSos,
           // Hết video (khi không lặp): người gọi gác máy.
           onVideoEnded: _hangUp,
+          endedLabel: _endedLabel,
           onVideoUnavailable: () => showMessage(
             context,
             'Không phát được video người gọi trên thiết bị này.',
@@ -377,6 +447,7 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
         statusHint: widget.arguments.isPreview
             ? _ListeningHint(_replies.listening)
             : null,
+        endedLabel: _endedLabel,
       );
     } else {
       view = switch (combo.callInterface) {
@@ -488,6 +559,7 @@ extension on _FakeCallScreenState {
           onHangUp: _hangUp,
           onSos: _startSos,
           statusHint: hint,
+          endedLabel: _endedLabel,
         );
       } else {
         background = MessengerInCallView.background;
@@ -503,6 +575,7 @@ extension on _FakeCallScreenState {
           onHangUp: _hangUp,
           onSos: _startSos,
           statusHint: hint,
+          endedLabel: _endedLabel,
         );
       }
     }

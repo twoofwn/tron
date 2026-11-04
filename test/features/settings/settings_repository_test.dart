@@ -16,6 +16,7 @@ void main() {
       lastDelay: Duration(minutes: 5),
       flipEnabled: true,
       sensitivity: TriggerSensitivity.high,
+      leaveAppAfterCall: false,
     );
     await repository.save(saved);
     final loaded = await repository.load();
@@ -24,6 +25,7 @@ void main() {
     expect(loaded.lastDelay, const Duration(minutes: 5));
     expect(loaded.flipEnabled, isTrue);
     expect(loaded.sensitivity, TriggerSensitivity.high);
+    expect(loaded.leaveAppAfterCall, isFalse);
   });
 
   test('Missing settings fall back to defaults', () async {
@@ -31,6 +33,8 @@ void main() {
     expect(loaded.phoneStyle, PhoneStyle.auto);
     expect(loaded.vibrateOnCall, isTrue);
     expect(loaded.lastDelay, AppConstants.defaultCallDelay);
+    // Mặc định gác máy xong thì về màn hình chính.
+    expect(loaded.leaveAppAfterCall, isTrue);
   });
 
   test('Corrupt settings do not stop the app', () async {

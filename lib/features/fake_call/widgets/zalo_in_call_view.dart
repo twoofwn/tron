@@ -17,6 +17,7 @@ class ZaloInCallView extends StatelessWidget {
     required this.onHangUp,
     this.onSos,
     this.statusHint,
+    this.endedLabel,
   });
   final String caller;
   final Duration elapsed;
@@ -29,6 +30,10 @@ class ZaloInCallView extends StatelessWidget {
   /// Giữ nút Kết thúc 2 giây: gửi SOS (không có chữ nào gợi ý).
   final VoidCallback? onSos;
   final Widget? statusHint;
+
+  /// Khác `null` khi cuộc gọi vừa kết thúc: dòng này thay đồng hồ, các nút mờ
+  /// đi trong giây lát trước khi màn gọi đóng, như máy thật.
+  final String? endedLabel;
 
   static const background = Color(0xFF1068FE);
   static const _button = Color(0xFF0353CC);
@@ -46,7 +51,7 @@ class ZaloInCallView extends StatelessWidget {
         left: width * fraction - 50,
         width: 100,
         bottom: 60,
-        child: child,
+        child: CallEndFade(ended: endedLabel != null, child: child),
       );
       return Stack(
         children: [
@@ -56,14 +61,14 @@ class ZaloInCallView extends StatelessWidget {
               status: Column(
                 children: [
                   Text(
-                    _time,
-                    style: const TextStyle(
-                      color: _timer,
+                    endedLabel ?? _time,
+                    style: TextStyle(
+                      color: endedLabel == null ? _timer : Colors.white,
                       fontSize: 14,
                       fontFeatures: [FontFeature.tabularFigures()],
                     ),
                   ),
-                  if (statusHint != null) ...[
+                  if (statusHint != null && endedLabel == null) ...[
                     const SizedBox(height: 8),
                     statusHint!,
                   ],

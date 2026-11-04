@@ -56,6 +56,12 @@ class MainActivity : FlutterActivity() {
                         "startCallAudio" -> startCallAudio(enabled)
                         "setSpeaker" -> routeSpeaker(enabled)
                         "endCallAudio" -> endCallAudio()
+                        // Gác máy xong: về màn hình chính (hoặc màn khóa) như
+                        // app gọi thật. App vẫn chạy để hẹn giờ / SOS hoạt động.
+                        "leaveApp" -> {
+                            result.success(moveTaskToBack(true))
+                            return@setMethodCallHandler
+                        }
                         else -> {
                             result.notImplemented()
                             return@setMethodCallHandler

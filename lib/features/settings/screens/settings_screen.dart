@@ -242,6 +242,23 @@ class SettingsScreen extends ConsumerWidget {
                       (current) => current.copyWith(vibrateOnCall: on),
                     ),
                   ),
+                  if (isAndroid)
+                    SwitchListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                      ),
+                      title: const Text('Về màn hình chính sau khi tắt máy'),
+                      subtitle: const Text(
+                        'Cuộc gọi kết thúc thì app tự ẩn, như app gọi thật.',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                      value: value.leaveAppAfterCall,
+                      onChanged: (on) => _update(
+                        context,
+                        ref,
+                        (current) => current.copyWith(leaveAppAfterCall: on),
+                      ),
+                    ),
                   SwitchListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                     title: const Text('Chờ tôi nói xong mới nói tiếp'),

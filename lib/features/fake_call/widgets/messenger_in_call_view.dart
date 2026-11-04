@@ -18,6 +18,7 @@ class MessengerInCallView extends StatelessWidget {
     required this.onHangUp,
     this.onSos,
     this.statusHint,
+    this.endedLabel,
   });
   final String caller;
   final String initial;
@@ -31,6 +32,10 @@ class MessengerInCallView extends StatelessWidget {
   /// Giữ nút kết thúc 2 giây: gửi SOS (không có chữ nào gợi ý).
   final VoidCallback? onSos;
   final Widget? statusHint;
+
+  /// Khác `null` khi cuộc gọi vừa kết thúc: dòng này thay đồng hồ, các nút mờ
+  /// đi trong giây lát trước khi màn gọi đóng, như máy thật.
+  final String? endedLabel;
 
   static const background = Color(0xFF1B1726);
   static const _control = Color(0xFF3A3A3C);
@@ -84,14 +89,17 @@ class MessengerInCallView extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              _time,
+              endedLabel ?? _time,
               style: TextStyle(
                 color: Colors.white.withValues(alpha: 0.7),
                 fontSize: 15,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
-            if (statusHint != null) ...[const SizedBox(height: 8), statusHint!],
+            if (statusHint != null && endedLabel == null) ...[
+              const SizedBox(height: 8),
+              statusHint!,
+            ],
           ],
         ),
       ),
@@ -99,39 +107,42 @@ class MessengerInCallView extends StatelessWidget {
         left: 16,
         right: 16,
         bottom: 20,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-          decoration: BoxDecoration(
-            color: const Color(0xFF2C2C2E).withValues(alpha: 0.92),
-            borderRadius: BorderRadius.circular(36),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              const _Control(label: 'Video', icon: Icons.videocam_rounded),
-              _Control(
-                label: 'Tắt tiếng',
-                icon: isMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                active: isMuted,
-                onTap: onToggleMute,
-              ),
-              _Control(
-                label: 'Loa',
-                icon: Icons.volume_up_rounded,
-                active: isSpeaker,
-                onTap: onToggleSpeaker,
-              ),
-              CallButton(
-                label: 'Kết thúc',
-                icon: Icons.call_end_rounded,
-                color: _end,
-                size: 52,
-                iconSize: 26,
-                showLabel: false,
-                onTap: onHangUp,
-                onHold: onSos,
-              ),
-            ],
+        child: CallEndFade(
+          ended: endedLabel != null,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2C2C2E).withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(36),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                const _Control(label: 'Video', icon: Icons.videocam_rounded),
+                _Control(
+                  label: 'Tắt tiếng',
+                  icon: isMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                  active: isMuted,
+                  onTap: onToggleMute,
+                ),
+                _Control(
+                  label: 'Loa',
+                  icon: Icons.volume_up_rounded,
+                  active: isSpeaker,
+                  onTap: onToggleSpeaker,
+                ),
+                CallButton(
+                  label: 'Kết thúc',
+                  icon: Icons.call_end_rounded,
+                  color: _end,
+                  size: 52,
+                  iconSize: 26,
+                  showLabel: false,
+                  onTap: onHangUp,
+                  onHold: onSos,
+                ),
+              ],
+            ),
           ),
         ),
       ),

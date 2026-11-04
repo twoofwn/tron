@@ -17,6 +17,7 @@ import 'package:tron/features/fake_call/models/call_script.dart';
 import 'package:tron/features/fake_call/services/call_script_runner.dart';
 import 'package:tron/features/fake_call/services/reply_listener.dart';
 import 'package:tron/features/fake_call/providers/call_provider.dart';
+import 'package:tron/features/fake_call/screens/fake_call_screen.dart';
 import 'package:tron/features/fake_call/services/call_device_service.dart';
 import 'package:tron/features/settings/models/app_settings.dart';
 import 'package:tron/features/settings/providers/settings_provider.dart';
@@ -384,6 +385,15 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     expect(container.read(callProvider).status, CallStatus.inProgress);
     await tester.tap(find.byIcon(Icons.call_end_rounded));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(find.text('Cuộc gọi kết thúc'), findsOneWidget);
+    // Màn gọi giữ dòng "Cuộc gọi kết thúc" giây lát rồi mới đóng.
+    await tester.pump(FakeCallScreen.endedHold);
+    // Máy test không đưa app ra nền được: màn gọi tự đóng về trang chủ.
+    // Câu trả lời của kênh nền tảng về theo thời gian thật nên chờ bằng runAsync.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
     await tester.pumpAndSettle();
     expect(container.read(callProvider).status, CallStatus.idle);
     expect(find.text('Cần lối thoát?'), findsOneWidget);

@@ -132,6 +132,8 @@ void main() {
   ) async {
     final container = await pumpSettings(tester);
     final slider = find.byType(Slider);
+    await tester.ensureVisible(slider);
+    await tester.pumpAndSettle();
     final box = tester.getRect(slider);
     // Thanh trượt 0,5–5 giây: kéo từ đầu trái tới gần cuối phải.
     final gesture = await tester.startGesture(

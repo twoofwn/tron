@@ -212,3 +212,11 @@ Code nằm dưới `lib/features/scenarios/{models,data,presentation,services}/`
   - `TurnDetector`: tiếng động ngắn (< `minSpeech` 0,2 s) lúc người dùng đã im không còn đếm lại khoảng im; trước đây chờ 3 giây trở lên gần như luôn bị kéo tới 20 giây trong phòng có tiếng ồn.
 - Đo trên máy giả lập (micro laptop, câu trả lời phát qua loa): khoảng chờ sau khi người dùng ngừng nói là 0,98–1,37 s khi đặt 1 s; 3,10–3,33 s khi đặt 3 s (một lần 7,78 s); 5,11–5,32 s khi đặt 5 s.
 
+
+### Gác máy xong về màn hình chính (2026-11-04)
+
+- Nhánh `codex/leave-app-after-call`. Mọi cách kết thúc cuộc gọi thật đi qua `_hangUp()` (`fake_call_screen.dart`): nút kết thúc, từ chối/tin nhắn, video hết (chế độ tắt máy), cuộc gọi nhỡ quá 60 giây. Giữ nút gác máy để gửi SOS thì vẫn ở lại app.
+- Đã trả lời rồi gác máy: giữ màn đang gọi 1,5 giây (`FakeCallScreen.endedHold`), đồng hồ đổi thành "Cuộc gọi kết thúc" (Messenger: "Cuộc gọi đã kết thúc"), các nút mờ và không bấm được (`CallEndFade`); gọi video thì video dừng ở khung cuối, camera tắt. Từ chối thì đóng ngay, không có màn này. Bản xem thử cũng hiện màn kết thúc rồi quay về form.
+- Cuộc gọi thật trên Android: `CallDeviceService.leaveApp()` → kênh `tron/call` `leaveApp` → `moveTaskToBack(true)` (về màn hình chính, hoặc màn khóa nếu gọi lúc khóa máy). App không bị tắt hẳn để hẹn giờ, "Sẵn sàng khi tắt màn hình", báo an toàn SOS vẫn chạy; vẫn có trong danh sách app gần đây. Chờ app ra nền (tối đa 1 giây) rồi bỏ màn gọi bằng `removeRoute` (không hiệu ứng) để mở lại thấy trang chủ. iOS/web không hỗ trợ thì đóng màn gọi như cũ.
+- Cài đặt `AppSettings.leaveAppAfterCall` (mặc định bật, khoá `leaveAppAfterCall`), công tắc "Về màn hình chính sau khi tắt máy" chỉ hiện trên Android.
+- Kiểm tra: `flutter analyze` sạch; `flutter test` 243 đạt, 1 lỗi có sẵn (golden); `flutter build apk --debug` thành công. Chưa thử trên máy thật: hiệu ứng app trượt ra, gác máy lúc đang khóa máy, chữ kết thúc có khớp từng hãng máy/app thật không.
