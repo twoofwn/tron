@@ -466,13 +466,13 @@ IF NOT EXISTS (SELECT 1 FROM [dbo].[AmbientSounds] WHERE [OwnerId] IS NULL)
 BEGIN
     INSERT INTO [dbo].[AmbientSounds] ([Id], [OwnerId], [Title], [IconName], [MediaFileId], [AssetAudioPath], [LegacyKey], [SortOrder], [CreatedAt])
     VALUES
-        (N'car',        NULL, N'Còi xe',              N'car',    NULL, N'audio/ambient/car.wav',                  N'traffic',    1, SYSUTCDATETIME()),
+        (N'car',        NULL, N'Còi xe',              N'car',    NULL, N'audio/backgrounds/traffic.mp3',                  N'traffic',    1, SYSUTCDATETIME()),
         (N'television', NULL, N'Tiếng TV',            N'tv',     NULL, N'audio/ambient/television.wav',           N'television', 2, SYSUTCDATETIME()),
-        (N'office',     NULL, N'Văn phòng',           N'office', NULL, N'audio/ambient/office.wav',               N'office',     3, SYSUTCDATETIME()),
-        (N'rain',       NULL, N'Trời mưa',            N'rain',   NULL, N'audio/ambient/rain.wav',                 N'rain',       4, SYSUTCDATETIME()),
-        (N'dog',        NULL, N'Chó sủa',             N'dog',    NULL, N'audio/ambient/dog.wav',                  NULL,          5, SYSUTCDATETIME()),
+        (N'office',     NULL, N'Văn phòng',           N'office', NULL, N'audio/backgrounds/office.mp3',               N'office',     3, SYSUTCDATETIME()),
+        (N'rain',       NULL, N'Trời mưa',            N'rain',   NULL, N'audio/backgrounds/rain.mp3',                 N'rain',       4, SYSUTCDATETIME()),
+        (N'dog',        NULL, N'Chó sủa',             N'dog',    NULL, N'audio/backgrounds/dog.mp3',                  NULL,          5, SYSUTCDATETIME()),
         (N'cafe',       NULL, N'Nhạc cà phê',         N'cafe',   NULL, N'audio/ambient/cafe.wav',                 N'cafe',       6, SYSUTCDATETIME()),
-        (N'traffic',    NULL, N'Còi xe (giao thông)', N'car',    NULL, N'assets/audio/backgrounds/traffic.wav',   N'traffic',    7, SYSUTCDATETIME());
+        (N'traffic',    NULL, N'Còi xe (giao thông)', N'car',    NULL, N'assets/audio/backgrounds/traffic.mp3',   N'traffic',    7, SYSUTCDATETIME());
 END
 GO
 

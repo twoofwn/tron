@@ -67,18 +67,21 @@ class MicReplyListener implements ReplyListener {
 
   static const _sampleRate = 16000;
 
-  /// Nguồn thu kiểu cuộc gọi để máy khử tiếng vọng của giọng người gọi. Không
-  /// để thư viện đổi chế độ loa, giành quyền phát hay bật tai nghe Bluetooth:
+  /// Không dùng nguồn thu kiểu cuộc gọi (`voiceCommunication`) và không khử
+  /// ồn: hai thứ đó bật bộ lọc giọng nói của máy, bộ lọc này cắt luôn âm nền
+  /// người gọi (xe cộ, mưa) trong lúc chờ người dùng đáp. Vẫn khử vọng để
+  /// giọng người gọi lọt vào micro không bị tính là người dùng nói. Không để
+  /// thư viện đổi chế độ loa, giành quyền phát hay bật tai nghe Bluetooth:
   /// màn gọi đã tự lo những việc đó.
   static const _config = RecordConfig(
     encoder: AudioEncoder.pcm16bits,
     sampleRate: _sampleRate,
     numChannels: 1,
     echoCancel: true,
-    noiseSuppress: true,
+    noiseSuppress: false,
     audioInterruption: AudioInterruptionMode.none,
     androidConfig: AndroidRecordConfig(
-      audioSource: AndroidAudioSource.voiceCommunication,
+      audioSource: AndroidAudioSource.voiceRecognition,
       manageBluetooth: false,
     ),
   );

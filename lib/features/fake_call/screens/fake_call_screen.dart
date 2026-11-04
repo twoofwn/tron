@@ -241,6 +241,9 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
             _script,
             withVoice: withVoice,
             waitForReply: listen ? _waitForReply : null,
+            backgroundVolume:
+                ref.read(settingsProvider).value?.backgroundVolume ??
+                AppSettings.defaultBackgroundVolume,
           );
     } catch (_) {
       if (mounted) {

@@ -58,18 +58,29 @@ class RecordingAudioService extends AudioService {
     CallScript script, {
     bool withVoice = true,
     ReplyWaiter? waitForReply,
+    double backgroundVolume = AppSettings.defaultBackgroundVolume,
   }) async {
+    backgroundVolumes.add(backgroundVolume);
     waiter = waitForReply;
     events.add(withVoice ? 'conversation' : 'conversation:silent');
   }
 
   ReplyWaiter? waiter;
+  final backgroundVolumes = <double>[];
   final preparedSpeech = <CallScript>[];
   @override
   Future<void> prepareSpeech(CallScript script) async =>
       preparedSpeech.add(script);
   @override
   void dispose() {}
+}
+
+/// Cài đặt cố định, không đọc bộ nhớ máy.
+class FixedSettings extends SettingsNotifier {
+  FixedSettings(this.settings);
+  final AppSettings settings;
+  @override
+  Future<AppSettings> build() async => settings;
 }
 
 /// Video người gọi không mở được (file hỏng hoặc bị xoá).
@@ -118,6 +129,7 @@ void main() {
     FakeCallDevice? device,
     FakeReplyListener? replies,
     String? voicePath,
+    AppSettings? settings,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -145,6 +157,8 @@ void main() {
           resolvedPhoneStyleProvider.overrideWith(
             (ref) async => PhoneStyle.iphone,
           ),
+          if (settings != null)
+            settingsProvider.overrideWith(() => FixedSettings(settings)),
         ],
         child: MaterialApp(
           home: FakeCallScreen(
@@ -192,6 +206,20 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('Answering plays backgrounds at the saved volume', (
+    tester,
+  ) async {
+    final audio = await open(
+      tester,
+      CallInterface.phone,
+      settings: const AppSettings(backgroundVolume: 0.3),
+    );
+    await tester.pump();
+    await tester.tap(find.text('Trả lời'));
+    await tester.pump();
+    expect(audio.backgroundVolumes, [0.3]);
+  });
 
   testWidgets('Call screens fit a compact device with large text', (
     tester,

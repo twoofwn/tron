@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -5,6 +7,8 @@ import 'package:uuid/uuid.dart';
 import '../../../app/router/route_names.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../core/services/audio_service.dart';
+import '../../../core/services/background_loop.dart';
+import '../../../core/services/background_preview.dart';
 import '../../../core/services/file_service.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_text_field.dart';
@@ -13,8 +17,11 @@ import '../../../shared/enums/call_interface.dart';
 import '../../../shared/widgets/screen_shell.dart';
 import '../../scenarios/data/scenario_lookup.dart';
 import '../../scenarios/providers/scenario_provider.dart';
+import '../../settings/models/app_settings.dart';
+import '../../settings/providers/settings_provider.dart';
 import '../models/combo_model.dart';
 import '../providers/combo_provider.dart';
+import '../widgets/background_preview_controls.dart';
 import '../widgets/background_sound_selector.dart';
 import '../widgets/call_interface_selector.dart';
 import '../widgets/call_type_selector.dart';
@@ -52,6 +59,10 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
   final _takes = <String>{};
   bool _committed = false;
   late final FileService _files;
+  late final BackgroundPreviewNotifier _backgroundPreview;
+
+  /// Âm lượng nền đang kéo trên thanh trượt, trước khi lưu vào cài đặt.
+  double? _draggingVolume;
   bool _hasChanges = false;
   bool _hasSaved = false;
   @override
@@ -78,10 +89,14 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
     _videoPath = combo?.videoPath;
     _videoEndAction = combo?.videoEndAction ?? VideoEndAction.hangUp;
     _files = ref.read(fileServiceProvider);
+    _backgroundPreview = ref.read(backgroundPreviewProvider.notifier);
   }
 
   @override
   void dispose() {
+    // Không đổi provider khi cây widget đang dựng lại: dừng ngay sau đó.
+    final preview = _backgroundPreview;
+    unawaited(Future.microtask(preview.stop));
     _nameController.dispose();
     _callerController.dispose();
     // Thoát mà không lưu: các bản thu mới không ai dùng nữa.
@@ -167,6 +182,9 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
             _customBackgroundPath = path;
           }
         });
+        if (!isRingtone) {
+          _refreshBackgroundPreview();
+        }
       }
     } on FormatException catch (error) {
       // Vượt dung lượng, file trống...: báo đúng lý do kèm dung lượng thật.
@@ -201,7 +219,7 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
     }
     setState(() => _isSaving = true);
     try {
-      await ref.read(scenarioPlaybackProvider.notifier).stop();
+      await _stopPreviews();
       final rejection = await ref
           .read(comboListProvider.notifier)
           .saveCombo(_draft());
@@ -257,9 +275,82 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
     }
   }
 
+  double get _backgroundVolume =>
+      _draggingVolume ??
+      ref.read(settingsProvider).value?.backgroundVolume ??
+      AppSettings.defaultBackgroundVolume;
+
+  List<String> get _backgroundSources =>
+      backgroundSources(_backgrounds, _customBackgroundPath);
+
+  Future<void> _toggleBackgroundPreview() async {
+    if (ref.read(backgroundPreviewProvider)) {
+      await _backgroundPreview.stop();
+      return;
+    }
+    await _playBackgroundPreview();
+  }
+
+  Future<void> _playBackgroundPreview() async {
+    try {
+      await _backgroundPreview.play(_backgroundSources, _backgroundVolume);
+    } catch (_) {
+      if (mounted) {
+        showMessage(context, 'Không phát được âm nền. Thử chọn âm nền khác.');
+      }
+    }
+  }
+
+  /// Đang nghe thử mà đổi âm nền thì nghe ngay danh sách mới.
+  void _refreshBackgroundPreview() {
+    if (!ref.read(backgroundPreviewProvider)) {
+      return;
+    }
+    if (_backgroundSources.isEmpty) {
+      unawaited(_backgroundPreview.stop());
+    } else {
+      unawaited(_playBackgroundPreview());
+    }
+  }
+
+  void _onVolumeChanged(double value) {
+    setState(() => _draggingVolume = value);
+    unawaited(_backgroundPreview.setVolume(value));
+  }
+
+  Future<void> _saveVolume(double value) async {
+    try {
+      await ref
+          .read(settingsProvider.notifier)
+          .modify((current) => current.copyWith(backgroundVolume: value));
+    } catch (_) {
+      if (mounted) {
+        showMessage(context, 'Không lưu được âm lượng âm nền.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _draggingVolume = null);
+      }
+    }
+  }
+
+  /// Dừng mọi thứ đang nghe thử trong form (giọng kịch bản, âm nền).
+  Future<void> _stopPreviews() async {
+    await ref.read(scenarioPlaybackProvider.notifier).stop();
+    await _backgroundPreview.stop();
+  }
+
+  void _onRecordingChanged(bool value) {
+    // Đang thu giọng thì tắt âm nền nghe thử để không lọt vào bản thu.
+    if (value) {
+      unawaited(_backgroundPreview.stop());
+    }
+    setState(() => _isRecording = value);
+  }
+
   Future<void> _onBack(bool didPop) async {
     if (didPop) {
-      await ref.read(scenarioPlaybackProvider.notifier).stop();
+      await _stopPreviews();
       return;
     }
     if (_isSaving) {
@@ -283,7 +374,7 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
       ),
     );
     if (discard == true && mounted) {
-      await ref.read(scenarioPlaybackProvider.notifier).stop();
+      await _stopPreviews();
       setState(() => _hasSaved = true);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -294,7 +385,7 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
   }
 
   Future<void> _chooseScenario() async {
-    await ref.read(scenarioPlaybackProvider.notifier).stop();
+    await _stopPreviews();
     if (!mounted) {
       return;
     }
@@ -315,6 +406,10 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
       ref.watch(scenarioLibraryProvider).value,
     );
     final isPlaying = ref.watch(scenarioPlaybackProvider);
+    final isBackgroundPlaying = ref.watch(backgroundPreviewProvider);
+    final backgroundVolume =
+        ref.watch(settingsProvider).value?.backgroundVolume ??
+        AppSettings.defaultBackgroundVolume;
     return PopScope(
       // Đang lưu thì không cho thoát: tránh "Bỏ thay đổi" xoá bản thu vừa lưu.
       canPop: !_isSaving && (_hasSaved || !_hasChanges),
@@ -344,7 +439,13 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
               const _FieldLabel('Loại cuộc gọi'),
               CallTypeSelector(
                 selected: _callType,
-                onChanged: (value) => _change(() => _callType = value),
+                onChanged: (value) {
+                  // Gọi video không có âm nền: tắt nghe thử.
+                  if (value == CallType.video) {
+                    unawaited(_backgroundPreview.stop());
+                  }
+                  _change(() => _callType = value);
+                },
               ),
               const SizedBox(height: 18),
               // Gọi video chỉ cần tên người gọi và video; không dùng kịch bản thoại.
@@ -362,8 +463,7 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
                 VideoRecorderCard(
                   videoPath: _videoPath,
                   onChanged: _onVideoChanged,
-                  onBusyChanged: (value) =>
-                      setState(() => _isRecording = value),
+                  onBusyChanged: _onRecordingChanged,
                 ),
                 const SizedBox(height: 18),
                 const _FieldLabel('Khi video kết thúc'),
@@ -382,8 +482,7 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
                 VoiceRecorderCard(
                   voicePath: _voicePath,
                   onChanged: _onVoiceChanged,
-                  onRecordingChanged: (value) =>
-                      setState(() => _isRecording = value),
+                  onRecordingChanged: _onRecordingChanged,
                 ),
               ],
               const SizedBox(height: 18),
@@ -407,14 +506,28 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
                 BackgroundSoundSelector(
                   selected: _backgrounds,
                   hasCustomFile: _customBackgroundPath != null,
-                  onChanged: (key) => _change(() {
-                    if (!_backgrounds.add(key)) {
-                      _backgrounds.remove(key);
-                    }
-                  }),
+                  onChanged: (key) {
+                    _change(() {
+                      if (!_backgrounds.add(key)) {
+                        _backgrounds.remove(key);
+                      }
+                    });
+                    _refreshBackgroundPreview();
+                  },
                   onPickFile: () => _pickAudio(isRingtone: false),
-                  onRemoveCustom: () =>
-                      _change(() => _customBackgroundPath = null),
+                  onRemoveCustom: () {
+                    _change(() => _customBackgroundPath = null);
+                    _refreshBackgroundPreview();
+                  },
+                ),
+                const SizedBox(height: 10),
+                BackgroundPreviewControls(
+                  hasSelection: _backgroundSources.isNotEmpty,
+                  isPlaying: isBackgroundPlaying,
+                  volume: _draggingVolume ?? backgroundVolume,
+                  onToggle: _toggleBackgroundPreview,
+                  onVolumeChanged: _onVolumeChanged,
+                  onVolumeChangeEnd: _saveVolume,
                 ),
               ],
               if (_isPicking)
@@ -430,9 +543,7 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
                 onPressed: _isPicking || _isRecording
                     ? null
                     : () async {
-                        await ref
-                            .read(scenarioPlaybackProvider.notifier)
-                            .stop();
+                        await _stopPreviews();
                         if (context.mounted) {
                           Navigator.pushNamed(
                             context,
