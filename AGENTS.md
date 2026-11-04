@@ -144,10 +144,10 @@ Code nằm dưới `lib/features/scenarios/{models,data,presentation,services}/`
 
 ### Tiến độ phần D: hẹn giờ và kích hoạt (2026-10-26)
 
-- Nhánh `codex/timer-triggers`. Đã có: màn Cài đặt (loại điện thoại, quyền, hẹn giờ, rung, sáng/tối), báo thức hệ thống khi hẹn giờ, xin quyền thông báo, lật máy và gõ lưng (Android), dịch vụ "Sẵn sàng khi tắt màn hình" (Android, `ArmedService`), deep link `tron://trigger` (Android và iOS).
+- Nhánh `codex/timer-triggers`. Đã có: màn Cài đặt (loại điện thoại, quyền, hẹn giờ, rung, sáng/tối), báo thức hệ thống khi hẹn giờ, xin quyền thông báo, lật máy và gõ lưng (Android; gõ lưng đã bỏ ngày 2026-11-04, xem bên dưới), dịch vụ "Sẵn sàng khi tắt màn hình" (Android, `ArmedService`), deep link `tron://trigger` (Android và iOS).
 - Kiểm tra đã chạy: `flutter analyze` sạch; `flutter test` 64 test xanh.
 - Chưa xác nhận: build APK debug và biên dịch Kotlin. Máy build thiếu SDK `android-37`, mà `permission_handler_android` 14.x yêu cầu. Xem cách sửa trong mục build.
-- Chưa kiểm tra trên thiết bị thật: báo thức khi khóa máy, full-screen intent, cảm biến khi màn hình tắt, Back Tap iOS. Ngưỡng lật máy và gõ lưng là ước lượng, phải chỉnh lại trên máy.
+- Chưa kiểm tra trên thiết bị thật: báo thức khi khóa máy, full-screen intent, cảm biến khi màn hình tắt, Back Tap iOS (đã bỏ 2026-11-04). Ngưỡng lật máy là ước lượng, phải chỉnh lại trên máy.
 - Lệch so với plan: không lưu `tron.pendingCall`; báo thức hệ thống và đồng hồ trong app đã đủ. "Hiện khi khóa máy" chỉ mở cài đặt, không đọc được trạng thái. Chuông báo thức dùng âm thông báo mặc định. Android không rõ hãng thì dùng kiểu Samsung.
 
 ### Tiến độ nhạc chuông MP3 (2026-11-02)
