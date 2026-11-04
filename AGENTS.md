@@ -202,3 +202,13 @@ Code nằm dưới `lib/features/scenarios/{models,data,presentation,services}/`
 - Nghe thử âm nền: form combo có `BackgroundPreviewControls` (nút "Nghe thử âm nền" và thanh âm lượng 10–100%, lưu vào cài đặt khi thả tay). `backgroundPreviewProvider` phát lặp như nhạc thường ra loa (không phải kiểu cuộc gọi), đổi lựa chọn thì phát lại ngay, kéo thanh trượt thì đổi âm lượng ngay. Dừng khi rời form, lưu, chọn kịch bản, xem trước cuộc gọi, bắt đầu thu/quay hoặc chuyển sang gọi video.
 - Kiểm tra: `flutter analyze` sạch; `flutter test` 227 đạt, 1 lỗi có sẵn (golden). Test: `test/core/background_sounds_test.dart`, `test/core/background_audio_test.dart`, thêm test trong `widget_test.dart` và `fake_call_screen_test.dart`. Chưa build APK (chỉ đổi Dart).
 - Chưa thử trên máy thật: mức 60% có vừa ở loa trong không, âm nền còn bị cắt trong đoạn chờ không, micro `voiceRecognition` có nhận được người dùng nói khi bật loa ngoài cùng âm nền. Nghe thử phát ra loa ngoài nên to hơn khi ở trong cuộc gọi bằng loa trong. Nếu vẫn bị cắt: thử tắt "Chờ tôi nói xong mới nói tiếp" để biết lỗi do micro hay do chế độ cuộc gọi.
+
+### Bỏ gõ lưng, chỉnh thời gian chờ sau khi người dùng nói xong (2026-11-04)
+
+- Nhánh `feature/reply-delay-no-backtap`. Bỏ hẳn "Gõ lưng 2 lần" (Android) và hướng dẫn Back Tap (iOS) vì không kiểm tra được trên máy: `KnockDetector`, cảm biến gia tốc tuyến tính, `AppSettings.knockEnabled`, công tắc và chữ trên giao diện. Chỉ còn lật máy. Cài đặt cũ có `knockEnabled` vẫn đọc được (bỏ qua). Deep link `tron://trigger` giữ nguyên.
+- Thêm `AppSettings.replyPause` (mặc định 1 giây, 0,5–5 giây, bước 0,5; lưu `replyPauseMs`): thanh trượt "Chờ sau khi bạn nói xong" dưới "Chờ tôi nói xong mới nói tiếp". Truyền vào `ReplyListener.waitForReply(endSilence:)` → `TurnDetector.reset(endSilence:)`, thay cho 0,9 giây cố định trước đây. Đang tắt tiếng hoặc micro không dùng được thì vẫn chờ cố định theo kịch bản (khoảng 3 giây).
+- Sửa thêm khi test trên máy giả lập (lỗi có sẵn trên main):
+  - `AudioService._playCallVoice`/`playVoice`: just_audio giữ `playing` = true sau khi phát hết, nên `play()` lần sau trả về ngay và các câu của người gọi đè lên nhau (câu 2 boss chỉ phát 0,33 s, các câu sau bị nuốt). Nay tạm dừng sau mỗi câu (`_playToEnd`).
+  - `TurnDetector`: tiếng động ngắn (< `minSpeech` 0,2 s) lúc người dùng đã im không còn đếm lại khoảng im; trước đây chờ 3 giây trở lên gần như luôn bị kéo tới 20 giây trong phòng có tiếng ồn.
+- Đo trên máy giả lập (micro laptop, câu trả lời phát qua loa): khoảng chờ sau khi người dùng ngừng nói là 0,98–1,37 s khi đặt 1 s; 3,10–3,33 s khi đặt 3 s (một lần 7,78 s); 5,11–5,32 s khi đặt 5 s.
+

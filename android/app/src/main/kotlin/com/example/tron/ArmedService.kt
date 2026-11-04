@@ -12,7 +12,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 
 /**
- * Giữ app sống khi màn hình tắt để cảm biến cử chỉ (lật máy, gõ lưng) vẫn chạy.
+ * Giữ app sống khi màn hình tắt để cảm biến lật máy vẫn chạy.
  * Hiện thông báo thường trực để người dùng biết app đang sẵn sàng.
  */
 class ArmedService : Service() {
@@ -59,7 +59,7 @@ class ArmedService : Service() {
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("TRỐN đang sẵn sàng")
-            .setContentText("Lật máy hoặc gõ lưng để hẹn cuộc gọi.")
+            .setContentText("Lật máy để hẹn cuộc gọi.")
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setOngoing(true)
             .setContentIntent(pending)

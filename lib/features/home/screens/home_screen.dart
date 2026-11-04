@@ -504,10 +504,7 @@ class HomeQuickActions extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider).value;
-    final active = [
-      settings?.flipEnabled,
-      settings?.knockEnabled,
-    ].where((on) => on == true).length;
+    final flipOn = settings?.flipEnabled ?? false;
     final sosCount = ref.watch(sosSettingsProvider).value?.contacts.length ?? 0;
     final sosReady = sosCount > 0;
     return Row(
@@ -526,7 +523,7 @@ class HomeQuickActions extends ConsumerWidget {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  'Lật máy, gõ lưng · ${active == 0 ? 'Đang tắt' : '$active đang bật'}',
+                  'Lật máy · ${flipOn ? 'Đang bật' : 'Đang tắt'}',
                   style: const TextStyle(color: AppColors.muted, fontSize: 11),
                 ),
               ],

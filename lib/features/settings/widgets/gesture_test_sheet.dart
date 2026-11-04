@@ -22,7 +22,7 @@ class _GestureTestSheetState extends ConsumerState<GestureTestSheet> {
   // Dùng instance riêng để không tranh cảm biến với service đang hẹn giờ.
   final _service = MotionTriggerService();
   StreamSubscription<TriggerEvent>? _subscription;
-  String _last = 'Chưa nhận cử chỉ nào. Thử lật úp máy hoặc gõ lưng.';
+  String _last = 'Chưa nhận cử chỉ nào. Thử lật úp máy.';
   late final GestureTestingNotifier _testing;
 
   @override
@@ -32,16 +32,12 @@ class _GestureTestSheetState extends ConsumerState<GestureTestSheet> {
     final sensitivity =
         ref.read(settingsProvider).value?.sensitivity ??
         TriggerSensitivity.medium;
-    _service.start(flip: true, knock: true, sensitivity: sensitivity);
+    _service.start(flip: true, sensitivity: sensitivity);
     _subscription = _service.triggers.listen((event) {
       if (!mounted) {
         return;
       }
-      setState(() {
-        _last = event.kind == TriggerKind.flip
-            ? 'Đã nhận: lật máy ✓'
-            : 'Đã nhận: gõ lưng ✓';
-      });
+      setState(() => _last = 'Đã nhận: lật máy ✓');
     });
   }
 

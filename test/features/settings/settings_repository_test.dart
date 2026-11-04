@@ -50,4 +50,62 @@ void main() {
     expect(loaded.vibrateOnCall, isTrue);
     expect(loaded.lastDelay, AppConstants.defaultCallDelay);
   });
+
+  test(
+    'Reply pause round-trips, defaults to 1 s and stays within 0.5–5 s',
+    () async {
+      final repository = SettingsRepository(StorageService());
+      expect((await repository.load()).replyPause, const Duration(seconds: 1));
+      await repository.save(
+        const AppSettings().copyWith(
+          replyPause: const Duration(milliseconds: 2500),
+        ),
+      );
+      expect(
+        (await repository.load()).replyPause,
+        const Duration(milliseconds: 2500),
+      );
+      expect(
+        const AppSettings().copyWith(replyPause: Duration.zero).replyPause,
+        AppSettings.minReplyPause,
+      );
+      expect(
+        const AppSettings()
+            .copyWith(replyPause: const Duration(seconds: 30))
+            .replyPause,
+        AppSettings.maxReplyPause,
+      );
+    },
+  );
+
+  test(
+    'Settings saved by an older version (with back tap) still load',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'tron.settings':
+            '{"flipEnabled":true,"knockEnabled":true,"replyPauseMs":"bad"}',
+      });
+      final loaded = await SettingsRepository(StorageService()).load();
+      expect(loaded.flipEnabled, isTrue);
+      expect(loaded.replyPause, AppSettings.defaultReplyPause);
+      expect(loaded.toJson().containsKey('knockEnabled'), isFalse);
+    },
+  );
+
+  test(
+    'Older settings without a reply pause get 1 s; odd values are snapped',
+    () async {
+      for (final (json, expected) in [
+        ('{"flipEnabled":true,"knockEnabled":false}', 1000),
+        ('{"replyPauseMs":99999}', 5000),
+        ('{"replyPauseMs":100}', 500),
+        ('{"replyPauseMs":1234}', 1000),
+        ('{"replyPauseMs":1800.0}', 2000),
+      ]) {
+        SharedPreferences.setMockInitialValues({'tron.settings': json});
+        final loaded = await SettingsRepository(StorageService()).load();
+        expect(loaded.replyPause.inMilliseconds, expected, reason: json);
+      }
+    },
+  );
 }

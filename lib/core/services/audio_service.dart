@@ -328,7 +328,15 @@ class AudioService {
     if (generation != _generation) {
       return;
     }
-    await voice.play();
+    await _playToEnd(voice);
+  }
+
+  /// Phát tới hết rồi tạm dừng. just_audio giữ `playing` = true sau khi phát
+  /// hết; nếu không tạm dừng, lần play() sau trên cùng trình phát trả về ngay
+  /// và các câu của người gọi đè lên nhau (chỉ nghe rõ câu đầu).
+  static Future<void> _playToEnd(AudioPlayer player) async {
+    await player.play();
+    await player.pause();
   }
 
   /// Phát giọng người gọi đã thu một lần, chờ tới khi phát xong hoặc bị dừng.
@@ -343,7 +351,7 @@ class AudioService {
     if (generation != _generation) {
       return;
     }
-    await voice.play();
+    await _playToEnd(voice);
   }
 
   Future<void> stop() async {

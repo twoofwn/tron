@@ -29,7 +29,8 @@ abstract class ReplyListener {
   Future<bool> open({bool askPermission = false});
 
   /// Chờ người dùng nói xong. Micro chưa mở thì chờ đúng [fallback].
-  Future<ReplyOutcome> waitForReply(Duration fallback);
+  /// [endSilence]: im lặng bao lâu thì coi là đã nói xong (mặc định của máy).
+  Future<ReplyOutcome> waitForReply(Duration fallback, {Duration? endSilence});
 
   /// Đóng micro, bỏ lượt chờ đang chạy.
   Future<void> close();
@@ -139,13 +140,16 @@ class MicReplyListener implements ReplyListener {
   }
 
   @override
-  Future<ReplyOutcome> waitForReply(Duration fallback) async {
+  Future<ReplyOutcome> waitForReply(
+    Duration fallback, {
+    Duration? endSilence,
+  }) async {
     _finish(ReplyOutcome.cancelled);
     if (_subscription == null) {
       await Future<void>.delayed(fallback);
       return ReplyOutcome.noReply;
     }
-    _detector.reset();
+    _detector.reset(endSilence: endSilence);
     final wait = _wait = Completer<ReplyOutcome>();
     _listening.value = true;
     // Micro ngừng gửi dữ liệu thì không để cuộc gọi đứng mãi.

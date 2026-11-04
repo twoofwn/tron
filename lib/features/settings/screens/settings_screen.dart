@@ -171,28 +171,6 @@ class SettingsScreen extends ConsumerWidget {
                       (current) => current.copyWith(flipEnabled: on),
                     ),
                   ),
-                  if (isAndroid)
-                    SwitchListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                      ),
-                      title: const Text('Gõ lưng 2 lần'),
-                      subtitle: const Text(
-                        'Gõ hai lần vào mặt sau máy để hẹn cuộc gọi.',
-                      ),
-                      value: value.knockEnabled,
-                      onChanged: (on) => _update(
-                        context,
-                        ref,
-                        (current) => current.copyWith(knockEnabled: on),
-                      ),
-                    )
-                  else
-                    _LinkRow(
-                      title: 'Gõ lưng 2 lần',
-                      subtitle: 'iPhone dùng Chạm vào mặt sau của hệ thống. Xem hướng dẫn.',
-                      onTap: () => _showBackTapGuide(context),
-                    ),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
                     child: Column(
@@ -227,7 +205,7 @@ class SettingsScreen extends ConsumerWidget {
                       ),
                       title: const Text('Sẵn sàng khi tắt màn hình'),
                       subtitle: const Text(
-                        'Hiện thông báo thường trực để lật máy hoặc gõ lưng vẫn hoạt động. Tốn pin hơn.',
+                        'Hiện thông báo thường trực để lật máy vẫn hoạt động. Tốn pin hơn.',
                       ),
                       value: value.backgroundArmed,
                       onChanged: (on) => _setBackgroundArmed(context, ref, on),
@@ -235,7 +213,7 @@ class SettingsScreen extends ConsumerWidget {
                   const Divider(height: 1),
                   _LinkRow(
                     title: 'Thử cử chỉ',
-                    subtitle: 'Xem máy nhận lật úp hay gõ lưng thế nào.',
+                    subtitle: 'Xem máy nhận lật úp thế nào.',
                     onTap: () => showModalBottomSheet<void>(
                       context: context,
                       showDragHandle: true,
@@ -274,6 +252,15 @@ class SettingsScreen extends ConsumerWidget {
                     value: value.waitForReply,
                     onChanged: (on) => _setWaitForReply(context, ref, on),
                   ),
+                  if (value.waitForReply)
+                    ReplyPauseTile(
+                      pause: value.replyPause,
+                      onChanged: (pause) => _update(
+                        context,
+                        ref,
+                        (current) => current.copyWith(replyPause: pause),
+                      ),
+                    ),
                   SwitchListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16),
                     title: const Text('Giao diện sáng'),
@@ -338,20 +325,78 @@ class _LinkRow extends StatelessWidget {
   );
 }
 
-Future<void> _showBackTapGuide(BuildContext context) => showDialog<void>(
-  context: context,
-  builder: (context) => AlertDialog(
-    title: const Text('Gõ lưng 2 lần trên iPhone'),
-    content: const Text(
-      '1. Mở Cài đặt → Trợ năng → Cảm ứng → Chạm vào mặt sau.\n'
-      '2. Chọn Gõ đúp và đặt là một Phím tắt.\n'
-      '3. Phím tắt mở đường dẫn tron://trigger để hẹn cuộc gọi.',
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Đã hiểu'),
+/// Chỉnh thời gian người gọi chờ sau khi người dùng nói xong (0,5–5 giây).
+/// Trong lúc kéo chỉ đổi số trên màn hình; thả tay mới lưu một lần.
+class ReplyPauseTile extends StatefulWidget {
+  const ReplyPauseTile({
+    super.key,
+    required this.pause,
+    required this.onChanged,
+  });
+  final Duration pause;
+  final ValueChanged<Duration> onChanged;
+
+  /// Ví dụ 1500 ms → "1,5 giây".
+  static String label(Duration pause) {
+    final seconds = pause.inMilliseconds / 1000;
+    final text = seconds == seconds.roundToDouble()
+        ? seconds.toStringAsFixed(0)
+        : seconds.toStringAsFixed(1).replaceAll('.', ',');
+    return '$text giây';
+  }
+
+  @override
+  State<ReplyPauseTile> createState() => _ReplyPauseTileState();
+}
+
+class _ReplyPauseTileState extends State<ReplyPauseTile> {
+  /// Giá trị đang kéo; `null` khi không kéo thì theo cài đặt đã lưu.
+  Duration? _dragging;
+
+  @override
+  Widget build(BuildContext context) {
+    final step = replyPauseStep.inMilliseconds;
+    final min = AppSettings.minReplyPause.inMilliseconds.toDouble();
+    final max = AppSettings.maxReplyPause.inMilliseconds.toDouble();
+    final shown = _dragging ?? widget.pause;
+    Duration snap(double ms) =>
+        clampReplyPause(Duration(milliseconds: ms.round()));
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(child: Text('Chờ sau khi bạn nói xong')),
+              Text(
+                ReplyPauseTile.label(shown),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          Slider(
+            min: min,
+            max: max,
+            divisions: (max - min) ~/ step,
+            value: shown.inMilliseconds.toDouble().clamp(min, max),
+            label: ReplyPauseTile.label(shown),
+            semanticFormatterCallback: (ms) => ReplyPauseTile.label(snap(ms)),
+            onChanged: (ms) => setState(() => _dragging = snap(ms)),
+            onChangeEnd: (ms) {
+              final chosen = snap(ms);
+              setState(() => _dragging = null);
+              if (chosen != widget.pause) {
+                widget.onChanged(chosen);
+              }
+            },
+          ),
+          const Text(
+            'Bạn im lặng chừng này thì người gọi nói câu tiếp. Ngắn quá dễ bị cắt lời khi bạn ngừng giữa câu.',
+            style: TextStyle(fontSize: 12),
+          ),
+        ],
       ),
-    ],
-  ),
-);
+    );
+  }
+}

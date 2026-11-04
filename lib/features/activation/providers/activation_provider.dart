@@ -30,13 +30,12 @@ final motionActivationProvider = Provider<void>((ref) {
   final service = ref.watch(motionTriggerServiceProvider);
   ref.listen<AsyncValue<AppSettings>>(settingsProvider, (_, next) {
     final settings = next.value;
-    if (settings == null || (!settings.flipEnabled && !settings.knockEnabled)) {
+    if (settings == null || !settings.flipEnabled) {
       service.stop();
       return;
     }
     service.start(
       flip: settings.flipEnabled,
-      knock: settings.knockEnabled,
       sensitivity: settings.sensitivity,
     );
   }, fireImmediately: true);
@@ -45,7 +44,7 @@ final motionActivationProvider = Provider<void>((ref) {
 });
 
 /// Giữ dịch vụ nền Android đúng theo cài đặt "Sẵn sàng khi tắt màn hình".
-/// Chỉ có tác dụng khi đã bật ít nhất một cử chỉ.
+/// Chỉ có tác dụng khi đã bật lật máy.
 final backgroundArmingProvider = Provider<void>((ref) {
   final guard = ref.watch(backgroundGuardProvider);
   ref.listen<bool>(settingsProvider.select(_isArmed), (_, armed) {
@@ -55,12 +54,10 @@ final backgroundArmingProvider = Provider<void>((ref) {
 
 bool _isArmed(AsyncValue<AppSettings> settings) {
   final value = settings.value;
-  return value != null &&
-      value.backgroundArmed &&
-      (value.flipEnabled || value.knockEnabled);
+  return value != null && value.backgroundArmed && value.flipEnabled;
 }
 
-/// Đường dẫn tron://trigger từ phím tắt Back Tap (iOS) hoặc liên kết khác.
+/// Đường dẫn tron://trigger (ví dụ từ một phím tắt) để hẹn cuộc gọi.
 bool isTriggerLink(Uri uri) => uri.scheme == 'tron' && uri.host == 'trigger';
 
 /// Nguồn đường dẫn mở app; tách ra để test toàn app không cần kênh của app_links.

@@ -48,7 +48,7 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Đường dẫn tron://trigger từ phím tắt Back Tap (iOS) hoặc lối tắt khác. -->
+            <!-- Đường dẫn tron://trigger từ một lối tắt để hẹn cuộc gọi. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -63,7 +63,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Giữ cảm biến lật máy và gõ lưng để hẹn cuộc gọi khi người dùng bật chế độ sẵn sàng." />
+                android:value="Giữ cảm biến lật máy để hẹn cuộc gọi khi người dùng bật chế độ sẵn sàng." />
         </service>
         <!-- Hẹn giờ "Báo an toàn": hết giờ chưa báo an toàn thì tự gửi SOS. -->
         <service

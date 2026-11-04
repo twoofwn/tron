@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:sensors_plus/sensors_plus.dart';
@@ -17,32 +16,22 @@ final motionTriggerServiceProvider = Provider<MotionTriggerService>((ref) {
 class MotionTriggerService {
   MotionTriggerService({
     Stream<AccelerometerEvent> Function()? gravity,
-    Stream<UserAccelerometerEvent> Function()? linear,
     DateTime Function()? clock,
   }) : _gravity = gravity ?? _defaultGravity,
-       _linear = linear ?? _defaultLinear,
        _clock = clock ?? DateTime.now;
 
   // Chỉ mở cảm biến khi thật sự bật cử chỉ (xem start); tạo sớm sẽ gọi plugin ngay.
   static Stream<AccelerometerEvent> _defaultGravity() =>
       accelerometerEventStream(samplingPeriod: SensorInterval.gameInterval);
-  static Stream<UserAccelerometerEvent> _defaultLinear() =>
-      userAccelerometerEventStream(samplingPeriod: SensorInterval.gameInterval);
 
   final Stream<AccelerometerEvent> Function() _gravity;
-  final Stream<UserAccelerometerEvent> Function() _linear;
   final DateTime Function() _clock;
   final _triggers = StreamController<TriggerEvent>.broadcast();
   StreamSubscription<AccelerometerEvent>? _gravitySub;
-  StreamSubscription<UserAccelerometerEvent>? _linearSub;
 
   Stream<TriggerEvent> get triggers => _triggers.stream;
 
-  void start({
-    required bool flip,
-    required bool knock,
-    required TriggerSensitivity sensitivity,
-  }) {
+  void start({required bool flip, required TriggerSensitivity sensitivity}) {
     stop();
     final tuning = GestureTuning.of(sensitivity);
     if (flip) {
@@ -58,25 +47,11 @@ class MotionTriggerService {
         onError: (_) {},
       );
     }
-    if (knock) {
-      final detector = KnockDetector(peak: tuning.knockPeak);
-      _linearSub = _linear().listen((event) {
-        final now = _clock();
-        final magnitude = math.sqrt(
-          event.x * event.x + event.y * event.y + event.z * event.z,
-        );
-        if (detector.add(now, magnitude)) {
-          _triggers.add(TriggerEvent(TriggerKind.knock, now));
-        }
-      }, onError: (_) {});
-    }
   }
 
   void stop() {
     _gravitySub?.cancel();
-    _linearSub?.cancel();
     _gravitySub = null;
-    _linearSub = null;
   }
 
   void dispose() {

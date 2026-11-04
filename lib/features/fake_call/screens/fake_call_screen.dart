@@ -266,7 +266,12 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
       await Future<void>.delayed(fallback);
       return;
     }
-    await _replies.waitForReply(fallback);
+    await _replies.waitForReply(
+      fallback,
+      endSilence:
+          ref.read(settingsProvider).value?.replyPause ??
+          AppSettings.defaultReplyPause,
+    );
   }
 
   Future<void> _stop() async {

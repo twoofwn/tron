@@ -71,6 +71,9 @@ class TurnDetector {
   Duration _elapsed = Duration.zero;
   Duration _candidate = Duration.zero;
   Duration _silence = Duration.zero;
+  // Tiếng to liên tục kể từ lần im gần nhất, để phân biệt nói lại với tiếng
+  // động ngắn (cạch, quạt, vọng) trong lúc người dùng đã im.
+  Duration _voiced = Duration.zero;
   Duration? _speechStart;
 
   /// Tiếng ồn nền ước tính, giữ qua các lượt chờ trong cùng cuộc gọi.
@@ -79,11 +82,17 @@ class TurnDetector {
   /// Lượt chờ này đã nghe thấy người dùng nói.
   bool get heardSpeech => _speechStart != null;
 
-  /// Bắt đầu một lượt chờ mới.
-  void reset() {
+  /// Im bao lâu thì coi là nói xong ở lượt hiện tại (mặc định theo [rules]).
+  late Duration _endSilence = rules.endSilence;
+
+  /// Bắt đầu một lượt chờ mới. [endSilence] thay [TurnRules.endSilence] cho
+  /// lượt này (người dùng chỉnh trong Cài đặt).
+  void reset({Duration? endSilence}) {
+    _endSilence = endSilence ?? rules.endSilence;
     _elapsed = Duration.zero;
     _candidate = Duration.zero;
     _silence = Duration.zero;
+    _voiced = Duration.zero;
     _speechStart = null;
   }
 
@@ -115,8 +124,17 @@ class TurnDetector {
       _floor + rules.keepMargin,
       rules.minSpeechLevel - 5,
     );
-    _silence = level >= keepLevel ? Duration.zero : _silence + frame;
-    if (_silence >= rules.endSilence) {
+    if (level >= keepLevel) {
+      // Chỉ tính là nói lại khi tiếng to kéo dài như lúc bắt đầu nói; tiếng
+      // động ngắn hơn không xoá khoảng im đã đếm, nếu không thì chờ lâu (vài
+      // giây) gần như không bao giờ đủ trong phòng có tiếng ồn.
+      _voiced += frame;
+      _silence = _voiced >= rules.minSpeech ? Duration.zero : _silence + frame;
+    } else {
+      _voiced = Duration.zero;
+      _silence += frame;
+    }
+    if (_silence >= _endSilence) {
       return ReplyOutcome.finished;
     }
     if (_elapsed - speechStart >= rules.maxReply) {

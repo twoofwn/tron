@@ -496,6 +496,32 @@ void main() {
     expect(replies.events, contains('close'));
   });
 
+  for (final pause in [
+    AppSettings.defaultReplyPause,
+    const Duration(milliseconds: 3500),
+  ]) {
+    testWidgets(
+      'The caller waits ${pause.inMilliseconds} ms after the user stops',
+      (tester) async {
+        final replies = FakeReplyListener();
+        final audio = await open(
+          tester,
+          CallInterface.phone,
+          replies: replies,
+          settings: AppSettings(replyPause: pause),
+        );
+        await tester.pump();
+        await tester.tap(find.text('Trả lời'));
+        await tester.pump();
+        unawaited(audio.waiter!(const Duration(seconds: 3)));
+        await tester.pump();
+        expect(replies.lastEndSilence, pause);
+        replies.reply();
+        await tester.pump();
+      },
+    );
+  }
+
   testWidgets('A single recorded voice file plays without listening', (
     tester,
   ) async {

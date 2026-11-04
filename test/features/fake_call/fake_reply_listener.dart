@@ -34,9 +34,13 @@ class FakeReplyListener implements ReplyListener {
     return supported && granted;
   }
 
+  /// Thời gian im lặng màn gọi yêu cầu ở lượt chờ gần nhất.
+  Duration? lastEndSilence;
+
   @override
-  Future<ReplyOutcome> waitForReply(Duration fallback) {
+  Future<ReplyOutcome> waitForReply(Duration fallback, {Duration? endSilence}) {
     events.add('wait');
+    lastEndSilence = endSilence;
     _listening.value = true;
     return (_pending = Completer<ReplyOutcome>()).future;
   }

@@ -44,6 +44,76 @@ void main() {
       expect(result.at.inMilliseconds, inInclusiveRange(2970, 3060));
     });
 
+    test('waits the pause chosen in settings after the user stops', () {
+      for (final (pause, from, to) in [
+        (_ms(500), 2570, 2660),
+        (_ms(2000), 4070, 4160),
+        (_ms(5000), 7070, 7160),
+      ]) {
+        final detector = TurnDetector(noiseFloor: _quiet)
+          ..reset(endSilence: pause);
+        final result = _feed(detector, [
+          (_quiet, _ms(600)),
+          (_voice, _ms(1500)),
+          (_quiet, _ms(8000)),
+        ]);
+        expect(result.outcome, ReplyOutcome.finished, reason: '$pause');
+        // Hết giọng ở 2,1 s; im đúng khoảng đã chọn thì tới lượt người gọi.
+        expect(
+          result.at.inMilliseconds,
+          inInclusiveRange(from, to),
+          reason: '$pause',
+        );
+      }
+    });
+
+    test('a long pause does not end the turn when the user keeps talking', () {
+      final detector = TurnDetector(noiseFloor: _quiet)
+        ..reset(endSilence: _ms(2000));
+      final result = _feed(detector, [
+        (_quiet, _ms(400)),
+        (_voice, _ms(900)),
+        (_quiet, _ms(1500)),
+        (_voice, _ms(900)),
+        (_quiet, _ms(4000)),
+      ]);
+      expect(result.outcome, ReplyOutcome.finished);
+      // Ngừng 1,5 s giữa câu vẫn chưa đủ 2 s nên chưa cắt lời.
+      expect(result.at.inMilliseconds, inInclusiveRange(5670, 5760));
+    });
+
+    test('short clicks while the user is silent do not restart the pause', () {
+      final detector = TurnDetector(noiseFloor: _quiet)
+        ..reset(endSilence: _ms(3000));
+      // Sau khi nói xong: cứ 0,8 s lại có một tiếng cạch 90 ms (quạt, vọng).
+      final quietWithClicks = <(double, Duration)>[
+        for (var i = 0; i < 8; i++) ...[(_quiet, _ms(720)), (_voice, _ms(90))],
+      ];
+      final result = _feed(detector, [
+        (_quiet, _ms(600)),
+        (_voice, _ms(1500)),
+        ...quietWithClicks,
+      ]);
+      expect(result.outcome, ReplyOutcome.finished);
+      // Hết giọng ở 2,1 s; vẫn tới lượt người gọi sau khoảng 3 s.
+      expect(result.at.inMilliseconds, inInclusiveRange(5070, 5160));
+    });
+
+    test('speaking again for a moment does restart the pause', () {
+      final detector = TurnDetector(noiseFloor: _quiet)
+        ..reset(endSilence: _ms(3000));
+      final result = _feed(detector, [
+        (_quiet, _ms(600)),
+        (_voice, _ms(1500)),
+        (_quiet, _ms(2000)),
+        (_voice, _ms(600)),
+        (_quiet, _ms(5000)),
+      ]);
+      expect(result.outcome, ReplyOutcome.finished);
+      // Nói lại 0,6 s ở 4,1–4,7 s: đếm lại 3 s từ 4,7 s.
+      expect(result.at.inMilliseconds, inInclusiveRange(7670, 7760));
+    });
+
     test('short pauses inside a reply do not end the turn', () {
       final detector = TurnDetector(noiseFloor: _quiet);
       final result = _feed(detector, [

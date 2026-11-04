@@ -8,7 +8,6 @@ import 'package:tron/features/settings/models/app_settings.dart';
 
 void main() {
   late StreamController<AccelerometerEvent> gravity;
-  late StreamController<UserAccelerometerEvent> linear;
   late DateTime now;
   late MotionTriggerService service;
   final received = <TriggerEvent>[];
@@ -16,11 +15,9 @@ void main() {
 
   setUp(() {
     gravity = StreamController<AccelerometerEvent>.broadcast();
-    linear = StreamController<UserAccelerometerEvent>.broadcast();
     now = DateTime(2026, 10, 26, 9);
     service = MotionTriggerService(
       gravity: () => gravity.stream,
-      linear: () => linear.stream,
       clock: () => now,
     );
     received.clear();
@@ -31,7 +28,6 @@ void main() {
     await subscription.cancel();
     service.dispose();
     await gravity.close();
-    await linear.close();
   });
 
   // Stream phát sự kiện bất đồng bộ: chờ sau mỗi mẫu để đồng hồ khớp từng mẫu.
@@ -42,11 +38,7 @@ void main() {
   }
 
   test('flipping face-down emits one flip event', () async {
-    service.start(
-      flip: true,
-      knock: false,
-      sensitivity: TriggerSensitivity.medium,
-    );
+    service.start(flip: true, sensitivity: TriggerSensitivity.medium);
     for (var i = 0; i < 5; i++) {
       await feedGravity(9.8, const Duration(milliseconds: 100));
     }
@@ -58,11 +50,7 @@ void main() {
   });
 
   test('flip events are ignored when flip is turned off', () async {
-    service.start(
-      flip: false,
-      knock: false,
-      sensitivity: TriggerSensitivity.medium,
-    );
+    service.start(flip: false, sensitivity: TriggerSensitivity.medium);
     for (var i = 0; i < 5; i++) {
       await feedGravity(9.8, const Duration(milliseconds: 100));
     }
@@ -74,11 +62,7 @@ void main() {
   });
 
   test('stop cancels detection', () async {
-    service.start(
-      flip: true,
-      knock: false,
-      sensitivity: TriggerSensitivity.medium,
-    );
+    service.start(flip: true, sensitivity: TriggerSensitivity.medium);
     service.stop();
     for (var i = 0; i < 5; i++) {
       await feedGravity(9.8, const Duration(milliseconds: 100));
@@ -88,20 +72,5 @@ void main() {
     }
     await Future<void>.delayed(Duration.zero);
     expect(received, isEmpty);
-  });
-
-  test('two strong taps emit a knock event', () async {
-    service.start(
-      flip: false,
-      knock: true,
-      sensitivity: TriggerSensitivity.medium,
-    );
-    now = now.add(const Duration(milliseconds: 100));
-    linear.add(UserAccelerometerEvent(0, 0, 8, now));
-    await Future<void>.delayed(Duration.zero);
-    now = now.add(const Duration(milliseconds: 300));
-    linear.add(UserAccelerometerEvent(0, 0, 8, now));
-    await Future<void>.delayed(Duration.zero);
-    expect(received.map((event) => event.kind), [TriggerKind.knock]);
   });
 }

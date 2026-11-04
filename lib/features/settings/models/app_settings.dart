@@ -29,12 +29,18 @@ class AppSettings {
     this.vibrateOnCall = true,
     this.lastDelay = AppConstants.defaultCallDelay,
     this.flipEnabled = false,
-    this.knockEnabled = false,
     this.sensitivity = TriggerSensitivity.medium,
     this.backgroundArmed = false,
     this.waitForReply = true,
     this.backgroundVolume = defaultBackgroundVolume,
+    this.replyPause = defaultReplyPause,
   });
+
+  /// Người dùng im lặng bao lâu thì coi là đã nói xong và người gọi nói câu
+  /// tiếp. Ngắn quá dễ cắt ngang lúc người dùng ngừng giữa câu.
+  static const defaultReplyPause = Duration(seconds: 1);
+  static const minReplyPause = Duration(milliseconds: 500);
+  static const maxReplyPause = Duration(seconds: 5);
 
   /// Âm lượng âm nền trong cuộc gọi so với giọng người gọi (0–1).
   static const defaultBackgroundVolume = 0.6;
@@ -49,7 +55,6 @@ class AppSettings {
     vibrateOnCall: _bool(json['vibrateOnCall'], true),
     lastDelay: _delay(json['lastDelaySeconds']),
     flipEnabled: _bool(json['flipEnabled'], false),
-    knockEnabled: _bool(json['knockEnabled'], false),
     sensitivity: _enumByName(
       TriggerSensitivity.values,
       json['sensitivity'],
@@ -58,13 +63,13 @@ class AppSettings {
     backgroundArmed: _bool(json['backgroundArmed'], false),
     waitForReply: _bool(json['waitForReply'], true),
     backgroundVolume: _volume(json['backgroundVolume']),
+    replyPause: _replyPause(json['replyPauseMs']),
   );
 
   final PhoneStyle phoneStyle;
   final bool vibrateOnCall;
   final Duration lastDelay;
   final bool flipEnabled;
-  final bool knockEnabled;
   final TriggerSensitivity sensitivity;
   final bool backgroundArmed;
 
@@ -74,16 +79,19 @@ class AppSettings {
   /// Âm lượng âm nền trong cuộc gọi, dùng chung cho mọi combo.
   final double backgroundVolume;
 
+  /// Chờ bao lâu sau khi người dùng nói xong rồi người gọi mới nói câu tiếp.
+  final Duration replyPause;
+
   Map<String, Object> toJson() => {
     'phoneStyle': phoneStyle.name,
     'vibrateOnCall': vibrateOnCall,
     'lastDelaySeconds': lastDelay.inSeconds,
     'flipEnabled': flipEnabled,
-    'knockEnabled': knockEnabled,
     'sensitivity': sensitivity.name,
     'backgroundArmed': backgroundArmed,
     'waitForReply': waitForReply,
     'backgroundVolume': backgroundVolume,
+    'replyPauseMs': replyPause.inMilliseconds,
   };
 
   AppSettings copyWith({
@@ -91,25 +99,48 @@ class AppSettings {
     bool? vibrateOnCall,
     Duration? lastDelay,
     bool? flipEnabled,
-    bool? knockEnabled,
     TriggerSensitivity? sensitivity,
     bool? backgroundArmed,
     bool? waitForReply,
     double? backgroundVolume,
+    Duration? replyPause,
   }) => AppSettings(
     phoneStyle: phoneStyle ?? this.phoneStyle,
     vibrateOnCall: vibrateOnCall ?? this.vibrateOnCall,
     lastDelay: lastDelay ?? this.lastDelay,
     flipEnabled: flipEnabled ?? this.flipEnabled,
-    knockEnabled: knockEnabled ?? this.knockEnabled,
     sensitivity: sensitivity ?? this.sensitivity,
     backgroundArmed: backgroundArmed ?? this.backgroundArmed,
     waitForReply: waitForReply ?? this.waitForReply,
     backgroundVolume: backgroundVolume == null
         ? this.backgroundVolume
         : clampBackgroundVolume(backgroundVolume),
+    replyPause: replyPause == null
+        ? this.replyPause
+        : clampReplyPause(replyPause),
   );
 }
+
+/// Bước chỉnh thời gian chờ.
+const replyPauseStep = Duration(milliseconds: 500);
+
+/// Giữ thời gian chờ trong khoảng cho phép, làm tròn về bước 0,5 giây.
+Duration clampReplyPause(Duration value) {
+  final step = replyPauseStep.inMilliseconds;
+  final snapped = Duration(
+    milliseconds: (value.inMilliseconds / step).round() * step,
+  );
+  return snapped < AppSettings.minReplyPause
+      ? AppSettings.minReplyPause
+      : snapped > AppSettings.maxReplyPause
+      ? AppSettings.maxReplyPause
+      : snapped;
+}
+
+Duration _replyPause(Object? milliseconds) =>
+    milliseconds is num && milliseconds.isFinite
+    ? clampReplyPause(Duration(milliseconds: milliseconds.round()))
+    : AppSettings.defaultReplyPause;
 
 /// Giữ âm lượng nền trong khoảng nghe được, không tắt hẳn.
 double clampBackgroundVolume(double value) =>
