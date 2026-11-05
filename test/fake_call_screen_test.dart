@@ -107,6 +107,14 @@ class FakeCallDevice extends CallDeviceService {
   Future<void> setSpeaker(bool on) async => calls.add('speaker:$on');
   @override
   Future<void> endCallAudio() async => calls.add('end');
+
+  /// `false`: như iOS/web, không đưa app ra nền được.
+  bool canLeave = true;
+  @override
+  Future<bool> leaveApp() async {
+    calls.add('leave');
+    return canLeave;
+  }
 }
 
 /// Nút tắt tiếng của từng giao diện: Điện thoại "tắt tiếng", Zalo "Mic",
@@ -130,6 +138,7 @@ void main() {
     FakeReplyListener? replies,
     String? voicePath,
     AppSettings? settings,
+    bool isPreview = true,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -157,25 +166,32 @@ void main() {
           resolvedPhoneStyleProvider.overrideWith(
             (ref) async => PhoneStyle.iphone,
           ),
+          callAlarmServiceProvider.overrideWithValue(CountingAlarm()),
           if (settings != null)
             settingsProvider.overrideWith(() => FixedSettings(settings)),
         ],
+        // Màn gọi mở trên một trang chủ giả để đóng màn gọi thì còn trang chủ.
         child: MaterialApp(
-          home: FakeCallScreen(
-            arguments: FakeCallArguments(
-              ComboModel(
-                id: 'c',
-                name: 'Combo',
-                scenarioId: 'boss',
-                callInterface: callInterface,
-                createdAt: DateTime(2026),
-                callType: callType,
-                videoPath: videoPath,
-                callerName: callerName,
-                voicePath: voicePath,
+          initialRoute: '/call',
+          routes: {
+            '/': (_) => const Scaffold(body: Text('Trang chủ')),
+            '/call': (_) => FakeCallScreen(
+              arguments: FakeCallArguments(
+                ComboModel(
+                  id: 'c',
+                  name: 'Combo',
+                  scenarioId: 'boss',
+                  callInterface: callInterface,
+                  createdAt: DateTime(2026),
+                  callType: callType,
+                  videoPath: videoPath,
+                  callerName: callerName,
+                  voicePath: voicePath,
+                ),
+                isPreview: isPreview,
               ),
             ),
-          ),
+          },
         ),
       ),
     );
@@ -203,6 +219,7 @@ void main() {
       await tester.tap(find.byIcon(Icons.call_end_rounded));
       await tester.pump();
       expect(audio.events.last, 'stop');
+      await tester.pump(FakeCallScreen.endedHold);
       expect(tester.takeException(), isNull);
     });
   }
@@ -287,6 +304,7 @@ void main() {
     await tester.pump();
     // Kết thúc cuộc gọi thì trả âm thanh của máy về bình thường.
     expect(device.calls.last, 'end');
+    await tester.pump(FakeCallScreen.endedHold);
   });
 
   testWidgets('Declining before answering leaves call audio untouched', (
@@ -403,6 +421,7 @@ void main() {
       await tester.tap(find.byIcon(Icons.call_end_rounded));
       await tester.pump();
       expect(audio.events.last, 'stop');
+      await tester.pump(FakeCallScreen.endedHold);
       expect(tester.takeException(), isNull);
     });
   }
@@ -492,7 +511,8 @@ void main() {
     expect(replied, isTrue);
 
     await tester.tap(find.byIcon(Icons.call_end_rounded));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(FakeCallScreen.endedHold);
     expect(replies.events, contains('close'));
   });
 
@@ -537,5 +557,137 @@ void main() {
     expect(audio.events.last, 'conversation');
     expect(audio.waiter, isNull);
     expect(replies.events, isEmpty);
+  });
+
+  group('After the call ends', () {
+    for (final (callInterface, label) in [
+      (CallInterface.phone, 'Cuộc gọi kết thúc'),
+      (CallInterface.zalo, 'Cuộc gọi kết thúc'),
+      (CallInterface.messenger, 'Cuộc gọi đã kết thúc'),
+    ]) {
+      testWidgets('${callInterface.name} shows "$label" then leaves the app', (
+        tester,
+      ) async {
+        final device = FakeCallDevice();
+        final audio = await open(
+          tester,
+          callInterface,
+          device: device,
+          isPreview: false,
+        );
+        await tester.tap(find.text('Trả lời'));
+        await tester.pump();
+        await tester.tap(find.byIcon(Icons.call_end_rounded));
+        await tester.pump();
+        await tester.pump();
+        // Như máy thật: dòng kết thúc thay đồng hồ, chưa rời app ngay.
+        expect(find.text(label), findsOneWidget);
+        expect(find.text('00:00'), findsNothing);
+        expect(device.calls, isNot(contains('leave')));
+        // Các nút đã mờ, bấm lại không làm gì.
+        await tester.tap(
+          find.byIcon(Icons.call_end_rounded),
+          warnIfMissed: false,
+        );
+        await tester.pump();
+        expect(audio.events.where((e) => e == 'stop'), hasLength(1));
+
+        await tester.pump(FakeCallScreen.endedHold);
+        expect(device.calls.where((c) => c == 'leave'), hasLength(1));
+        await tester.pump(const Duration(seconds: 1));
+        await tester.pump();
+        // Mở lại app thì thấy trang chủ, không còn màn gọi cũ.
+        expect(find.byType(FakeCallScreen), findsNothing);
+        expect(find.text('Trang chủ'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets('Declining a real call leaves the app right away', (
+      tester,
+    ) async {
+      final device = FakeCallDevice();
+      await open(tester, CallInterface.zalo, device: device, isPreview: false);
+      await tester.tap(find.text('Từ chối'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      // Từ chối thì không có màn kết thúc, rời app ngay.
+      expect(device.calls, contains('leave'));
+      expect(find.text('Cuộc gọi kết thúc'), findsNothing);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+      expect(find.byType(FakeCallScreen), findsNothing);
+    });
+
+    testWidgets('An ended video call freezes on the end label then leaves', (
+      tester,
+    ) async {
+      final device = FakeCallDevice();
+      await open(
+        tester,
+        CallInterface.phone,
+        device: device,
+        callType: CallType.video,
+        isPreview: false,
+      );
+      await tester.tap(find.text('Trả lời'));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.call_end_rounded));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Cuộc gọi kết thúc'), findsOneWidget);
+      await tester.pump(FakeCallScreen.endedHold);
+      expect(device.calls, contains('leave'));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+      expect(find.byType(FakeCallScreen), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('The preview shows the end label but stays in the app', (
+      tester,
+    ) async {
+      final device = FakeCallDevice();
+      await open(tester, CallInterface.phone, device: device);
+      await tester.tap(find.text('Trả lời'));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.call_end_rounded));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Cuộc gọi kết thúc'), findsOneWidget);
+      await tester.pump(FakeCallScreen.endedHold);
+      await tester.pumpAndSettle();
+      expect(device.calls, isNot(contains('leave')));
+      expect(find.text('Trang chủ'), findsOneWidget);
+    });
+
+    testWidgets('Turning the setting off keeps the app open', (tester) async {
+      final device = FakeCallDevice();
+      await open(
+        tester,
+        CallInterface.messenger,
+        device: device,
+        isPreview: false,
+        settings: const AppSettings(leaveAppAfterCall: false),
+      );
+      await tester.pump();
+      await tester.tap(find.text('Từ chối'));
+      await tester.pump();
+      await tester.pumpAndSettle();
+      expect(device.calls, isNot(contains('leave')));
+      expect(find.text('Trang chủ'), findsOneWidget);
+    });
+
+    testWidgets('Without platform support the call screen just closes', (
+      tester,
+    ) async {
+      final device = FakeCallDevice()..canLeave = false;
+      await open(tester, CallInterface.phone, device: device, isPreview: false);
+      await tester.tap(find.text('Từ chối'));
+      await tester.pump();
+      await tester.pumpAndSettle();
+      expect(device.calls, contains('leave'));
+      expect(find.text('Trang chủ'), findsOneWidget);
+    });
   });
 }

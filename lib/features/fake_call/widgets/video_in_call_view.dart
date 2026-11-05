@@ -33,6 +33,7 @@ class VideoInCallView extends ConsumerStatefulWidget {
     required this.onVideoUnavailable,
     this.onSos,
     this.avatarPath,
+    this.endedLabel,
   });
   final String caller;
   final String initial;
@@ -55,6 +56,10 @@ class VideoInCallView extends ConsumerStatefulWidget {
 
   /// Giữ nút gác máy 2 giây: gửi SOS.
   final VoidCallback? onSos;
+
+  /// Khác `null` khi cuộc gọi vừa kết thúc: dòng này thay đồng hồ, video
+  /// người gọi dừng ở khung cuối, camera tắt và các nút mờ đi.
+  final String? endedLabel;
 
   @override
   ConsumerState<VideoInCallView> createState() => _VideoInCallViewState();
@@ -128,6 +133,17 @@ class _VideoInCallViewState extends ConsumerState<VideoInCallView>
   }
 
   @override
+  void didUpdateWidget(VideoInCallView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.endedLabel == null && widget.endedLabel != null) {
+      _remote?.removeListener(_onRemoteTick);
+      unawaited(_remote?.pause());
+      _cameraOff = true;
+      _closeSelf();
+    }
+  }
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Trả camera cho hệ thống khi app ra nền, mở lại khi quay về.
     if (state == AppLifecycleState.inactive ||
@@ -135,7 +151,8 @@ class _VideoInCallViewState extends ConsumerState<VideoInCallView>
       _closeSelf();
     } else if (state == AppLifecycleState.resumed &&
         _self == null &&
-        !_cameraOff) {
+        !_cameraOff &&
+        widget.endedLabel == null) {
       _openSelf();
     }
   }
@@ -421,7 +438,7 @@ class _VideoInCallViewState extends ConsumerState<VideoInCallView>
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          _time,
+                          widget.endedLabel ?? _time,
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 15,
@@ -436,39 +453,42 @@ class _VideoInCallViewState extends ConsumerState<VideoInCallView>
                 ],
               ),
               const Spacer(),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  control(
-                    Icons.flip_camera_ios_rounded,
-                    'đổi camera',
-                    onTap: _cameras.length < 2 || _cameraOff ? null : _flip,
-                  ),
-                  control(
-                    Icons.videocam_off_rounded,
-                    'tắt camera',
-                    active: _cameraOff,
-                    onTap: _toggleCamera,
-                  ),
-                  control(
-                    Icons.mic_off_rounded,
-                    'tắt tiếng',
-                    active: widget.isMuted,
-                    onTap: widget.onToggleMute,
-                  ),
-                  Expanded(
-                    child: CallButton(
-                      label: 'Kết thúc',
-                      icon: Icons.call_end_rounded,
-                      color: theme.decline,
-                      size: 56,
-                      iconSize: 26,
-                      labelSize: 12,
-                      onTap: widget.onHangUp,
-                      onHold: widget.onSos,
+              CallEndFade(
+                ended: widget.endedLabel != null,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    control(
+                      Icons.flip_camera_ios_rounded,
+                      'đổi camera',
+                      onTap: _cameras.length < 2 || _cameraOff ? null : _flip,
                     ),
-                  ),
-                ],
+                    control(
+                      Icons.videocam_off_rounded,
+                      'tắt camera',
+                      active: _cameraOff,
+                      onTap: _toggleCamera,
+                    ),
+                    control(
+                      Icons.mic_off_rounded,
+                      'tắt tiếng',
+                      active: widget.isMuted,
+                      onTap: widget.onToggleMute,
+                    ),
+                    Expanded(
+                      child: CallButton(
+                        label: 'Kết thúc',
+                        icon: Icons.call_end_rounded,
+                        color: theme.decline,
+                        size: 56,
+                        iconSize: 26,
+                        labelSize: 12,
+                        onTap: widget.onHangUp,
+                        onHold: widget.onSos,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

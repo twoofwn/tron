@@ -18,6 +18,7 @@ class InCallView extends StatelessWidget {
     required this.onHangUp,
     this.onSos,
     this.statusHint,
+    this.endedLabel,
   });
   final String caller;
   final CallTheme theme;
@@ -33,6 +34,10 @@ class InCallView extends StatelessWidget {
 
   /// Dòng nhỏ dưới đồng hồ, chỉ dùng ở bản xem thử (ví dụ "Đang nghe bạn…").
   final Widget? statusHint;
+
+  /// Khác `null` khi cuộc gọi vừa kết thúc: dòng này thay đồng hồ, các nút mờ
+  /// đi trong giây lát trước khi màn gọi đóng, như máy thật.
+  final String? endedLabel;
 
   String get _time =>
       '${elapsed.inMinutes.toString().padLeft(2, '0')}:${(elapsed.inSeconds % 60).toString().padLeft(2, '0')}';
@@ -78,51 +83,61 @@ class InCallView extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            _time,
+            endedLabel ?? _time,
             style: TextStyle(
               color: theme.subtle,
               fontSize: 17,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
-          if (statusHint != null) ...[const SizedBox(height: 8), statusHint!],
+          if (statusHint != null && endedLabel == null) ...[
+            const SizedBox(height: 8),
+            statusHint!,
+          ],
           const SizedBox(height: 24),
           const Spacer(flex: 4),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              control(
-                Icons.mic_off_rounded,
-                'tắt tiếng',
-                active: isMuted,
-                onTap: onToggleMute,
-              ),
-              control(Icons.dialpad_rounded, 'bàn phím'),
-              control(
-                Icons.volume_up_rounded,
-                'loa',
-                active: isSpeaker,
-                onTap: onToggleSpeaker,
-              ),
-            ],
-          ),
-          const SizedBox(height: 28),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              control(Icons.add_rounded, 'thêm'),
-              control(Icons.videocam_outlined, 'video'),
-              control(Icons.person_outline_rounded, 'danh bạ'),
-            ],
-          ),
-          const SizedBox(height: 48),
-          CallButton(
-            label: 'Kết thúc',
-            icon: Icons.call_end_rounded,
-            color: theme.decline,
-            showLabel: false,
-            onTap: onHangUp,
-            onHold: onSos,
+          CallEndFade(
+            ended: endedLabel != null,
+            child: Column(
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    control(
+                      Icons.mic_off_rounded,
+                      'tắt tiếng',
+                      active: isMuted,
+                      onTap: onToggleMute,
+                    ),
+                    control(Icons.dialpad_rounded, 'bàn phím'),
+                    control(
+                      Icons.volume_up_rounded,
+                      'loa',
+                      active: isSpeaker,
+                      onTap: onToggleSpeaker,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 28),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    control(Icons.add_rounded, 'thêm'),
+                    control(Icons.videocam_outlined, 'video'),
+                    control(Icons.person_outline_rounded, 'danh bạ'),
+                  ],
+                ),
+                const SizedBox(height: 48),
+                CallButton(
+                  label: 'Kết thúc',
+                  icon: Icons.call_end_rounded,
+                  color: theme.decline,
+                  showLabel: false,
+                  onTap: onHangUp,
+                  onHold: onSos,
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 40),
         ],

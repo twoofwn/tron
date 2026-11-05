@@ -34,6 +34,7 @@ class AppSettings {
     this.waitForReply = true,
     this.backgroundVolume = defaultBackgroundVolume,
     this.replyPause = defaultReplyPause,
+    this.leaveAppAfterCall = true,
   });
 
   /// Người dùng im lặng bao lâu thì coi là đã nói xong và người gọi nói câu
@@ -64,6 +65,7 @@ class AppSettings {
     waitForReply: _bool(json['waitForReply'], true),
     backgroundVolume: _volume(json['backgroundVolume']),
     replyPause: _replyPause(json['replyPauseMs']),
+    leaveAppAfterCall: _bool(json['leaveAppAfterCall'], true),
   );
 
   final PhoneStyle phoneStyle;
@@ -82,6 +84,10 @@ class AppSettings {
   /// Chờ bao lâu sau khi người dùng nói xong rồi người gọi mới nói câu tiếp.
   final Duration replyPause;
 
+  /// Cuộc gọi giả kết thúc thì về màn hình chính của điện thoại (Android),
+  /// như app gọi thật tự đóng sau khi gác máy.
+  final bool leaveAppAfterCall;
+
   Map<String, Object> toJson() => {
     'phoneStyle': phoneStyle.name,
     'vibrateOnCall': vibrateOnCall,
@@ -92,6 +98,7 @@ class AppSettings {
     'waitForReply': waitForReply,
     'backgroundVolume': backgroundVolume,
     'replyPauseMs': replyPause.inMilliseconds,
+    'leaveAppAfterCall': leaveAppAfterCall,
   };
 
   AppSettings copyWith({
@@ -104,6 +111,7 @@ class AppSettings {
     bool? waitForReply,
     double? backgroundVolume,
     Duration? replyPause,
+    bool? leaveAppAfterCall,
   }) => AppSettings(
     phoneStyle: phoneStyle ?? this.phoneStyle,
     vibrateOnCall: vibrateOnCall ?? this.vibrateOnCall,
@@ -118,6 +126,7 @@ class AppSettings {
     replyPause: replyPause == null
         ? this.replyPause
         : clampReplyPause(replyPause),
+    leaveAppAfterCall: leaveAppAfterCall ?? this.leaveAppAfterCall,
   );
 }
 

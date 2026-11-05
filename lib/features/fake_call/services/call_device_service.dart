@@ -39,6 +39,18 @@ class CallDeviceService {
   /// Trả âm thanh của máy về bình thường sau cuộc gọi.
   Future<void> endCallAudio() => _invoke('endCallAudio');
 
+  /// Đưa app ra nền, về màn hình chính của điện thoại (Android). Trả về
+  /// `false` khi nền tảng không hỗ trợ (iOS, web) để màn gọi tự đóng như cũ.
+  Future<bool> leaveApp() async {
+    try {
+      return await _channel.invokeMethod<bool>('leaveApp') ?? false;
+    } on MissingPluginException {
+      return false;
+    } on PlatformException {
+      return false;
+    }
+  }
+
   Future<void> _invoke(String method, [Object? argument]) async {
     try {
       await _channel.invokeMethod<void>(method, argument);

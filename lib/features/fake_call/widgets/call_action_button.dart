@@ -150,3 +150,21 @@ class CallAvatar extends StatelessWidget {
     ),
   );
 }
+
+/// Nhóm nút của màn đang gọi: cuộc gọi vừa kết thúc thì mờ đi và không bấm
+/// được nữa, như máy thật trong giây lát trước khi đóng màn gọi.
+class CallEndFade extends StatelessWidget {
+  const CallEndFade({super.key, required this.ended, required this.child});
+  final bool ended;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+    ignoring: ended,
+    child: AnimatedOpacity(
+      opacity: ended ? 0.35 : 1,
+      duration: const Duration(milliseconds: 200),
+      child: child,
+    ),
+  );
+}
