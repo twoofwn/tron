@@ -14,6 +14,7 @@ Future<Scenario?> showScenarioEditor(
   BuildContext context, {
   required ScenarioRepository repository,
   Scenario? original,
+  bool asCopy = false,
   VoiceRecorder? recorder,
   PreviewAudioBackend? player,
 }) => showModalBottomSheet<Scenario>(
@@ -26,6 +27,7 @@ Future<Scenario?> showScenarioEditor(
     child: ScenarioEditorSheet(
       repository: repository,
       original: original,
+      asCopy: asCopy,
       recorder: recorder,
       player: player,
     ),
@@ -57,17 +59,22 @@ class _EditableLine {
 
 /// Form tạo / sửa / sao chép kịch bản. Mỗi câu thoại thu giọng trực tiếp
 /// hoặc chọn file, nghe lại được, và chọn có chờ người dùng trả lời hay không.
+///
+/// Sửa kịch bản mẫu thì lưu thành kịch bản cá nhân cùng ID: bản sửa thay bản
+/// mẫu trong kho và trong các combo đang dùng nó. [asCopy] tạo kịch bản mới.
 class ScenarioEditorSheet extends StatefulWidget {
   const ScenarioEditorSheet({
     super.key,
     required this.repository,
     this.original,
+    this.asCopy = false,
     this.recorder,
     this.player,
   });
 
   final ScenarioRepository repository;
   final Scenario? original;
+  final bool asCopy;
 
   /// Bộ thu và bộ phát thay thế (dùng trong test).
   final VoiceRecorder? recorder;
@@ -326,9 +333,9 @@ class _ScenarioEditorSheetState extends State<ScenarioEditorSheet> {
     setState(() => _saving = true);
     try {
       final original = widget.original;
-      final editsInPlace = original?.source == ScenarioSource.user;
+      final editsInPlace = original != null && !widget.asCopy;
       final id = editsInPlace
-          ? original!.id
+          ? original.id
           : 'user-${DateTime.now().microsecondsSinceEpoch}';
       final title = _title.text.trim();
       final callerName = _caller.text.trim();
@@ -367,14 +374,16 @@ class _ScenarioEditorSheetState extends State<ScenarioEditorSheet> {
       await widget.repository.saveUserScenario(scenario);
       _saved = true;
       // Dọn audio không còn câu nào dùng: bản thu bị thay trong lần sửa
-      // này, và audio cũ của chính kịch bản cá nhân đang sửa. Bản sao của
-      // kịch bản mẫu không đụng vào audio gốc.
+      // này, và audio cũ của chính kịch bản đang sửa. Audio có sẵn của app
+      // (giọng mẫu) không bao giờ bị xoá.
       final used = {for (final line in _lines) line.audioPath};
       final unused = {
         ..._newFiles,
         if (editsInPlace)
-          for (final step in original!.steps)
-            if (step.audioPath != null) step.audioPath!,
+          for (final step in original.steps)
+            if (step.audioPath case final path?
+                when !ScenarioRepository.isBundledAudio(path))
+              path,
       }.where((path) => !used.contains(path));
       for (final path in unused) {
         unawaited(widget.repository.deleteAudio(path));
@@ -389,7 +398,11 @@ class _ScenarioEditorSheetState extends State<ScenarioEditorSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final isCopy = widget.original != null && !widget.original!.isEditable;
+    final isCopy = widget.original != null && widget.asCopy;
+    final editsSample =
+        !isCopy &&
+        widget.original != null &&
+        widget.original!.source != ScenarioSource.user;
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: Column(
@@ -424,7 +437,10 @@ class _ScenarioEditorSheetState extends State<ScenarioEditorSheet> {
                 children: [
                   Text(
                     'Mỗi câu cần giọng: bấm Thu để đọc trực tiếp, hoặc chọn '
-                    'file MP3, M4A, WAV. Sửa chữ thì thu lại cho khớp.',
+                    'file MP3, M4A, WAV. Sửa chữ thì thu lại cho khớp.'
+                    '${editsSample ? ' Bản sửa thay cho kịch bản mẫu trên máy này, '
+                              'combo đang dùng kịch bản này sẽ dùng bản sửa. '
+                              'Muốn dùng lại bản gốc: chọn "Khôi phục bản gốc".' : ''}',
                     style: TextStyle(
                       color: ScenarioPalette.of(context).muted,
                       height: 1.4,

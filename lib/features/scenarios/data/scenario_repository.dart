@@ -68,15 +68,89 @@ class ScenarioRepository extends ChangeNotifier {
     ),
   ];
 
-  List<Scenario> get scenarios => List.unmodifiable([..._bundled, ..._user]);
+  /// Kịch bản mẫu người dùng đã xoá khỏi kho (chỉ ẩn: combo đang dùng vẫn gọi
+  /// được). Lưu trên máy.
+  Set<String> _hidden = const {};
+  static const _hiddenKey = 'tron.scenarios.hiddenBuiltIns';
+
+  /// Kịch bản hiện trong kho. Bản sửa của kịch bản mẫu (kịch bản cá nhân cùng
+  /// ID) đứng đúng chỗ của bản gốc; kịch bản mẫu đã ẩn không hiện.
+  List<Scenario> get scenarios {
+    final personal = {for (final scenario in _user) scenario.id: scenario};
+    final bundledIds = {for (final scenario in _bundled) scenario.id};
+    return List.unmodifiable([
+      for (final scenario in _bundled)
+        if (personal.containsKey(scenario.id) || !_hidden.contains(scenario.id))
+          personal[scenario.id] ?? scenario,
+      for (final scenario in _user)
+        if (!bundledIds.contains(scenario.id)) scenario,
+    ]);
+  }
+
   List<AmbientSound> get backgrounds =>
       List.unmodifiable([...bundledBackgrounds, ..._customBackgrounds]);
 
+  /// Tìm cả kịch bản mẫu đã ẩn, để combo đang dùng nó vẫn gọi được.
   Scenario? findScenario(String id) {
-    for (final scenario in scenarios) {
+    for (final scenario in [..._user, ..._bundled]) {
       if (scenario.id == id) return scenario;
     }
     return null;
+  }
+
+  /// Số kịch bản mẫu đang bị ẩn khỏi kho.
+  int get hiddenBuiltInCount => _hidden.length;
+
+  /// Kịch bản cá nhân này là bản sửa của một kịch bản mẫu (cùng ID).
+  bool isEditedBuiltIn(Scenario scenario) =>
+      scenario.source == ScenarioSource.user &&
+      _bundled.any((item) => item.id == scenario.id);
+
+  /// Xoá khỏi kho. Kịch bản cá nhân bị xoá hẳn (kèm file giọng đã thu);
+  /// kịch bản mẫu (kể cả bản đã sửa) chỉ bị ẩn, hiện lại được bằng
+  /// [showHiddenBuiltIns].
+  Future<void> deleteScenario(Scenario scenario) async {
+    final isBuiltIn =
+        scenario.source != ScenarioSource.user || isEditedBuiltIn(scenario);
+    if (scenario.source == ScenarioSource.user) {
+      await _removePersonal(scenario);
+    }
+    if (isBuiltIn) {
+      await _setHidden({..._hidden, scenario.id});
+    }
+  }
+
+  /// Bỏ bản sửa, dùng lại kịch bản mẫu gốc.
+  Future<void> restoreBuiltIn(Scenario edited) async {
+    if (!isEditedBuiltIn(edited)) return;
+    await _removePersonal(edited);
+  }
+
+  /// Hiện lại mọi kịch bản mẫu đã xoá khỏi kho.
+  Future<void> showHiddenBuiltIns() => _setHidden(const {});
+
+  Future<void> _removePersonal(Scenario scenario) async {
+    await deleteUserScenario(scenario.id);
+    // File giọng chỉ kịch bản này dùng: xoá để khỏi chiếm bộ nhớ.
+    final stillUsed = {
+      for (final other in _user)
+        for (final step in other.steps) ?step.audioPath,
+    };
+    for (final step in scenario.steps) {
+      final path = step.audioPath;
+      if (path != null && !isBundledAudio(path) && !stillUsed.contains(path)) {
+        await deleteAudio(path);
+      }
+    }
+  }
+
+  Future<void> _setHidden(Set<String> hidden) async {
+    _hidden = Set.unmodifiable(hidden);
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_hiddenKey, hidden.toList());
+    } catch (_) {}
   }
 
   AmbientSound? findBackground(String? id) {
@@ -224,6 +298,11 @@ class ScenarioRepository extends ChangeNotifier {
         // Fallback to local
       }
     }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _hidden = Set.unmodifiable(prefs.getStringList(_hiddenKey) ?? const []);
+    } catch (_) {}
 
     _bundled = bundled;
     _user = List.unmodifiable(users);

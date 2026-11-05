@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../data/scenario_repository.dart';
 import '../data/scenario_search.dart';
 import '../models/scenario.dart';
+import 'scenario_actions.dart';
 import 'scenario_detail_screen.dart';
 import 'scenario_editor_sheet.dart';
 import 'scenario_palette.dart';
@@ -75,6 +76,19 @@ class _ScenarioLibraryScreenState extends State<ScenarioLibraryScreen> {
     );
     if (!mounted || scenario == null) return;
     await _openDetail(scenario);
+  }
+
+  Future<void> _runAction(Scenario scenario, ScenarioAction action) async {
+    final updated = await runScenarioAction(
+      context,
+      repository: widget.repository,
+      scenario: scenario,
+      action: action,
+    );
+    // Tạo bản sao xong thì mở bản sao để người dùng thấy ngay.
+    if (mounted && updated != null && action == ScenarioAction.copy) {
+      await _openDetail(updated);
+    }
   }
 
   Future<void> _addBackground() async {
@@ -244,8 +258,26 @@ class _ScenarioLibraryScreenState extends State<ScenarioLibraryScreen> {
                       scenario: scenario,
                       selected: scenario.id == _selection.scenarioId,
                       onTap: () => _openDetail(scenario),
+                      menu: ScenarioMenuButton(
+                        repository: widget.repository,
+                        scenario: scenario,
+                        onSelected: (action) => _runAction(scenario, action),
+                      ),
                     );
                   },
+                ),
+              ),
+            if (widget.repository.hiddenBuiltInCount > 0)
+              SliverToBoxAdapter(
+                child: Center(
+                  child: TextButton.icon(
+                    onPressed: widget.repository.showHiddenBuiltIns,
+                    icon: const Icon(Icons.restore, size: 18),
+                    label: Text(
+                      'Hiện lại ${widget.repository.hiddenBuiltInCount} '
+                      'kịch bản mẫu đã xoá',
+                    ),
+                  ),
                 ),
               ),
             SliverPadding(
@@ -277,18 +309,7 @@ class _ScenarioLibraryScreenState extends State<ScenarioLibraryScreen> {
                       itemCount: backgrounds.length + 2,
                       itemBuilder: (context, index) {
                         if (index == backgrounds.length + 1) {
-                          return OutlinedButton.icon(
-                            onPressed: _addBackground,
-                            icon: const Icon(Icons.add),
-                            label: const Text('Thêm'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: palette.muted,
-                              side: BorderSide(color: palette.outline),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                          );
+                          return AddBackgroundTile(onTap: _addBackground);
                         }
                         final sound = index == backgrounds.length
                             ? null

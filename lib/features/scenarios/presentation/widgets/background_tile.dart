@@ -14,6 +14,52 @@ IconData backgroundIcon(String name) => switch (name) {
   _ => Icons.music_note_outlined,
 };
 
+/// Ô "Thêm" cuối lưới âm nền: icon trên, chữ dưới như các ô khác, nên không
+/// bị xuống dòng trên màn hình hẹp.
+class AddBackgroundTile extends StatelessWidget {
+  const AddBackgroundTile({super.key, required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = ScenarioPalette.of(context);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: palette.outline),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.add, size: 23, color: palette.muted),
+                const SizedBox(height: 5),
+                Text(
+                  'Thêm',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: palette.muted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class BackgroundTile extends StatelessWidget {
   const BackgroundTile({
     super.key,

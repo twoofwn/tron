@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../data/scenario_repository.dart';
 import '../models/scenario.dart';
 import '../services/scenario_preview_player.dart';
-import 'scenario_editor_sheet.dart';
+import 'scenario_actions.dart';
 import 'scenario_palette.dart';
 
 class ScenarioDetailScreen extends StatefulWidget {
@@ -61,40 +61,25 @@ class _ScenarioDetailScreenState extends State<ScenarioDetailScreen>
       ? widget.currentSelection.backgroundId
       : scenario.defaultBackgroundId;
 
-  Future<void> _edit(Scenario scenario) async {
+  Future<void> _run(Scenario scenario, ScenarioAction action) async {
     await _preview.stop();
     if (!mounted) return;
-    final updated = await showScenarioEditor(
+    final updated = await runScenarioAction(
       context,
       repository: widget.repository,
-      original: scenario,
+      scenario: scenario,
+      action: action,
     );
-    if (mounted && updated != null) setState(() => _scenarioId = updated.id);
-  }
-
-  Future<void> _delete(Scenario scenario) async {
-    await _preview.stop();
     if (!mounted) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Xóa kịch bản cá nhân?'),
-        content: Text('“${scenario.title}” sẽ bị xóa khỏi bộ nhớ.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Hủy'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Xóa'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    await widget.repository.deleteUserScenario(scenario.id);
-    if (mounted) Navigator.of(context).pop();
+    if (updated != null) {
+      setState(() => _scenarioId = updated.id);
+    } else if (action == ScenarioAction.delete &&
+        !widget.repository.scenarios.any((item) => item.id == scenario.id)) {
+      // Đã xoá khỏi kho: quay về danh sách, không chọn kịch bản này.
+      Navigator.of(context).pop();
+    } else {
+      setState(() {});
+    }
   }
 
   void _confirm(Scenario scenario) {
@@ -150,15 +135,14 @@ class _ScenarioDetailScreenState extends State<ScenarioDetailScreen>
                           ),
                         ),
                         OutlinedButton(
-                          onPressed: () => _edit(scenario),
-                          child: Text(scenario.isEditable ? 'Sửa' : 'Sao chép'),
+                          onPressed: () => _run(scenario, ScenarioAction.edit),
+                          child: const Text('Sửa'),
                         ),
-                        if (scenario.isEditable)
-                          IconButton(
-                            tooltip: 'Xóa kịch bản',
-                            onPressed: () => _delete(scenario),
-                            icon: const Icon(Icons.delete_outline),
-                          ),
+                        ScenarioMenuButton(
+                          repository: widget.repository,
+                          scenario: scenario,
+                          onSelected: (action) => _run(scenario, action),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 20),

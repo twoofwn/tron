@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tron/features/scenarios/data/scenario_repository.dart';
 import 'package:tron/features/scenarios/models/scenario.dart';
 
@@ -80,6 +81,76 @@ void main() {
       await documents.delete(recursive: true);
     }
   });
+
+  test(
+    'samples can be edited in place, hidden, restored and shown again',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final documents = await Directory.systemTemp.createTemp('tron-edit-');
+      try {
+        final repository = ScenarioRepository(
+          documentsDirectory: () async => documents,
+        );
+        await repository.load();
+        final ids = repository.scenarios.map((item) => item.id).toList();
+        final sample = repository.findScenario('boss-server')!;
+
+        // Sửa kịch bản mẫu: bản sửa cùng ID, đứng đúng chỗ của bản gốc.
+        final recorded = File('${documents.path}/escapehatch/audio/b.wav')
+          ..createSync(recursive: true)
+          ..writeAsBytesSync([1, 2, 3]);
+        final edited = sample.copyWith(
+          title: 'Sếp đã sửa',
+          source: ScenarioSource.user,
+          steps: [
+            sample.steps.first.copyWith(audioPath: recorded.path),
+            ...sample.steps.skip(1),
+          ],
+        );
+        await repository.saveUserScenario(edited);
+        expect(repository.scenarios.map((item) => item.id), ids);
+        expect(repository.findScenario('boss-server')?.title, 'Sếp đã sửa');
+        expect(repository.isEditedBuiltIn(edited), isTrue);
+
+        // Khôi phục bản gốc: bỏ bản sửa và file giọng đã thu cho nó.
+        await repository.restoreBuiltIn(edited);
+        expect(repository.findScenario('boss-server')?.title, sample.title);
+        expect(recorded.existsSync(), isFalse);
+
+        // Xoá kịch bản mẫu chỉ ẩn khỏi kho; combo vẫn tìm thấy nó.
+        await repository.deleteScenario(sample);
+        expect(
+          repository.scenarios.any((item) => item.id == sample.id),
+          isFalse,
+        );
+        expect(repository.findScenario(sample.id), isNotNull);
+        expect(repository.hiddenBuiltInCount, 1);
+        repository.dispose();
+
+        // Vẫn ẩn sau khi mở lại app.
+        final reopened = ScenarioRepository(
+          documentsDirectory: () async => documents,
+        );
+        await reopened.load();
+        expect(reopened.hiddenBuiltInCount, 1);
+        await reopened.showHiddenBuiltIns();
+        expect(reopened.scenarios.map((item) => item.id), ids);
+
+        // Kịch bản cá nhân bị xoá hẳn.
+        final personal = sample.copyWith(
+          id: 'user-1',
+          source: ScenarioSource.user,
+        );
+        await reopened.saveUserScenario(personal);
+        await reopened.deleteScenario(personal);
+        expect(reopened.findScenario('user-1'), isNull);
+        expect(reopened.hiddenBuiltInCount, 0);
+        reopened.dispose();
+      } finally {
+        await documents.delete(recursive: true);
+      }
+    },
+  );
 
   test('bundled audio is told apart from user audio', () {
     expect(
