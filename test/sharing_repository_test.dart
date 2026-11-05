@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:tron/core/services/file_service.dart';
 import 'package:tron/features/combo/models/combo_model.dart';
+import 'package:tron/features/scenarios/models/scenario.dart';
 import 'package:tron/features/sharing/repositories/sharing_repository.dart';
 import 'package:tron/shared/enums/call_interface.dart';
 
@@ -62,6 +63,30 @@ void main() {
     ringtonePath: 'media:abcd.mp3',
     backgroundSoundPaths: const ['rain'],
   );
+  const friendScenario = Scenario(
+    id: 'user-friend-scenario-1',
+    title: 'Bạn thân rủ đi ăn lẩu',
+    category: ScenarioCategory.personal,
+    source: ScenarioSource.user,
+    callerName: 'Minh Bạn Thân',
+    initial: 'M',
+    defaultBackgroundId: 'cafe',
+    steps: [
+      DialogueStep(
+        id: 'step-1',
+        type: DialogueStepType.speech,
+        text: 'Alo ra quán lẩu đầu ngõ ngay nhé!',
+        audioPath: '/data/user/0/foreign/local_recording.m4a',
+        seconds: 4,
+      ),
+      DialogueStep(
+        id: 'step-2',
+        type: DialogueStepType.wait,
+        text: '(Chờ bạn trả lời)',
+        seconds: 0,
+      ),
+    ],
+  );
   setUp(() {
     files = MemoryFileService();
     repository = SharingRepository(files);
@@ -74,6 +99,36 @@ void main() {
     expect(imported.combos.single.ringtoneType, RingtoneType.interfaceDefault);
     expect(imported.combos.single.ringtonePath, isNull);
     expect(imported.audio, isEmpty);
+  });
+  test('Friend custom scenario can be shared standalone or with combo via code and QR', () async {
+    final standalonePkg = await repository.create(
+      const [],
+      scenarios: const [friendScenario],
+      includeAudio: false,
+    );
+    final standaloneDecoded = SharingRepository(MemoryFileService())
+        .decodeCode(repository.code(standalonePkg));
+    expect(standaloneDecoded.combos, isEmpty);
+    expect(standaloneDecoded.scenarios.single.id, friendScenario.id);
+    expect(standaloneDecoded.scenarios.single.title, friendScenario.title);
+    expect(standaloneDecoded.scenarios.single.steps.first.audioPath, isNull);
+
+    final customCombo = ComboModel(
+      id: 'friend-combo',
+      name: 'Bạn thân rủ đi ăn lẩu',
+      scenarioId: friendScenario.id,
+      callInterface: CallInterface.phone,
+      createdAt: DateTime(2026),
+    );
+    final comboWithScenarioPkg = await repository.create(
+      [customCombo],
+      scenarios: const [friendScenario],
+      includeAudio: false,
+    );
+    final comboDecoded = SharingRepository(MemoryFileService())
+        .decodeCode(repository.code(comboWithScenarioPkg));
+    expect(comboDecoded.combos.single.scenarioId, friendScenario.id);
+    expect(comboDecoded.scenarios.single.id, friendScenario.id);
   });
   test('Caller photo travels with the package even without audio', () async {
     files.audio['media:face.jpg'] = _jpg;

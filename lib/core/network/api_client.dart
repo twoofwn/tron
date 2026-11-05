@@ -1,6 +1,6 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
@@ -36,6 +36,9 @@ class ApiClient {
   static const _accessTokenKey = AppConfig.accessTokenKey;
   static const _refreshTokenKey = AppConfig.refreshTokenKey;
 
+  /// Token khách dùng tạm trong bộ nhớ cho chia sẻ mã/QR và Chợ khi người dùng chưa đăng nhập.
+  String? _guestAccessToken;
+
   String get baseUrl => _baseUrl;
 
   Future<bool> hasToken() async {
@@ -46,13 +49,44 @@ class ApiClient {
   Uri _uri(String path) =>
       Uri.parse('$_baseUrl${AppConfig.apiVersionPrefix}$path');
 
+  Future<String?> _ensureGuestToken() async {
+    if (_guestAccessToken != null && _guestAccessToken!.isNotEmpty) {
+      return _guestAccessToken;
+    }
+    try {
+      final response = await _http
+          .post(
+            _uri('/auth/login'),
+            headers: const {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json; charset=utf-8',
+            },
+            body: jsonEncode({
+              'email': 'guest@tron.app',
+              'password': 'TronGuest123!',
+              'deviceName': 'TRỐN Guest',
+            }),
+          )
+          .timeout(AppConfig.apiTimeout);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes)) as Map;
+        _guestAccessToken = data['accessToken'] as String?;
+        return _guestAccessToken;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<Map<String, String>> _headers({bool authenticated = true}) async {
     final headers = <String, String>{
       'Accept': 'application/json',
       'Content-Type': 'application/json; charset=utf-8',
     };
     if (authenticated) {
-      final token = await storage.read(_accessTokenKey);
+      var token = await storage.read(_accessTokenKey);
+      if (token == null || token.isEmpty) {
+        token = await _ensureGuestToken();
+      }
       if (token != null && token.isNotEmpty) {
         headers['Authorization'] = 'Bearer $token';
       }
@@ -156,7 +190,10 @@ class ApiClient {
   }) async {
     Future<http.Response> sendOnce() async {
       final request = http.MultipartRequest('POST', _uri(path));
-      final token = await storage.read(_accessTokenKey);
+      var token = await storage.read(_accessTokenKey);
+      if (token == null || token.isEmpty) {
+        token = await _ensureGuestToken();
+      }
       if (token != null && token.isNotEmpty) {
         request.headers['Authorization'] = 'Bearer $token';
       }
@@ -182,6 +219,12 @@ class ApiClient {
         final refreshed = await _tryRefreshToken();
         if (refreshed) {
           response = await requestFn().timeout(AppConfig.apiTimeout);
+        } else {
+          _guestAccessToken = null;
+          final guest = await _ensureGuestToken();
+          if (guest != null) {
+            response = await requestFn().timeout(AppConfig.apiTimeout);
+          }
         }
       }
       return response;

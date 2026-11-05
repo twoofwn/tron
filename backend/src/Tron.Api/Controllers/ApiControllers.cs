@@ -174,16 +174,19 @@ public class SharesController(BackupAndShareService shareService) : ControllerBa
     public async Task<ActionResult<IReadOnlyList<ShareSummaryDto>>> GetMyShares(CancellationToken ct) =>
         Ok(await shareService.GetMySharesAsync(User.GetUserId(), ct));
 
+    [AllowAnonymous]
     [HttpGet("{code}")]
     [EnableRateLimiting("shares")]
     public async Task<ActionResult> GetShareByCode(string code, CancellationToken ct) =>
         this.ToActionResult(await shareService.GetShareByCodeAsync(code, ct));
 
+    [AllowAnonymous]
     [HttpPost("{code}/import")]
     [EnableRateLimiting("shares")]
     public async Task<ActionResult> ImportShare(string code, CancellationToken ct) =>
         this.ToActionResult(await shareService.RecordImportAsync(code, ct));
 
+    [AllowAnonymous]
     [HttpGet("{code}/media/{mediaId:guid}")]
     [EnableRateLimiting("shares")]
     public async Task<IActionResult> DownloadShareMedia(string code, Guid mediaId, CancellationToken ct)

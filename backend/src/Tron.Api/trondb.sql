@@ -602,7 +602,7 @@ BEGIN
         N'Gói Thoát Họp & Tăng Ca Khẩn Cấp',
         N'Bộ combo cứu nguy công sở chính hãng: Sếp gọi xử lý sự cố Server gấp và Khách hàng VIP yêu cầu hỗ trợ ngay lập tức.',
         N'Công việc',
-        29000,
+        0,
         2,
         1,
         412,
@@ -620,7 +620,7 @@ BEGIN
         N'Gói Giải Cứu Tiệc Rượu & Hẹn Hò',
         N'Dành cho các buổi tiệc kéo dài hoặc cuộc hẹn khó xử: Mẹ gọi về nhà gấp kèm âm nền TV gia đình và Bạn thân nhờ ra đón.',
         N'Tiệc tùng',
-        19000,
+        0,
         2,
         0,
         589,
@@ -656,7 +656,7 @@ BEGIN
         N'Combo Ra Khỏi Cuộc Nhậu Êm Đẹp',
         N'Kịch bản vợ/người yêu gọi về đón gấp kèm tiếng mưa và còi xe cực chân thật do người dùng chia sẻ.',
         N'Cộng đồng',
-        15000,
+        0,
         1,
         1,
         196,
@@ -684,4 +684,10 @@ BEGIN
         SYSUTCDATETIME()
     );
 END
+GO
+
+-- 2.6 Đảm bảo tất cả các gói tình huống và lịch sử nhận gói đều miễn phí (0đ)
+UPDATE [dbo].[MarketPackages] SET [PriceVnd] = 0 WHERE [PriceVnd] <> 0;
+UPDATE [dbo].[MarketPurchases] SET [PricePaidVnd] = 0 WHERE [PricePaidVnd] <> 0;
+UPDATE [dbo].[Scenarios] SET [IsPro] = 0 WHERE [IsPro] <> 0;
 GO

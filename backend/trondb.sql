@@ -218,9 +218,14 @@ BEGIN
         [Name]                    NVARCHAR(80)     NOT NULL,
         [ScenarioId]              NVARCHAR(64)     NOT NULL,
         [CallInterface]           NVARCHAR(20)     NOT NULL,
+        [CallType]                NVARCHAR(20)     NOT NULL CONSTRAINT [DF_Combos_CallType] DEFAULT (N'Voice'),
         [RingtoneType]            NVARCHAR(20)     NOT NULL,
         [RingtoneMediaId]         UNIQUEIDENTIFIER NULL,
         [CustomBackgroundMediaId] UNIQUEIDENTIFIER NULL,
+        [VoiceMediaId]            UNIQUEIDENTIFIER NULL,
+        [VideoMediaId]            UNIQUEIDENTIFIER NULL,
+        [CallerName]              NVARCHAR(40)     NULL,
+        [VideoEndAction]          NVARCHAR(20)     NOT NULL CONSTRAINT [DF_Combos_VideoEndAction] DEFAULT (N'HangUp'),
         [BackgroundVolume]        DECIMAL(4, 2)    NOT NULL DEFAULT (0.30),
         [BackgroundOverridden]    BIT              NOT NULL DEFAULT (0),
         [SortOrder]               INT              NOT NULL DEFAULT (0),
@@ -232,11 +237,72 @@ BEGIN
         CONSTRAINT [FK_Combos_MediaFiles_RingtoneMediaId] FOREIGN KEY ([RingtoneMediaId])
             REFERENCES [dbo].[MediaFiles] ([Id]),
         CONSTRAINT [FK_Combos_MediaFiles_CustomBackgroundMediaId] FOREIGN KEY ([CustomBackgroundMediaId])
+            REFERENCES [dbo].[MediaFiles] ([Id]),
+        CONSTRAINT [FK_Combos_MediaFiles_VoiceMediaId] FOREIGN KEY ([VoiceMediaId])
+            REFERENCES [dbo].[MediaFiles] ([Id]),
+        CONSTRAINT [FK_Combos_MediaFiles_VideoMediaId] FOREIGN KEY ([VideoMediaId])
             REFERENCES [dbo].[MediaFiles] ([Id])
     );
 
     CREATE INDEX [IX_Combos_RingtoneMediaId] ON [dbo].[Combos] ([RingtoneMediaId]);
     CREATE INDEX [IX_Combos_CustomBackgroundMediaId] ON [dbo].[Combos] ([CustomBackgroundMediaId]);
+    CREATE INDEX [IX_Combos_VoiceMediaId] ON [dbo].[Combos] ([VoiceMediaId]);
+    CREATE INDEX [IX_Combos_VideoMediaId] ON [dbo].[Combos] ([VideoMediaId]);
+END
+GO
+
+-- 1.10b Nâng cấp database cũ: thêm cột giọng người gọi tự thu
+IF COL_LENGTH(N'dbo.Combos', N'VoiceMediaId') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Combos] ADD [VoiceMediaId] UNIQUEIDENTIFIER NULL;
+END
+GO
+IF OBJECT_ID(N'[dbo].[FK_Combos_MediaFiles_VoiceMediaId]', N'F') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Combos] ADD CONSTRAINT [FK_Combos_MediaFiles_VoiceMediaId]
+        FOREIGN KEY ([VoiceMediaId]) REFERENCES [dbo].[MediaFiles] ([Id]);
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Combos_VoiceMediaId' AND object_id = OBJECT_ID(N'dbo.Combos'))
+BEGIN
+    CREATE INDEX [IX_Combos_VoiceMediaId] ON [dbo].[Combos] ([VoiceMediaId]);
+END
+GO
+
+-- 1.10c Nâng cấp database cũ: thêm loại cuộc gọi (thoại/video) và video người gọi tự quay
+IF COL_LENGTH(N'dbo.Combos', N'CallType') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Combos] ADD [CallType] NVARCHAR(20) NOT NULL
+        CONSTRAINT [DF_Combos_CallType] DEFAULT (N'Voice');
+END
+GO
+IF COL_LENGTH(N'dbo.Combos', N'VideoMediaId') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Combos] ADD [VideoMediaId] UNIQUEIDENTIFIER NULL;
+END
+GO
+IF OBJECT_ID(N'[dbo].[FK_Combos_MediaFiles_VideoMediaId]', N'F') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Combos] ADD CONSTRAINT [FK_Combos_MediaFiles_VideoMediaId]
+        FOREIGN KEY ([VideoMediaId]) REFERENCES [dbo].[MediaFiles] ([Id]);
+END
+GO
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Combos_VideoMediaId' AND object_id = OBJECT_ID(N'dbo.Combos'))
+BEGIN
+    CREATE INDEX [IX_Combos_VideoMediaId] ON [dbo].[Combos] ([VideoMediaId]);
+END
+GO
+
+-- 1.10d Nâng cấp database cũ: tên người gọi và cách kết thúc của cuộc gọi video
+IF COL_LENGTH(N'dbo.Combos', N'CallerName') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Combos] ADD [CallerName] NVARCHAR(40) NULL;
+END
+GO
+IF COL_LENGTH(N'dbo.Combos', N'VideoEndAction') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[Combos] ADD [VideoEndAction] NVARCHAR(20) NOT NULL
+        CONSTRAINT [DF_Combos_VideoEndAction] DEFAULT (N'HangUp');
 END
 GO
 
@@ -507,7 +573,7 @@ BEGIN
         N'Gói Thoát Họp & Tăng Ca Khẩn Cấp',
         N'Bộ combo cứu nguy công sở chính hãng: Sếp gọi xử lý sự cố Server gấp và Khách hàng VIP yêu cầu hỗ trợ ngay lập tức.',
         N'Công việc',
-        29000,
+        0,
         2,
         1,
         412,
@@ -525,7 +591,7 @@ BEGIN
         N'Gói Giải Cứu Tiệc Rượu & Hẹn Hò',
         N'Dành cho các buổi tiệc kéo dài hoặc cuộc hẹn khó xử: Mẹ gọi về nhà gấp kèm âm nền TV gia đình và Bạn thân nhờ ra đón.',
         N'Tiệc tùng',
-        19000,
+        0,
         2,
         0,
         589,
@@ -561,7 +627,7 @@ BEGIN
         N'Combo Ra Khỏi Cuộc Nhậu Êm Đẹp',
         N'Kịch bản vợ/người yêu gọi về đón gấp kèm tiếng mưa và còi xe cực chân thật do người dùng chia sẻ.',
         N'Cộng đồng',
-        15000,
+        0,
         1,
         1,
         196,
@@ -589,4 +655,10 @@ BEGIN
         SYSUTCDATETIME()
     );
 END
+GO
+
+-- 2.6 Đảm bảo tất cả các gói tình huống và lịch sử nhận gói đều miễn phí (0đ)
+UPDATE [dbo].[MarketPackages] SET [PriceVnd] = 0 WHERE [PriceVnd] <> 0;
+UPDATE [dbo].[MarketPurchases] SET [PricePaidVnd] = 0 WHERE [PricePaidVnd] <> 0;
+UPDATE [dbo].[Scenarios] SET [IsPro] = 0 WHERE [IsPro] <> 0;
 GO

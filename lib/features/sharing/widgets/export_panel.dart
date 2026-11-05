@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,13 +7,15 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../app/theme/app_colors.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/network/api_client.dart';
 import '../../../core/services/file_service.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/glass_card.dart';
 import '../../../shared/widgets/screen_shell.dart';
 import '../../backup/services/backup_service.dart';
 import '../../combo/models/combo_model.dart';
+import '../../scenarios/data/scenario_lookup.dart';
+import '../../scenarios/models/scenario.dart';
+import '../../scenarios/providers/scenario_provider.dart';
 import '../models/combo_package.dart';
 import '../repositories/sharing_repository.dart';
 import 'combo_checklist.dart';
@@ -27,10 +31,18 @@ class ExportPanel extends ConsumerStatefulWidget {
 
 class _ExportPanelState extends ConsumerState<ExportPanel> {
   final _selectedIds = <String>{};
+  final _selectedScenarioIds = <String>{};
   bool _includeAudio = false;
   bool _isBusy = false;
   ComboPackage? _package;
   String? _onlineCode;
+
+  /// Đang xin mã ngắn `EH-` từ server; mã offline đã dùng được trong lúc chờ.
+  bool _fetchingOnline = false;
+  bool _onlineFailed = false;
+
+  /// Tăng mỗi khi lựa chọn đổi, để bỏ mã `EH-` về muộn của lựa chọn cũ.
+  int _shareRun = 0;
 
   /// Dung lượng ước tính của gói theo lựa chọn hiện tại; `null` khi đang tính.
   int? _estimate;
@@ -44,10 +56,13 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
   }
 
   void _invalidate(VoidCallback change) {
+    _shareRun++;
     setState(() {
       change();
       _package = null;
       _onlineCode = null;
+      _fetchingOnline = false;
+      _onlineFailed = false;
     });
     _refreshEstimate();
   }
@@ -55,48 +70,79 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
   List<ComboModel> get _selectedCombos =>
       widget.combos.where((combo) => _selectedIds.contains(combo.id)).toList();
 
+  List<Scenario> _resolveSelectedScenarios(List<Scenario> allScenarios) {
+    final byId = <String, Scenario>{
+      for (final sc in allScenarios)
+        if (_selectedScenarioIds.contains(sc.id)) sc.id: sc,
+    };
+    for (final combo in _selectedCombos) {
+      if (!combo.isVideoCall &&
+          !ScenarioLookup.isShareableId(combo.scenarioId)) {
+        for (final sc in allScenarios) {
+          if (sc.id == combo.scenarioId) {
+            byId[sc.id] = sc;
+            break;
+          }
+        }
+      }
+    }
+    return byId.values.toList();
+  }
+
   /// Tính lại dung lượng gói để báo trước khi người dùng bấm tạo mã.
   Future<void> _refreshEstimate() async {
     final run = ++_estimateRun;
+    final allScenarios =
+        ref.read(scenarioLibraryProvider).value?.scenarios ?? const [];
+    final scenarios = _resolveSelectedScenarios(allScenarios);
     final estimate = await ref
         .read(sharingRepositoryProvider)
-        .estimateSize(_selectedCombos, includeAudio: _includeAudio);
+        .estimateSize(
+          _selectedCombos,
+          scenarios: scenarios,
+          includeAudio: _includeAudio,
+        );
     if (mounted && run == _estimateRun) {
       setState(() => _estimate = estimate);
     }
   }
 
   bool get _isTooLarge => (_estimate ?? 0) > AppConstants.maxPackageBytes;
+
+  /// Tạo gói offline (QR, mã `TRON1.`, file .ehc) và hiện ngay; mã ngắn `EH-`
+  /// lấy từ server ở nền, nên không có mạng thì người dùng không phải chờ.
   Future<void> _generate() async {
+    final run = ++_shareRun;
+    final includeAudio = _includeAudio;
     setState(() => _isBusy = true);
     try {
       final selectedCombos = _selectedCombos;
+      final scenarioRepo = await ref.read(scenarioLibraryProvider.future);
+      final selectedScenarios = _resolveSelectedScenarios(
+        scenarioRepo.scenarios,
+      );
       final package = await ref
           .read(sharingRepositoryProvider)
-          .create(selectedCombos, includeAudio: _includeAudio);
-      String? onlineCode;
-      try {
-        final api = ref.read(apiClientProvider);
-        if (await api.hasToken()) {
-          onlineCode = await ref
-              .read(backupServiceProvider)
-              .createOnlineShare(selectedCombos, includeAudio: _includeAudio);
-        }
-      } catch (_) {
-        // Fallback to local offline share code if server is unreachable
-      }
-      if (mounted) {
-        setState(() {
-          _package = onlineCode == null
-              ? package
-              : ComboPackage(
-                  id: onlineCode.replaceFirst('EH-', ''),
-                  combos: package.combos,
-                  audio: package.audio,
-                );
-          _onlineCode = onlineCode;
-        });
-      }
+          .create(
+            selectedCombos,
+            scenarios: selectedScenarios,
+            includeAudio: includeAudio,
+          );
+      if (!mounted || run != _shareRun) return;
+      setState(() {
+        _package = package;
+        _onlineCode = null;
+        _fetchingOnline = true;
+        _onlineFailed = false;
+      });
+      unawaited(
+        _fetchOnlineCode(
+          run,
+          selectedCombos,
+          selectedScenarios,
+          includeAudio: includeAudio,
+        ),
+      );
     } catch (error) {
       if (mounted) {
         showMessage(
@@ -111,6 +157,32 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
         setState(() => _isBusy = false);
       }
     }
+  }
+
+  Future<void> _fetchOnlineCode(
+    int run,
+    List<ComboModel> combos,
+    List<Scenario> scenarios, {
+    required bool includeAudio,
+  }) async {
+    String? code;
+    try {
+      code = await ref
+          .read(backupServiceProvider)
+          .createOnlineShare(
+            combos,
+            selectedScenarios: scenarios,
+            includeAudio: includeAudio,
+          );
+    } catch (_) {
+      // Không có mạng hoặc server lỗi: vẫn dùng mã offline.
+    }
+    if (!mounted || run != _shareRun) return;
+    setState(() {
+      _onlineCode = code;
+      _fetchingOnline = false;
+      _onlineFailed = code == null;
+    });
   }
 
   Future<void> _deliver({required bool share}) async {
@@ -133,7 +205,7 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
               ),
             ],
             fileNameOverrides: ['tron_combos.ehc'],
-            subject: 'Combo TRỐN dành cho bạn',
+            subject: 'Kịch bản & Combo TRỐN dành cho bạn',
             sharePositionOrigin: box.localToGlobal(Offset.zero) & box.size,
           ),
         );
@@ -162,12 +234,25 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
   @override
   Widget build(BuildContext context) {
     final validIds = widget.combos.map((combo) => combo.id).toSet();
-    final selectedCount = _selectedIds.intersection(validIds).length;
+    final selectedComboCount = _selectedIds.intersection(validIds).length;
+    final allScenarios =
+        ref.watch(scenarioLibraryProvider).value?.scenarios ?? const [];
+    final validScenarioIds = allScenarios.map((s) => s.id).toSet();
+    final selectedScenarioCount = _selectedScenarioIds
+        .intersection(validScenarioIds)
+        .length;
+    final totalSelected = selectedComboCount + selectedScenarioCount;
+
     final package = _package;
-    final code = package == null
+    final offlineCode = package == null
         ? null
-        : (_onlineCode ?? ref.read(sharingRepositoryProvider).code(package));
-    final hasQr = code != null && code.length <= 2300;
+        : ref.read(sharingRepositoryProvider).code(package);
+    final qrCode = package == null
+        ? null
+        : (offlineCode != null && offlineCode.length <= 2300
+              ? offlineCode
+              : (_onlineCode ?? offlineCode));
+    final hasQr = qrCode != null && qrCode.length <= 2300;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -183,14 +268,14 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
               onPressed: _isBusy || widget.combos.isEmpty
                   ? null
                   : () => _invalidate(() {
-                      if (selectedCount == widget.combos.length) {
+                      if (selectedComboCount == widget.combos.length) {
                         _selectedIds.clear();
                       } else {
                         _selectedIds.addAll(validIds);
                       }
                     }),
               child: Text(
-                selectedCount == widget.combos.length &&
+                selectedComboCount == widget.combos.length &&
                         widget.combos.isNotEmpty
                     ? 'Bỏ chọn tất cả'
                     : 'Chọn tất cả',
@@ -211,6 +296,68 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
             }
           }),
         ),
+        if (allScenarios.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Chọn kịch bản để xuất cùng bạn bè',
+                  style: TextStyle(fontSize: 12, color: AppColors.muted),
+                ),
+              ),
+              TextButton(
+                onPressed: _isBusy
+                    ? null
+                    : () => _invalidate(() {
+                        if (selectedScenarioCount == allScenarios.length) {
+                          _selectedScenarioIds.clear();
+                        } else {
+                          _selectedScenarioIds.addAll(validScenarioIds);
+                        }
+                      }),
+                child: Text(
+                  selectedScenarioCount == allScenarios.length
+                      ? 'Bỏ chọn tất cả'
+                      : 'Chọn tất cả',
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
+          ),
+          for (final sc in allScenarios) ...[
+            GlassCard(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: CheckboxListTile(
+                value: _selectedScenarioIds.contains(sc.id),
+                onChanged: _isBusy
+                    ? null
+                    : (val) => _invalidate(() {
+                        if (val ?? false) {
+                          _selectedScenarioIds.add(sc.id);
+                        } else {
+                          _selectedScenarioIds.remove(sc.id);
+                        }
+                      }),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+                title: Text(
+                  sc.title,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                subtitle: Text(
+                  'Người gọi: ${sc.callerName} · ${sc.speechCount} câu thoại',
+                  style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ],
         const SizedBox(height: 8),
         CheckboxListTile(
           value: _includeAudio,
@@ -242,31 +389,64 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
         const SizedBox(height: 14),
         if (package == null)
           AppButton(
-            label: 'Tạo mã chia sẻ · $selectedCount combo',
+            label:
+                'Tạo mã chia sẻ · $selectedComboCount combo${selectedScenarioCount > 0 ? ', $selectedScenarioCount kịch bản' : ''}',
             icon: Icons.qr_code_rounded,
             isLoading: _isBusy,
             // Gói vượt giới hạn: khoá nút, lý do hiện ngay ở dòng phía trên.
-            onPressed: selectedCount == 0 || _isTooLarge ? null : _generate,
+            onPressed: totalSelected == 0 || _isTooLarge ? null : _generate,
           )
         else ...[
-          SharePackageCard(package: package, code: code!),
-          if (hasQr)
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: code));
-                  if (context.mounted) {
-                    showMessage(context, 'Đã sao chép mã đầy đủ.');
-                  }
-                },
-                icon: const Icon(Icons.copy_rounded, size: 14),
-                label: const Text(
-                  'Sao chép mã đầy đủ',
-                  style: TextStyle(fontSize: 11),
-                ),
+          SharePackageCard(
+            package: package,
+            code: qrCode!,
+            onlineCode: _onlineCode,
+          ),
+          if (_fetchingOnline || _onlineFailed)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                _fetchingOnline
+                    ? 'Đang lấy mã ngắn EH-… QR và mã đầy đủ đã dùng được ngay.'
+                    : 'Chưa lấy được mã ngắn EH- (không có mạng hoặc server '
+                          'lỗi). QR, mã đầy đủ và file .ehc vẫn dùng được.',
+                style: const TextStyle(fontSize: 11, color: AppColors.muted),
               ),
             ),
+          Wrap(
+            alignment: WrapAlignment.end,
+            spacing: 8,
+            children: [
+              if (_onlineCode != null)
+                TextButton.icon(
+                  onPressed: () async {
+                    await Clipboard.setData(ClipboardData(text: _onlineCode!));
+                    if (context.mounted) {
+                      showMessage(context, 'Đã sao chép mã $_onlineCode.');
+                    }
+                  },
+                  icon: const Icon(Icons.tag_rounded, size: 14),
+                  label: Text(
+                    'Sao chép mã $_onlineCode',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                ),
+              if (hasQr && offlineCode != null)
+                TextButton.icon(
+                  onPressed: () async {
+                    await Clipboard.setData(ClipboardData(text: offlineCode));
+                    if (context.mounted) {
+                      showMessage(context, 'Đã sao chép mã đầy đủ.');
+                    }
+                  },
+                  icon: const Icon(Icons.copy_rounded, size: 14),
+                  label: const Text(
+                    'Sao chép mã đầy đủ',
+                    style: TextStyle(fontSize: 11),
+                  ),
+                ),
+            ],
+          ),
           const SizedBox(height: 14),
           Row(
             children: [
@@ -306,7 +486,7 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
                   SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Nhận combo từ người khác?',
+                      'Nhận kịch bản / combo từ người khác?',
                       style: TextStyle(
                         fontWeight: FontWeight.w700,
                         fontSize: 13,
@@ -318,7 +498,7 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
               ),
               SizedBox(height: 9),
               Text(
-                'Chuyển sang tab Nhập để quét QR, dán mã đầy đủ hoặc mở file .ehc. Combo sẽ được lưu trên thiết bị của bạn.',
+                'Chuyển sang tab Nhập để quét QR, dán mã chia sẻ hoặc mở file .ehc. Kịch bản và combo sẽ được lưu trên thiết bị của bạn.',
                 style: TextStyle(
                   color: AppColors.muted,
                   fontSize: 12,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../shared/widgets/screen_shell.dart';
+import '../../backup/services/backup_service.dart';
 
 class QrScannerScreen extends StatefulWidget {
   const QrScannerScreen({super.key});
@@ -20,14 +21,27 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     super.dispose();
   }
 
+  static bool _isSupportedShareValue(String raw) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) return false;
+    final upper = trimmed.toUpperCase();
+    if (upper.startsWith('TRON1.') ||
+        upper.contains('TRON1.') ||
+        upper.startsWith('EH-') ||
+        upper.startsWith('MKT-')) {
+      return true;
+    }
+    return BackupService.normalizeOnlineCode(trimmed) != null;
+  }
+
   @override
   Widget build(BuildContext context) => ScreenShell(
-    title: 'Quét QR combo',
+    title: 'Quét QR chia sẻ',
     child: Padding(
       padding: const EdgeInsets.all(22),
       child: Column(
         children: [
-          const Text('Đưa QR chia sẻ TRỐN vào khung hình.'),
+          const Text('Đưa QR chia sẻ kịch bản / combo TRỐN vào khung hình.'),
           const SizedBox(height: 24),
           Expanded(
             child: ClipRRect(
@@ -49,11 +63,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                   final value = capture.barcodes
                       .map((barcode) => barcode.rawValue?.trim())
                       .whereType<String>()
-                      .where(
-                        (v) =>
-                            v.toUpperCase().startsWith('TRON1.') ||
-                            v.toUpperCase().startsWith('EH-'),
-                      )
+                      .where(_isSupportedShareValue)
                       .firstOrNull;
                   if (value == null) {
                     return;

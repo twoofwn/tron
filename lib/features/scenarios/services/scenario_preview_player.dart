@@ -123,9 +123,12 @@ class ScenarioPreviewPlayer extends ChangeNotifier {
         } else {
           final audioPath = step.audioPath;
           if (audioPath == null || audioPath.isEmpty) {
-            throw StateError('Câu thoại này chưa có file âm thanh.');
+            await Future<void>.delayed(
+              Duration(seconds: step.seconds > 0 ? step.seconds : 2),
+            );
+          } else {
+            await _activeBackend.playVoice(audioPath);
           }
-          await _activeBackend.playVoice(audioPath);
         }
       }
     } catch (_) {

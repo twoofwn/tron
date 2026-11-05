@@ -25,6 +25,7 @@ class ImportPanel extends ConsumerStatefulWidget {
 class _ImportPanelState extends ConsumerState<ImportPanel> {
   final _codeController = TextEditingController();
   final _selectedIds = <String>{};
+  final _selectedScenarioIds = <String>{};
   ComboPackage? _package;
   bool _copyDuplicates = false;
   bool _isBusy = false;
@@ -38,9 +39,14 @@ class _ImportPanelState extends ConsumerState<ImportPanel> {
   void _preview(ComboPackage package) => setState(() {
     _package = package;
     _error = null;
-    _selectedIds.clear();
-    _selectedIds.addAll(package.combos.map((combo) => combo.id));
+    _selectedIds
+      ..clear()
+      ..addAll(package.combos.map((combo) => combo.id));
+    _selectedScenarioIds
+      ..clear()
+      ..addAll(package.scenarios.map((sc) => sc.id));
   });
+
   Future<void> _readFile() async {
     setState(() {
       _isBusy = true;
@@ -73,7 +79,19 @@ class _ImportPanelState extends ConsumerState<ImportPanel> {
       return;
     }
 
-    if (text.toUpperCase().startsWith('EH-')) {
+    if (text.toUpperCase().contains('TRON1.')) {
+      try {
+        _preview(ref.read(sharingRepositoryProvider).decodeCode(text));
+      } catch (error) {
+        setState(
+          () => _error = error is FormatException ? error.message : 'Mã chia sẻ không đúng định dạng. Hãy kiểm tra lại và nhập lại.',
+        );
+      }
+      return;
+    }
+
+    final onlineCode = BackupService.normalizeOnlineCode(text);
+    if (onlineCode != null) {
       setState(() {
         _isBusy = true;
         _error = null;
@@ -81,14 +99,18 @@ class _ImportPanelState extends ConsumerState<ImportPanel> {
       try {
         final pkg = await ref
             .read(backupServiceProvider)
-            .fetchOnlineSharePackage(text);
+            .fetchOnlineSharePackage(onlineCode);
         if (mounted) {
           _preview(pkg);
         }
       } catch (error) {
         if (mounted) {
           setState(
-            () => _error = error is ApiException ? error.message : 'Không tải được mã chia sẻ trực tuyến. Vui lòng kiểm tra lại.',
+            () => _error = error is ApiException
+                ? error.message
+                : error is FormatException
+                ? error.message
+                : 'Không tải được mã chia sẻ trực tuyến. Vui lòng kiểm tra lại.',
           );
         }
       } finally {
@@ -121,33 +143,40 @@ class _ImportPanelState extends ConsumerState<ImportPanel> {
   }
 
   Future<void> _confirm() async {
-    if (_package == null || _selectedIds.isEmpty || _isBusy) {
+    if (_package == null ||
+        (_selectedIds.isEmpty && _selectedScenarioIds.isEmpty) ||
+        _isBusy) {
       return;
     }
     setState(() => _isBusy = true);
     try {
-      final count = await ref.read(sharingActionsProvider).importPackage(
-        _package!,
-        {..._selectedIds},
-        copyDuplicates: _copyDuplicates,
-      );
+      final count = await ref
+          .read(sharingActionsProvider)
+          .importPackage(
+            _package!,
+            {..._selectedIds},
+            selectedScenarioIds: {..._selectedScenarioIds},
+            copyDuplicates: _copyDuplicates,
+          );
       if (mounted) {
         showMessage(
           context,
           count == 0
-              ? 'Đã bỏ qua các combo trùng lặp.'
-              : 'Đã nhập $count combo vào thiết bị.',
+              ? 'Đã bỏ qua các mục trùng lặp.'
+              : 'Đã nhập $count mục (kịch bản / combo) vào thiết bị.',
         );
         setState(() {
           _package = null;
           _selectedIds.clear();
+          _selectedScenarioIds.clear();
           _codeController.clear();
         });
       }
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error = 'Không thể lưu combo hoặc âm thanh. Vui lòng thử lại.',
+          () => _error =
+              'Không thể lưu kịch bản, combo hoặc âm thanh. Vui lòng thử lại.',
         );
       }
     } finally {
@@ -165,12 +194,12 @@ class _ImportPanelState extends ConsumerState<ImportPanel> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Mang một lối thoát mới về máy',
+          'Mang kịch bản & lối thoát mới về máy',
           style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 8),
         const Text(
-          'Nhận combo từ bạn bè. Không tài khoản, không cần server.',
+          'Nhận kịch bản và combo từ bạn bè qua mã EH-XXXXXX, MKT-XXXXXX, TRON1.… hoặc quét QR.',
           style: TextStyle(color: AppColors.muted, fontSize: 12, height: 1.6),
         ),
         const SizedBox(height: 22),
@@ -202,7 +231,7 @@ class _ImportPanelState extends ConsumerState<ImportPanel> {
         const SizedBox(height: 10),
         AppTextField(
           controller: _codeController,
-          hint: 'Nhập mã EH-XXXXXX trực tuyến hoặc dán mã TRON1.…',
+          hint: 'Nhập mã EH-XXXXXX, MKT-XXXXXX hoặc dán mã TRON1.…',
           maxLines: 3,
           maxLength: 40000,
         ),
@@ -211,7 +240,7 @@ class _ImportPanelState extends ConsumerState<ImportPanel> {
           children: [
             Expanded(
               child: AppButton(
-                label: 'Xem trước combo',
+                label: 'Xem trước gói chia sẻ',
                 icon: Icons.preview_outlined,
                 isSecondary: true,
                 onPressed: _isBusy ? null : _readCode,
@@ -273,6 +302,7 @@ class _ImportPanelState extends ConsumerState<ImportPanel> {
           ImportPreview(
             package: package,
             selectedIds: _selectedIds,
+            selectedScenarioIds: _selectedScenarioIds,
             existingIds: existingIds,
             copyDuplicates: _copyDuplicates,
             isBusy: _isBusy,
@@ -281,6 +311,13 @@ class _ImportPanelState extends ConsumerState<ImportPanel> {
                 _selectedIds.add(id);
               } else {
                 _selectedIds.remove(id);
+              }
+            }),
+            onScenarioSelectionChanged: (id, selected) => setState(() {
+              if (selected) {
+                _selectedScenarioIds.add(id);
+              } else {
+                _selectedScenarioIds.remove(id);
               }
             }),
             onCopyDuplicatesChanged: (value) =>
@@ -294,7 +331,7 @@ class _ImportPanelState extends ConsumerState<ImportPanel> {
             SizedBox(width: 8),
             Expanded(
               child: Text(
-                'Bạn được xem và chọn combo trước khi lưu.',
+                'Bạn được xem và chọn kịch bản / combo trước khi lưu.',
                 style: TextStyle(fontSize: 11, color: AppColors.muted),
               ),
             ),

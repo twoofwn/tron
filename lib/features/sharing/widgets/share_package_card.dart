@@ -10,12 +10,20 @@ class SharePackageCard extends StatelessWidget {
     super.key,
     required this.package,
     required this.code,
+    this.onlineCode,
   });
   final ComboPackage package;
   final String code;
+  final String? onlineCode;
   @override
   Widget build(BuildContext context) {
     final hasQr = code.length <= 2300;
+    final displayTitle =
+        onlineCode ??
+        (code.toUpperCase().startsWith('EH-') ||
+                code.toUpperCase().startsWith('MKT-')
+            ? code.toUpperCase()
+            : 'Mã QR nội bộ');
     return GlassCard(
       onTap: hasQr
           ? () => showDialog<void>(
@@ -30,7 +38,7 @@ class SharePackageCard extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Text(
-                          'Quét để nhận combo',
+                          'Quét để nhận kịch bản / combo',
                           style: TextStyle(
                             color: Colors.black,
                             fontSize: 18,
@@ -49,7 +57,7 @@ class SharePackageCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 12),
                         const Text(
-                          'Mở TRỐN → Nhập → Quét QR',
+                          'Mở TRỐN → Nhập hoặc Kho kịch bản → Quét QR',
                           style: TextStyle(color: Colors.black54, fontSize: 12),
                         ),
                         TextButton(
@@ -111,7 +119,7 @@ class SharePackageCard extends StatelessWidget {
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'EH-${package.id.substring(0, 6).toUpperCase()}',
+                    displayTitle,
                     style: const TextStyle(
                       fontSize: 21,
                       fontWeight: FontWeight.w800,
@@ -122,7 +130,7 @@ class SharePackageCard extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   hasQr
-                      ? 'Chạm để phóng to QR hoặc sao chép mã đầy đủ. Không cần tài khoản.'
+                      ? 'Chạm để phóng to QR hoặc sao chép mã chia sẻ bên dưới.'
                       : 'Gói lớn: gửi file .ehc cho bạn bè để giữ đủ âm thanh.',
                   style: const TextStyle(
                     color: AppColors.muted,

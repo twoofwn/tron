@@ -677,7 +677,7 @@ public class MarketService(
                 ? $"Gói {combos.Count} combo tình huống được chia sẻ bởi {user.DisplayName}."
                 : request.Description.Trim(),
             CategoryTag = string.IsNullOrWhiteSpace(request.CategoryTag) ? "Cộng đồng" : request.CategoryTag.Trim(),
-            PriceVnd = Math.Clamp(request.PriceVnd, 0, 5_000_000),
+            PriceVnd = 0,
             ComboCount = combos.Count,
             ScenarioCount = customScenarios.Count,
             DownloadCount = 0,
@@ -712,7 +712,7 @@ public class MarketService(
                 Id = Guid.NewGuid(),
                 MarketPackageId = packageId,
                 BuyerId = userId,
-                PricePaidVnd = package.PriceVnd,
+                PricePaidVnd = 0,
                 PurchasedAt = DateTime.UtcNow
             };
             marketRepo.AddPurchase(existingPurchase);
@@ -828,7 +828,7 @@ public class MarketService(
             p.Title,
             p.Description,
             p.CategoryTag,
-            p.PriceVnd,
+            0,
             p.ComboCount,
             p.ScenarioCount,
             p.DownloadCount,
