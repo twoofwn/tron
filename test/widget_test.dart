@@ -143,7 +143,7 @@ void main() {
     tester,
   ) async {
     await start(tester);
-    expect(find.text('Cần lối thoát?'), findsOneWidget);
+    expect(find.text('COMBO CỦA BẠN'), findsOneWidget);
     final context = tester.element(find.byType(TronApp));
     final container = ProviderScope.containerOf(context);
     await tester.tap(find.text('Mẹ gọi về nhà'));
@@ -396,7 +396,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(container.read(callProvider).status, CallStatus.idle);
-    expect(find.text('Cần lối thoát?'), findsOneWidget);
+    expect(find.text('COMBO CỦA BẠN'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

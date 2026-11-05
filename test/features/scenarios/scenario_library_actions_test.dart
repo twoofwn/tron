@@ -9,9 +9,10 @@ import 'package:tron/features/scenarios/data/scenario_repository.dart';
 import 'package:tron/features/scenarios/models/scenario.dart';
 import 'package:tron/features/scenarios/presentation/scenario_library_screen.dart';
 
-/// Chờ các bước ghi file thật (mỗi bước chỉ chạy tiếp sau một lần pump).
-Future<void> settleIo(WidgetTester tester) async {
-  for (var i = 0; i < 10; i++) {
+/// Chờ các bước ghi file thật (mỗi bước chỉ chạy tiếp sau một lần pump) cho
+/// tới khi [done] đúng, tối đa khoảng 5 giây (máy bận khi chạy cả bộ test).
+Future<void> settleIo(WidgetTester tester, bool Function() done) async {
+  for (var i = 0; i < 250 && !done(); i++) {
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 20)),
     );
@@ -93,17 +94,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('Combo đang dùng vẫn gọi được'), findsOneWidget);
     await tester.tap(find.widgetWithText(TextButton, 'Xoá'));
-    await settleIo(tester);
+    final restore = find.text('Hiện lại 1 kịch bản mẫu đã xoá');
+    await settleIo(tester, () => restore.evaluate().isNotEmpty);
     await tester.pumpAndSettle();
 
     expect(find.text('Sếp cần file gấp'), findsNothing);
     // Combo đang dùng kịch bản này vẫn tìm thấy nó.
     expect(repository.findScenario('boss-server'), isNotNull);
-    final restore = find.text('Hiện lại 1 kịch bản mẫu đã xoá');
     expect(restore, findsOneWidget);
 
     await tester.tap(restore);
-    await settleIo(tester);
+    await settleIo(tester, () => restore.evaluate().isEmpty);
     await tester.pumpAndSettle();
     expect(find.text('Sếp cần file gấp'), findsOneWidget);
     expect(restore, findsNothing);
@@ -126,7 +127,7 @@ void main() {
     await tester.tap(find.text('Khôi phục bản gốc'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextButton, 'Khôi phục'));
-    await settleIo(tester);
+    await settleIo(tester, () => find.text('Mẹ đã sửa').evaluate().isEmpty);
     await tester.pumpAndSettle();
     expect(find.text('Mẹ đã sửa'), findsNothing);
     expect(find.text(sample.title), findsOneWidget);
