@@ -230,3 +230,9 @@ Code nằm dưới `lib/features/scenarios/{models,data,presentation,services}/`
 - Cuộc gọi thật trên Android: `CallDeviceService.leaveApp()` → kênh `tron/call` `leaveApp` → `moveTaskToBack(true)` (về màn hình chính, hoặc màn khóa nếu gọi lúc khóa máy). App không bị tắt hẳn để hẹn giờ, "Sẵn sàng khi tắt màn hình", báo an toàn SOS vẫn chạy; vẫn có trong danh sách app gần đây. Chờ app ra nền (tối đa 1 giây) rồi bỏ màn gọi bằng `removeRoute` (không hiệu ứng) để mở lại thấy trang chủ. iOS/web không hỗ trợ thì đóng màn gọi như cũ.
 - Cài đặt `AppSettings.leaveAppAfterCall` (mặc định bật, khoá `leaveAppAfterCall`), công tắc "Về màn hình chính sau khi tắt máy" chỉ hiện trên Android.
 - Kiểm tra: `flutter analyze` sạch; `flutter test` 243 đạt, 1 lỗi có sẵn (golden); `flutter build apk --debug` thành công. Chưa thử trên máy thật: hiệu ứng app trượt ra, gác máy lúc đang khóa máy, chữ kết thúc có khớp từng hãng máy/app thật không.
+
+### Không hiện thông báo "Cuộc gọi đến" khi đang mở app (2026-11-05)
+
+- Nhánh `codex/no-pre-call-notification`. Trước đây báo thức hệ thống (`CallAlarmService.scheduleCall`) đặt đúng giờ hẹn, còn đồng hồ trong app kiểm tra mỗi 0,2 giây, nên khi đang mở app thông báo "Cuộc gọi đến · Chạm để nghe" thường hiện ra trước khi app kịp huỷ.
+- Nay báo thức đặt trễ `CallNotifier.alarmDelay` (1,5 giây): app đang mở thì tự đổ chuông đúng giờ và huỷ báo thức trước khi nó chạy. Khoá máy hoặc app ở nền thì vẫn dùng thông báo (full-screen intent) như cũ, chỉ trễ 1,5 giây. Người dùng chọn giữ thông báo cho trường hợp khoá máy/nền.
+- Kiểm tra: `flutter analyze` sạch; `flutter test` 261 đạt, 1 lỗi có sẵn (golden). Chưa thử trên máy thật.

@@ -2,6 +2,17 @@
     "version": "0.2.0",
     "configurations": [
         {
+            // Điện thoại Android thật cắm USB: tự bật backend, nối cổng 5080
+            // của điện thoại về máy tính (adb reverse) rồi chạy app.
+            "name": "Flutter (Điện thoại thật + backend)",
+            "request": "launch",
+            "type": "dart",
+            "preLaunchTask": "Backend + nối cổng điện thoại",
+            "args": [
+                "--dart-define=API_BASE_URL=http://localhost:5080"
+            ]
+        },
+        {
             "name": "Flutter (Tự động chọn thiết bị)",
             "request": "launch",
             "type": "dart",

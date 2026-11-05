@@ -81,10 +81,18 @@ class CallNotifier extends Notifier<CallState> {
         );
       }
     });
-    final arming = _arm(combo, deadline);
+    // Báo thức hệ thống đổ trễ hơn đồng hồ trong app một chút: app đang mở thì
+    // tự đổ chuông và huỷ báo thức trước khi nó kịp hiện thông báo.
+    final arming = _arm(combo, deadline.add(alarmDelay));
     _arming = arming;
     return arming;
   }
+
+  /// Báo thức hệ thống (thông báo "Cuộc gọi đến") đổ trễ hơn giờ hẹn chừng này.
+  /// Chỉ dùng khi app ở nền hoặc máy khoá; khi app đang mở, đồng hồ trong app
+  /// (kiểm tra mỗi 0,2 giây) đổ chuông trước rồi huỷ báo thức, nên không có
+  /// thông báo nào hiện ra.
+  static const alarmDelay = Duration(milliseconds: 1500);
 
   Future<bool> _arm(ComboModel combo, DateTime fireAt) async {
     final alarm = ref.read(callAlarmServiceProvider);
