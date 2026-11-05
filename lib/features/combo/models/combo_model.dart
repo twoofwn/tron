@@ -20,6 +20,8 @@ class ComboModel {
     this.videoMediaId,
     this.callerName,
     this.videoEndAction = VideoEndAction.hangUp,
+    this.avatarPath,
+    this.avatarMediaId,
     this.syncPending = false,
   });
   final String id;
@@ -57,6 +59,13 @@ class ComboModel {
   /// Hết video thì tắt máy hay phát lại (chỉ dùng cho gọi video).
   final VideoEndAction videoEndAction;
 
+  /// Ảnh đại diện người gọi (`media:UUID.jpg` hoặc `.png`), hiện ở danh sách
+  /// combo và màn cuộc gọi. Không có thì hiện chữ cái đầu.
+  final String? avatarPath;
+
+  /// Id trên server của ảnh đại diện, giống [voiceMediaId].
+  final String? avatarMediaId;
+
   /// Combo đã đổi trên máy (kể cả giọng) nhưng server chưa nhận, ví dụ do mất
   /// mạng. Khi còn cờ này, bản trên máy được ưu tiên và app gửi lại lên server.
   final bool syncPending;
@@ -74,11 +83,15 @@ class ComboModel {
     String? videoMediaId,
     String? callerName,
     VideoEndAction? videoEndAction,
+    String? avatarPath,
+    String? avatarMediaId,
     bool? syncPending,
     bool clearVoice = false,
     bool clearVoiceMediaId = false,
     bool clearVideo = false,
     bool clearVideoMediaId = false,
+    bool clearAvatar = false,
+    bool clearAvatarMediaId = false,
     bool stripCustomAudio = false,
   }) => ComboModel(
     id: id ?? this.id,
@@ -109,6 +122,11 @@ class ComboModel {
         : videoMediaId ?? this.videoMediaId,
     callerName: callerName ?? this.callerName,
     videoEndAction: videoEndAction ?? this.videoEndAction,
+    // Ảnh đại diện luôn đi theo combo, kể cả khi bỏ âm thanh và video riêng.
+    avatarPath: clearAvatar ? null : avatarPath ?? this.avatarPath,
+    avatarMediaId: clearAvatar || clearAvatarMediaId
+        ? null
+        : avatarMediaId ?? this.avatarMediaId,
     syncPending: stripCustomAudio ? false : syncPending ?? this.syncPending,
   );
 
@@ -117,6 +135,7 @@ class ComboModel {
   ComboModel withoutSync() => copyWith(
     clearVoiceMediaId: true,
     clearVideoMediaId: true,
+    clearAvatarMediaId: true,
     syncPending: true,
   );
 
@@ -125,20 +144,24 @@ class ComboModel {
     Map<String, Object?> content(ComboModel combo) => combo.toJson()
       ..remove('voiceMediaId')
       ..remove('videoMediaId')
+      ..remove('avatarMediaId')
       ..remove('syncPending');
     return jsonEncode(content(this)) == jsonEncode(content(other));
   }
 
-  /// Mọi file riêng của combo: chuông, âm nền, giọng thu và video tự quay.
+  /// Mọi file riêng của combo: chuông, âm nền, giọng thu, video tự quay và
+  /// ảnh đại diện.
   List<String> get customMediaPaths => [
     ?ringtonePath,
     ?customBackgroundPath,
     ?voicePath,
     ?videoPath,
+    ?avatarPath,
   ];
 
-  /// File do người dùng tự thu/quay; app tự xoá khi không còn combo nào dùng.
-  List<String> get recordedMediaPaths => [?voicePath, ?videoPath];
+  /// File do người dùng tự thu/quay/chọn ảnh; app tự xoá khi không còn combo
+  /// nào dùng.
+  List<String> get recordedMediaPaths => [?voicePath, ?videoPath, ?avatarPath];
 
   bool get isVideoCall => callType == CallType.video;
 
@@ -165,6 +188,8 @@ class ComboModel {
     'videoMediaId': videoMediaId,
     'callerName': callerName,
     'videoEndAction': videoEndAction.name,
+    'avatarPath': avatarPath,
+    'avatarMediaId': avatarMediaId,
     'syncPending': syncPending,
     'createdAt': createdAt.toIso8601String(),
   };
@@ -238,6 +263,8 @@ class ComboModel {
       videoMediaId: json['videoMediaId'] as String?,
       callerName: cleanCallerName(json['callerName']),
       videoEndAction: VideoEndAction.parse(json['videoEndAction']),
+      avatarPath: json['avatarPath'] as String?,
+      avatarMediaId: json['avatarMediaId'] as String?,
       syncPending: json['syncPending'] as bool? ?? false,
       createdAt: createdAt,
     );

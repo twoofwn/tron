@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../shared/widgets/avatar_photo.dart';
 import 'call_action_button.dart';
 
 /// Màn đang gọi thoại của Messenger trên iPhone: nền tối mờ, nút thu nhỏ và
@@ -18,6 +19,7 @@ class MessengerInCallView extends StatelessWidget {
     required this.onHangUp,
     this.onSos,
     this.statusHint,
+    this.avatarPath,
   });
   final String caller;
   final String initial;
@@ -27,6 +29,9 @@ class MessengerInCallView extends StatelessWidget {
   final VoidCallback onToggleMute;
   final VoidCallback onToggleSpeaker;
   final VoidCallback onHangUp;
+
+  /// Ảnh đại diện người gọi (`media:...`); không có thì hiện chữ cái đầu.
+  final String? avatarPath;
 
   /// Giữ nút kết thúc 2 giây: gửi SOS (không có chữ nào gợi ý).
   final VoidCallback? onSos;
@@ -58,19 +63,23 @@ class MessengerInCallView extends StatelessWidget {
         top: 120,
         child: Column(
           children: [
-            Container(
-              width: 112,
-              height: 112,
-              alignment: Alignment.center,
-              decoration: const BoxDecoration(
-                color: Color(0xFF6D55D9),
-                shape: BoxShape.circle,
-              ),
-              child: Text(
-                initial,
-                style: const TextStyle(
-                  fontSize: 44,
-                  fontWeight: FontWeight.w600,
+            AvatarPhoto(
+              path: avatarPath,
+              size: 112,
+              fallback: Container(
+                width: 112,
+                height: 112,
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF6D55D9),
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  initial,
+                  style: const TextStyle(
+                    fontSize: 44,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),

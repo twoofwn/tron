@@ -14,6 +14,7 @@ class PhoneIncomingView extends StatelessWidget {
     required this.onAnswer,
     required this.onDecline,
     this.isVideo = false,
+    this.avatarPath,
   });
   final String caller;
   final String initial;
@@ -23,6 +24,9 @@ class PhoneIncomingView extends StatelessWidget {
 
   /// Cuộc gọi video: đổi dòng trạng thái và biểu tượng nút Trả lời.
   final bool isVideo;
+
+  /// Ảnh đại diện người gọi (`media:...`); không có thì hiện chữ cái đầu.
+  final String? avatarPath;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -55,6 +59,7 @@ class PhoneIncomingView extends StatelessWidget {
           textColor: theme.avatarText,
           size: 120,
           fontSize: 46,
+          photoPath: avatarPath,
         ),
         const SizedBox(height: 24),
         const Spacer(flex: 4),

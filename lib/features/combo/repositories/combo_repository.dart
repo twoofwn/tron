@@ -14,7 +14,8 @@ class ComboRepository {
   final StorageService storage;
   final ApiClient? api;
 
-  /// Dùng để đồng bộ giọng tự thu và video tự quay với server; `null` thì bỏ qua.
+  /// Dùng để đồng bộ giọng tự thu, video tự quay và ảnh đại diện với server;
+  /// `null` thì bỏ qua.
   final FileService? files;
 
   /// Gửi trong `voiceMediaId`/`videoMediaId` để báo server xoá giọng/video.
@@ -79,7 +80,7 @@ class ComboRepository {
       ),
       ComboModel(
         id: 'f4b5d550-ec19-4d54-a744-333333333333',
-        name: 'Lan rủ đi gấp',
+        name: 'Lan nhờ ra đón',
         scenarioId: 'friend',
         callInterface: CallInterface.messenger,
         createdAt: DateTime(2026),
@@ -328,7 +329,7 @@ class ComboRepository {
   Future<String?> uploadVoice(String path) =>
       uploadMedia(path, MediaTrack.voice.kind);
 
-  /// Tải file riêng (giọng: `Voice`, video: `Video`) lên server, dùng lại file
+  /// Tải file riêng (giọng: `Voice`, video: `Video`, ảnh: `Image`) lên server, dùng lại file
   /// đã có nếu trùng nội dung. Trả về id trên server, hoặc `null` nếu lỗi.
   Future<String?> uploadMedia(String path, String kind) async {
     if (api == null || files == null) {
@@ -457,11 +458,16 @@ class ComboRepository {
   }
 }
 
-/// Hai loại file tự thu/quay của combo, đồng bộ với server theo cùng một cách:
-/// không gửi trường = server giữ nguyên, [ComboRepository.clearVoiceId] = xoá.
+/// Các file riêng của combo (giọng tự thu, video tự quay, ảnh đại diện), đồng
+/// bộ với server theo cùng một cách: không gửi trường = server giữ nguyên,
+/// [ComboRepository.clearVoiceId] = xoá.
 enum MediaTrack {
   voice('voiceMediaId', 'Voice', 'wav'),
-  video('videoMediaId', 'Video', 'mp4');
+  video('videoMediaId', 'Video', 'mp4'),
+
+  /// Đuôi lưu bản tải về chỉ để chọn cách lưu: [FileService.storeImage] đặt
+  /// đuôi `jpg`/`png` theo nội dung ảnh.
+  avatar('avatarMediaId', 'Image', 'jpg');
 
   const MediaTrack(this.field, this.kind, this.extension);
 
@@ -477,11 +483,13 @@ enum MediaTrack {
   String? pathOf(ComboModel combo) => switch (this) {
     voice => combo.voicePath,
     video => combo.videoPath,
+    avatar => combo.avatarPath,
   };
 
   String? mediaIdOf(ComboModel combo) => switch (this) {
     voice => combo.voiceMediaId,
     video => combo.videoMediaId,
+    avatar => combo.avatarMediaId,
   };
 
   /// Gán file cho combo: `path` null thì bỏ file; `mediaId` null thì file chưa
@@ -503,6 +511,14 @@ enum MediaTrack {
                   videoPath: path,
                   videoMediaId: mediaId,
                   clearVideoMediaId: mediaId == null,
+                ),
+        avatar =>
+          path == null
+              ? combo.copyWith(clearAvatar: true)
+              : combo.copyWith(
+                  avatarPath: path,
+                  avatarMediaId: mediaId,
+                  clearAvatarMediaId: mediaId == null,
                 ),
       };
 }

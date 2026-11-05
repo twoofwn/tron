@@ -32,6 +32,7 @@ class VideoInCallView extends ConsumerStatefulWidget {
     required this.onVideoEnded,
     required this.onVideoUnavailable,
     this.onSos,
+    this.avatarPath,
   });
   final String caller;
   final String initial;
@@ -48,6 +49,9 @@ class VideoInCallView extends ConsumerStatefulWidget {
   final VoidCallback onHangUp;
   final VoidCallback onVideoEnded;
   final VoidCallback onVideoUnavailable;
+
+  /// Ảnh đại diện người gọi (`media:...`); không có thì hiện chữ cái đầu.
+  final String? avatarPath;
 
   /// Giữ nút gác máy 2 giây: gửi SOS.
   final VoidCallback? onSos;
@@ -367,6 +371,7 @@ class _VideoInCallViewState extends ConsumerState<VideoInCallView>
                   textColor: theme.avatarText,
                   size: 112,
                   fontSize: 42,
+                  photoPath: widget.avatarPath,
                 ),
                 const SizedBox(height: 14),
                 Text(

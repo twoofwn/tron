@@ -25,6 +25,7 @@ public static class DbInitializer
         // EnsureCreated không sửa bảng đã có, nên database tạo trước đó cần được bổ sung cột mới.
         await EnsureComboVoiceColumnAsync(db, ct);
         await EnsureComboVideoColumnsAsync(db, ct);
+        await EnsureComboAvatarColumnAsync(db, ct);
 
         // Seed seed data if missing
         await SeedAmbientSoundsAsync(db, ct);
@@ -108,6 +109,37 @@ public static class DbInitializer
         catch (Exception ex)
         {
             Log.Error(ex, "Could not add Combos video columns. Run the ALTER block in trondb.sql manually.");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Thêm cột Combos.AvatarMediaId (ảnh đại diện người gọi) vào database cũ. Chạy lại nhiều lần vẫn an toàn.
+    /// </summary>
+    private static async Task EnsureComboAvatarColumnAsync(TronDbContext db, CancellationToken ct)
+    {
+        const string sql = """
+            IF COL_LENGTH(N'dbo.Combos', N'AvatarMediaId') IS NULL
+            BEGIN
+                ALTER TABLE [dbo].[Combos] ADD [AvatarMediaId] UNIQUEIDENTIFIER NULL;
+            END;
+            IF OBJECT_ID(N'[dbo].[FK_Combos_MediaFiles_AvatarMediaId]', N'F') IS NULL
+            BEGIN
+                EXEC(N'ALTER TABLE [dbo].[Combos] ADD CONSTRAINT [FK_Combos_MediaFiles_AvatarMediaId]
+                    FOREIGN KEY ([AvatarMediaId]) REFERENCES [dbo].[MediaFiles] ([Id])');
+            END;
+            IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Combos_AvatarMediaId' AND object_id = OBJECT_ID(N'dbo.Combos'))
+            BEGIN
+                EXEC(N'CREATE INDEX [IX_Combos_AvatarMediaId] ON [dbo].[Combos] ([AvatarMediaId])');
+            END;
+            """;
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync(sql, ct);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Could not add Combos.AvatarMediaId. Run the ALTER block in trondb.sql manually.");
             throw;
         }
     }
@@ -205,49 +237,52 @@ public static class DbInitializer
         var mother = new Scenario
         {
             Id = "mother-urgent",
-            Title = "Mẹ gọi về gấp",
+            Title = "Mẹ gọi về ăn cơm",
             Category = ScenarioCategory.Family,
             Source = ScenarioSource.BuiltIn,
             CallerName = "Mẹ",
             Initial = "M",
-            EstimatedSeconds = 40,
+            EstimatedSeconds = 45,
             DefaultAmbientSoundId = "television",
             IsPro = false,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             Steps = new List<DialogueStep>
             {
-                new() { Id = "m1", ScenarioId = "mother-urgent", Order = 1, Type = DialogueStepType.Speech, Text = "Alo, con à?", AssetAudioPath = "audio/voice/mother_1.wav", Seconds = 2 },
+                new() { Id = "m1", ScenarioId = "mother-urgent", Order = 1, Type = DialogueStepType.Speech, Text = "Alo, con à? Con đang ở đâu đấy?", AssetAudioPath = "audio/voice/mother_1.wav", Seconds = 3 },
                 new() { Id = "mw1", ScenarioId = "mother-urgent", Order = 2, Type = DialogueStepType.Wait, Text = "Bạn trả lời · chạm để tiếp tục", Seconds = 0 },
-                new() { Id = "m2", ScenarioId = "mother-urgent", Order = 3, Type = DialogueStepType.Speech, Text = "Ở nhà có việc gấp, con về ngay nhé.", AssetAudioPath = "audio/voice/mother_2.wav", Seconds = 4 },
+                new() { Id = "m2", ScenarioId = "mother-urgent", Order = 3, Type = DialogueStepType.Speech, Text = "Ông bà nội vừa lên chơi, đang ngồi ở nhà mình đây này.", AssetAudioPath = "audio/voice/mother_2.wav", Seconds = 4 },
                 new() { Id = "mw2", ScenarioId = "mother-urgent", Order = 4, Type = DialogueStepType.Wait, Text = "Bạn trả lời · chạm để tiếp tục", Seconds = 0 },
-                new() { Id = "m3", ScenarioId = "mother-urgent", Order = 5, Type = DialogueStepType.Speech, Text = "Không được, bố con đang mệt. Về liền đi.", AssetAudioPath = "audio/voice/mother_3.wav", Seconds = 3 },
-                new() { Id = "m4", ScenarioId = "mother-urgent", Order = 6, Type = DialogueStepType.Speech, Text = "Nhanh lên nhé con.", AssetAudioPath = "audio/voice/mother_4.wav", Seconds = 2 }
+                new() { Id = "m3", ScenarioId = "mother-urgent", Order = 5, Type = DialogueStepType.Speech, Text = "Ông bà cứ hỏi con mãi. Con về ăn cơm với cả nhà luôn nhé.", AssetAudioPath = "audio/voice/mother_3.wav", Seconds = 4 },
+                new() { Id = "mw3", ScenarioId = "mother-urgent", Order = 6, Type = DialogueStepType.Wait, Text = "Bạn trả lời · chạm để tiếp tục", Seconds = 0 },
+                new() { Id = "m4", ScenarioId = "mother-urgent", Order = 7, Type = DialogueStepType.Speech, Text = "Ừ, mẹ nấu cơm rồi đấy, về sớm nhé.", AssetAudioPath = "audio/voice/mother_4.wav", Seconds = 3 },
+                new() { Id = "m5", ScenarioId = "mother-urgent", Order = 8, Type = DialogueStepType.Speech, Text = "À, tiện đường mua giúp mẹ chai nước mắm ở đầu ngõ nhé con.", AssetAudioPath = "audio/voice/mother_5.wav", Seconds = 4 }
             }
         };
 
         var boss = new Scenario
         {
             Id = "boss-server",
-            Title = "Sếp báo server sập",
+            Title = "Sếp cần file gấp",
             Category = ScenarioCategory.Work,
             Source = ScenarioSource.BuiltIn,
             CallerName = "Sếp Hùng",
             Initial = "S",
-            EstimatedSeconds = 55,
+            EstimatedSeconds = 45,
             DefaultAmbientSoundId = "office",
             IsPro = false,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             Steps = new List<DialogueStep>
             {
-                new() { Id = "b1", ScenarioId = "boss-server", Order = 1, Type = DialogueStepType.Speech, Text = "Alo, em nghe máy được không?", AssetAudioPath = "audio/voice/boss_1.wav", Seconds = 2 },
+                new() { Id = "b1", ScenarioId = "boss-server", Order = 1, Type = DialogueStepType.Speech, Text = "Alo, em đang ở đâu đấy?", AssetAudioPath = "audio/voice/boss_1.wav", Seconds = 2 },
                 new() { Id = "bw1", ScenarioId = "boss-server", Order = 2, Type = DialogueStepType.Wait, Text = "Bạn trả lời · chạm để tiếp tục", Seconds = 0 },
-                new() { Id = "b2", ScenarioId = "boss-server", Order = 3, Type = DialogueStepType.Speech, Text = "Server bên mình vừa gặp sự cố, cần em kiểm tra ngay.", AssetAudioPath = "audio/voice/boss_2.wav", Seconds = 4 },
-                new() { Id = "b3", ScenarioId = "boss-server", Order = 4, Type = DialogueStepType.Speech, Text = "Em có thể về máy tính trong ít phút nữa không?", AssetAudioPath = "audio/voice/boss_3.wav", Seconds = 4 },
-                new() { Id = "bw2", ScenarioId = "boss-server", Order = 5, Type = DialogueStepType.Wait, Text = "Bạn trả lời · chạm để tiếp tục", Seconds = 0 },
-                new() { Id = "b4", ScenarioId = "boss-server", Order = 6, Type = DialogueStepType.Speech, Text = "Ừ, anh chờ em. Cảm ơn nhé.", AssetAudioPath = "audio/voice/boss_4.wav", Seconds = 3 },
-                new() { Id = "b5", ScenarioId = "boss-server", Order = 7, Type = DialogueStepType.Speech, Text = "Có gì cập nhật thì gọi lại cho anh.", AssetAudioPath = "audio/voice/boss_5.wav", Seconds = 3 }
+                new() { Id = "b2", ScenarioId = "boss-server", Order = 3, Type = DialogueStepType.Speech, Text = "Anh đang ngồi với khách, họ muốn xem lại cái file báo giá em làm hôm qua.", AssetAudioPath = "audio/voice/boss_2.wav", Seconds = 4 },
+                new() { Id = "bw2", ScenarioId = "boss-server", Order = 4, Type = DialogueStepType.Wait, Text = "Bạn trả lời · chạm để tiếp tục", Seconds = 0 },
+                new() { Id = "b3", ScenarioId = "boss-server", Order = 5, Type = DialogueStepType.Speech, Text = "Trên máy anh mở không được. Em về máy gửi lại cho anh bản mới nhất nhé?", AssetAudioPath = "audio/voice/boss_3.wav", Seconds = 5 },
+                new() { Id = "bw3", ScenarioId = "boss-server", Order = 6, Type = DialogueStepType.Wait, Text = "Bạn trả lời · chạm để tiếp tục", Seconds = 0 },
+                new() { Id = "b4", ScenarioId = "boss-server", Order = 7, Type = DialogueStepType.Speech, Text = "Ừ, khoảng mười lăm phút nữa là được đúng không? Anh đợi.", AssetAudioPath = "audio/voice/boss_4.wav", Seconds = 4 },
+                new() { Id = "b5", ScenarioId = "boss-server", Order = 8, Type = DialogueStepType.Speech, Text = "Gửi xong nhắn anh một tiếng nhé. Thế nhé.", AssetAudioPath = "audio/voice/boss_5.wav", Seconds = 3 }
             }
         };
 
@@ -277,22 +312,26 @@ public static class DbInitializer
         var friend = new Scenario
         {
             Id = "friend-lan-demo",
-            Title = "Lan (bạn thân) – mẫu tự tạo",
+            Title = "Lan nhờ ra đón",
             Category = ScenarioCategory.Personal,
             Source = ScenarioSource.SampleUser,
             CallerName = "Lan",
             Initial = "L",
-            EstimatedSeconds = 30,
+            EstimatedSeconds = 40,
             DefaultAmbientSoundId = "cafe",
             IsPro = false,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             Steps = new List<DialogueStep>
             {
-                new() { Id = "f1", ScenarioId = "friend-lan-demo", Order = 1, Type = DialogueStepType.Speech, Text = "Ê, cậu ra ngoài gặp mình một lát được không?", AssetAudioPath = "audio/voice/friend_1.wav", Seconds = 3 },
+                new() { Id = "f1", ScenarioId = "friend-lan-demo", Order = 1, Type = DialogueStepType.Speech, Text = "Ê, cậu đang ở đâu thế?", AssetAudioPath = "audio/voice/friend_1.wav", Seconds = 2 },
                 new() { Id = "fw1", ScenarioId = "friend-lan-demo", Order = 2, Type = DialogueStepType.Wait, Text = "Bạn trả lời · chạm để tiếp tục", Seconds = 0 },
-                new() { Id = "f2", ScenarioId = "friend-lan-demo", Order = 3, Type = DialogueStepType.Speech, Text = "Mình đang có chuyện gấp muốn hỏi cậu.", AssetAudioPath = "audio/voice/friend_2.wav", Seconds = 3 },
-                new() { Id = "f3", ScenarioId = "friend-lan-demo", Order = 4, Type = DialogueStepType.Speech, Text = "Ra chỗ cũ nhé, mình đợi.", AssetAudioPath = "audio/voice/friend_3.wav", Seconds = 2 }
+                new() { Id = "f2", ScenarioId = "friend-lan-demo", Order = 3, Type = DialogueStepType.Speech, Text = "Xe tớ bị thủng săm rồi, đang ngồi ở quán cà phê gần nhà cậu nè.", AssetAudioPath = "audio/voice/friend_2.wav", Seconds = 4 },
+                new() { Id = "fw2", ScenarioId = "friend-lan-demo", Order = 4, Type = DialogueStepType.Wait, Text = "Bạn trả lời · chạm để tiếp tục", Seconds = 0 },
+                new() { Id = "f3", ScenarioId = "friend-lan-demo", Order = 5, Type = DialogueStepType.Speech, Text = "Điện thoại tớ cũng sắp hết pin. Cậu ra đây với tớ một lát được không?", AssetAudioPath = "audio/voice/friend_3.wav", Seconds = 5 },
+                new() { Id = "fw3", ScenarioId = "friend-lan-demo", Order = 6, Type = DialogueStepType.Wait, Text = "Bạn trả lời · chạm để tiếp tục", Seconds = 0 },
+                new() { Id = "f4", ScenarioId = "friend-lan-demo", Order = 7, Type = DialogueStepType.Speech, Text = "Ừ, cậu ra nhanh nhé, tớ ngồi bàn ngay ngoài cửa.", AssetAudioPath = "audio/voice/friend_4.wav", Seconds = 3 },
+                new() { Id = "f5", ScenarioId = "friend-lan-demo", Order = 8, Type = DialogueStepType.Speech, Text = "Đến nơi thì gọi tớ nha.", AssetAudioPath = "audio/voice/friend_5.wav", Seconds = 2 }
             }
         };
 

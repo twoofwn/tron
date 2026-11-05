@@ -46,8 +46,10 @@ public class UserDataService(
         var customBackgroundMediaId = await ResolveOwnedMediaAsync(userId, dto.CustomBackgroundMediaId, ct);
         var voiceMediaId = await ResolveOwnedMediaAsync(userId, dto.VoiceMediaId, ct);
         var videoMediaId = await ResolveOwnedMediaAsync(userId, dto.VideoMediaId, ct);
+        var avatarMediaId = await ResolveOwnedMediaAsync(userId, dto.AvatarMediaId, ct);
         var previousVoiceMediaId = existing?.VoiceMediaId;
         var previousVideoMediaId = existing?.VideoMediaId;
+        var previousAvatarMediaId = existing?.AvatarMediaId;
 
         if (existing is null)
         {
@@ -70,6 +72,7 @@ public class UserDataService(
                 VoiceMediaId = voiceMediaId,
                 CallType = ParseCallType(dto.CallType) ?? CallType.Voice,
                 VideoMediaId = videoMediaId,
+                AvatarMediaId = avatarMediaId,
                 CallerName = CleanCallerName(dto.CallerName),
                 VideoEndAction = ParseVideoEndAction(dto.VideoEndAction) ?? VideoEndAction.HangUp,
                 BackgroundVolume = Math.Clamp(dto.BackgroundVolume <= 0 ? 0.3m : dto.BackgroundVolume, 0m, 1m),
@@ -115,6 +118,10 @@ public class UserDataService(
             {
                 existing.VideoMediaId = videoMediaId;
             }
+            if (dto.AvatarMediaId.HasValue)
+            {
+                existing.AvatarMediaId = avatarMediaId;
+            }
             // App bản mới luôn gửi VideoEndAction (kể cả khi tên người gọi rỗng).
             if (ParseVideoEndAction(dto.VideoEndAction) is { } endAction)
             {
@@ -156,6 +163,10 @@ public class UserDataService(
         {
             await mediaRepo.OrphanIfUnreferencedAsync(userId, previousVideoMediaId.Value, ct);
         }
+        if (previousAvatarMediaId.HasValue && previousAvatarMediaId != existing.AvatarMediaId)
+        {
+            await mediaRepo.OrphanIfUnreferencedAsync(userId, previousAvatarMediaId.Value, ct);
+        }
 
         return MapComboDto(existing, prefix);
     }
@@ -186,6 +197,7 @@ public class UserDataService(
 
         var voiceMediaId = existing.VoiceMediaId;
         var videoMediaId = existing.VideoMediaId;
+        var avatarMediaId = existing.AvatarMediaId;
         userDataRepo.RemoveCombo(existing);
         await userDataRepo.SaveChangesAsync(ct);
         if (voiceMediaId.HasValue)
@@ -195,6 +207,10 @@ public class UserDataService(
         if (videoMediaId.HasValue)
         {
             await mediaRepo.OrphanIfUnreferencedAsync(userId, videoMediaId.Value, ct);
+        }
+        if (avatarMediaId.HasValue)
+        {
+            await mediaRepo.OrphanIfUnreferencedAsync(userId, avatarMediaId.Value, ct);
         }
     }
 
@@ -472,7 +488,8 @@ public class UserDataService(
             MapCallTypeString(c.CallType),
             c.VideoMediaId,
             c.CallerName,
-            MapVideoEndActionString(c.VideoEndAction));
+            MapVideoEndActionString(c.VideoEndAction),
+            c.AvatarMediaId);
 
     internal static ScenarioDto MapScenarioDto(Scenario s, string prefix) =>
         new(
@@ -735,7 +752,8 @@ public class MarketService(
                     RingtoneMediaId = null,
                     CustomBackgroundMediaId = null,
                     VoiceMediaId = null,
-                    VideoMediaId = null
+                    VideoMediaId = null,
+                    AvatarMediaId = null
                 };
                 var savedCombo = await userDataService.UpsertComboAsync(userId, newComboDto, ct);
                 addedCombos.Add(savedCombo);

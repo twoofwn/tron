@@ -36,11 +36,9 @@ class SharingRepository {
       throw FormatException(_tooLargeMessage(estimate));
     }
     final audio = <String, Uint8List>{};
-    if (includeAudio) {
-      for (final combo in combos) {
-        for (final path in combo.customMediaPaths) {
-          audio[path] = await files.readMedia(path);
-        }
+    for (final combo in combos) {
+      for (final path in _packedPaths(combo, includeAudio: includeAudio)) {
+        audio[path] = await files.readMedia(path);
       }
     }
     final package = ComboPackage(
@@ -61,6 +59,13 @@ class SharingRepository {
     return package;
   }
 
+  /// File đi kèm combo trong gói. Ảnh đại diện nhẹ nên luôn đi theo combo;
+  /// âm thanh và video chỉ đi kèm khi người dùng chọn.
+  static List<String> _packedPaths(
+    ComboModel combo, {
+    required bool includeAudio,
+  }) => includeAudio ? combo.customMediaPaths : [?combo.avatarPath];
+
   static String _tooLargeMessage(int bytes) =>
       'Gói nặng khoảng ${sizeLabel(bytes)}, vượt giới hạn '
       '${sizeLabel(AppConstants.maxPackageBytes)}. Hãy chọn ít combo hơn '
@@ -73,11 +78,12 @@ class SharingRepository {
     required bool includeAudio,
   }) async {
     var bytes = 512 + combos.length * 600;
-    if (includeAudio) {
-      final paths = {for (final combo in combos) ...combo.customMediaPaths};
-      for (final path in paths) {
-        bytes += (await files.mediaSize(path)) * 4 ~/ 3 + 64;
-      }
+    final paths = {
+      for (final combo in combos)
+        ..._packedPaths(combo, includeAudio: includeAudio),
+    };
+    for (final path in paths) {
+      bytes += (await files.mediaSize(path)) * 4 ~/ 3 + 64;
     }
     return bytes;
   }
@@ -154,12 +160,16 @@ class SharingRepository {
         }
         final data = base64Decode(entry.value as String);
         final isVideo = FileService.isVideoPath(entry.key);
+        final isImage = FileService.isImagePath(entry.key);
         final limit = isVideo
             ? AppConstants.maxVideoBytes
+            : isImage
+            ? AppConstants.maxAvatarBytes
             : AppConstants.maxAudioBytes;
         if (data.isEmpty ||
             data.length > limit ||
-            (isVideo && !FileService.isMp4(data))) {
+            (isVideo && !FileService.isMp4(data)) ||
+            (isImage && FileService.imageExtension(data) == null)) {
           throw const FormatException();
         }
         audio[entry.key] = data;
@@ -214,6 +224,7 @@ class SharingRepository {
                 customBackgroundPath: paths[combo.customBackgroundPath],
                 voicePath: paths[combo.voicePath],
                 videoPath: paths[combo.videoPath],
+                avatarPath: paths[combo.avatarPath],
               )
               .withoutSync(),
         )

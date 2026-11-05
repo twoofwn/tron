@@ -62,6 +62,7 @@ dependencies:
   camera: ^0.12.2
   video_player: ^2.14.1
   web: ^1.1.1
+  image_picker: ^1.2.4
 
 dev_dependencies:
   flutter_test:
@@ -107,6 +108,7 @@ flutter:
         - asset: assets/fonts/be-vietnam-pro-bold.ttf
           weight: 700
   assets:
+    - assets/images/
     - assets/audio/ringtones/
     - assets/audio/backgrounds/
     - assets/scenarios/

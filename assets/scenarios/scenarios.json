@@ -1,39 +1,42 @@
 [
   {
     "id": "mother-urgent",
-    "title": "Mẹ gọi về gấp",
+    "title": "Mẹ gọi về ăn cơm",
     "category": "family",
     "source": "builtIn",
     "callerName": "Mẹ",
     "initial": "M",
-    "estimatedSeconds": 40,
+    "estimatedSeconds": 45,
     "defaultBackgroundId": "television",
     "steps": [
-      {"id": "m1", "type": "speech", "text": "Alo, con à?", "audioPath": "audio/voice/mother_1.wav", "seconds": 2},
+      {"id": "m1", "type": "speech", "text": "Alo, con à? Con đang ở đâu đấy?", "audioPath": "audio/voice/mother_1.wav", "seconds": 3},
       {"id": "mw1", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
-      {"id": "m2", "type": "speech", "text": "Ở nhà có việc gấp, con về ngay nhé.", "audioPath": "audio/voice/mother_2.wav", "seconds": 4},
+      {"id": "m2", "type": "speech", "text": "Ông bà nội vừa lên chơi, đang ngồi ở nhà mình đây này.", "audioPath": "audio/voice/mother_2.wav", "seconds": 4},
       {"id": "mw2", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
-      {"id": "m3", "type": "speech", "text": "Không được, bố con đang mệt. Về liền đi.", "audioPath": "audio/voice/mother_3.wav", "seconds": 3},
-      {"id": "m4", "type": "speech", "text": "Nhanh lên nhé con.", "audioPath": "audio/voice/mother_4.wav", "seconds": 2}
+      {"id": "m3", "type": "speech", "text": "Ông bà cứ hỏi con mãi. Con về ăn cơm với cả nhà luôn nhé.", "audioPath": "audio/voice/mother_3.wav", "seconds": 4},
+      {"id": "mw3", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
+      {"id": "m4", "type": "speech", "text": "Ừ, mẹ nấu cơm rồi đấy, về sớm nhé.", "audioPath": "audio/voice/mother_4.wav", "seconds": 3},
+      {"id": "m5", "type": "speech", "text": "À, tiện đường mua giúp mẹ chai nước mắm ở đầu ngõ nhé con.", "audioPath": "audio/voice/mother_5.wav", "seconds": 4}
     ]
   },
   {
     "id": "boss-server",
-    "title": "Sếp báo server sập",
+    "title": "Sếp cần file gấp",
     "category": "work",
     "source": "builtIn",
     "callerName": "Sếp Hùng",
     "initial": "S",
-    "estimatedSeconds": 55,
+    "estimatedSeconds": 45,
     "defaultBackgroundId": "office",
     "steps": [
-      {"id": "b1", "type": "speech", "text": "Alo, em nghe máy được không?", "audioPath": "audio/voice/boss_1.wav", "seconds": 2},
+      {"id": "b1", "type": "speech", "text": "Alo, em đang ở đâu đấy?", "audioPath": "audio/voice/boss_1.wav", "seconds": 2},
       {"id": "bw1", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
-      {"id": "b2", "type": "speech", "text": "Server bên mình vừa gặp sự cố, cần em kiểm tra ngay.", "audioPath": "audio/voice/boss_2.wav", "seconds": 4},
-      {"id": "b3", "type": "speech", "text": "Em có thể về máy tính trong ít phút nữa không?", "audioPath": "audio/voice/boss_3.wav", "seconds": 4},
+      {"id": "b2", "type": "speech", "text": "Anh đang ngồi với khách, họ muốn xem lại cái file báo giá em làm hôm qua.", "audioPath": "audio/voice/boss_2.wav", "seconds": 4},
       {"id": "bw2", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
-      {"id": "b4", "type": "speech", "text": "Ừ, anh chờ em. Cảm ơn nhé.", "audioPath": "audio/voice/boss_4.wav", "seconds": 3},
-      {"id": "b5", "type": "speech", "text": "Có gì cập nhật thì gọi lại cho anh.", "audioPath": "audio/voice/boss_5.wav", "seconds": 3}
+      {"id": "b3", "type": "speech", "text": "Trên máy anh mở không được. Em về máy gửi lại cho anh bản mới nhất nhé?", "audioPath": "audio/voice/boss_3.wav", "seconds": 5},
+      {"id": "bw3", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
+      {"id": "b4", "type": "speech", "text": "Ừ, khoảng mười lăm phút nữa là được đúng không? Anh đợi.", "audioPath": "audio/voice/boss_4.wav", "seconds": 4},
+      {"id": "b5", "type": "speech", "text": "Gửi xong nhắn anh một tiếng nhé. Thế nhé.", "audioPath": "audio/voice/boss_5.wav", "seconds": 3}
     ]
   },
   {
@@ -55,18 +58,22 @@
   },
   {
     "id": "friend-lan-demo",
-    "title": "Lan (bạn thân) – mẫu tự tạo",
+    "title": "Lan nhờ ra đón",
     "category": "personal",
     "source": "sampleUser",
     "callerName": "Lan",
     "initial": "L",
-    "estimatedSeconds": 30,
+    "estimatedSeconds": 40,
     "defaultBackgroundId": "cafe",
     "steps": [
-      {"id": "f1", "type": "speech", "text": "Ê, cậu ra ngoài gặp mình một lát được không?", "audioPath": "audio/voice/friend_1.wav", "seconds": 3},
+      {"id": "f1", "type": "speech", "text": "Ê, cậu đang ở đâu thế?", "audioPath": "audio/voice/friend_1.wav", "seconds": 2},
       {"id": "fw1", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
-      {"id": "f2", "type": "speech", "text": "Mình đang có chuyện gấp muốn hỏi cậu.", "audioPath": "audio/voice/friend_2.wav", "seconds": 3},
-      {"id": "f3", "type": "speech", "text": "Ra chỗ cũ nhé, mình đợi.", "audioPath": "audio/voice/friend_3.wav", "seconds": 2}
+      {"id": "f2", "type": "speech", "text": "Xe tớ bị thủng săm rồi, đang ngồi ở quán cà phê gần nhà cậu nè.", "audioPath": "audio/voice/friend_2.wav", "seconds": 4},
+      {"id": "fw2", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
+      {"id": "f3", "type": "speech", "text": "Điện thoại tớ cũng sắp hết pin. Cậu ra đây với tớ một lát được không?", "audioPath": "audio/voice/friend_3.wav", "seconds": 5},
+      {"id": "fw3", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
+      {"id": "f4", "type": "speech", "text": "Ừ, cậu ra nhanh nhé, tớ ngồi bàn ngay ngoài cửa.", "audioPath": "audio/voice/friend_4.wav", "seconds": 3},
+      {"id": "f5", "type": "speech", "text": "Đến nơi thì gọi tớ nha.", "audioPath": "audio/voice/friend_5.wav", "seconds": 2}
     ]
   }
 ]

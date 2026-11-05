@@ -5,6 +5,7 @@ import '../../../app/router/route_names.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_text_styles.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/constants/asset_paths.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_loading.dart';
 import '../../../core/widgets/glass_card.dart';
@@ -152,43 +153,21 @@ class HomeScreen extends ConsumerWidget {
                                 ),
                               ),
                             ),
-                            TextButton.icon(
+                            HomeOutlineButton(
+                              label: 'Nhập / Xuất',
+                              icon: Icons.swap_vert_rounded,
                               onPressed: () => Navigator.pushNamed(
                                 context,
                                 RouteNames.sharing,
                               ),
-                              style: TextButton.styleFrom(
-                                foregroundColor: AppColors.accent,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                ),
-                              ),
-                              icon: const Icon(
-                                Icons.storefront_outlined,
-                                size: 15,
-                              ),
-                              label: const Text(
-                                'Nhập / Xuất',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
                             ),
-                            TextButton(
+                            const SizedBox(width: 8),
+                            HomeOutlineButton(
+                              label: 'Tạo combo',
+                              icon: Icons.add_rounded,
                               onPressed: () => Navigator.pushNamed(
                                 context,
                                 RouteNames.comboForm,
-                              ),
-                              style: TextButton.styleFrom(
-                                padding: const EdgeInsets.only(left: 4),
-                              ),
-                              child: const Text(
-                                '+ Tạo combo',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
                               ),
                             ),
                           ],
@@ -277,34 +256,19 @@ class HomeHeader extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: const BoxDecoration(
-                    color: AppColors.accent,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 7),
-                const Text(
-                  'TRỐN',
-                  style: TextStyle(
-                    fontSize: 12,
-                    letterSpacing: 3,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
+            Image.asset(
+              AssetPaths.logo,
+              height: 30,
+              fit: BoxFit.contain,
+              semanticLabel: 'Trốn',
             ),
-            const SizedBox(height: 12),
-            const Text(
-              'Chào bạn,',
-              style: TextStyle(color: AppColors.muted, fontSize: 13),
-            ),
-            const SizedBox(height: 4),
-            const Text('Cần lối thoát?', style: AppTextStyles.title),
+            // const SizedBox(height: 12),
+            // const Text(
+            //   'Chào bạn,',
+            //   style: TextStyle(color: AppColors.muted, fontSize: 13),
+            // ),
+            // const SizedBox(height: 4),
+            // const Text('Cần lối thoát?', style: AppTextStyles.title),
           ],
         ),
       ),
@@ -326,6 +290,39 @@ class HomeHeader extends StatelessWidget {
         ),
       ),
     ],
+  );
+}
+
+/// Nút chỉ có viền ở hàng "COMBO CỦA BẠN".
+class HomeOutlineButton extends StatelessWidget {
+  const HomeOutlineButton({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => OutlinedButton.icon(
+    onPressed: onPressed,
+    style: OutlinedButton.styleFrom(
+      foregroundColor: AppColors.accent,
+      side: BorderSide(color: AppColors.accent.withValues(alpha: 0.7)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      minimumSize: const Size(0, 34),
+      tapTargetSize: MaterialTapTargetSize.padded,
+      visualDensity: VisualDensity.compact,
+    ),
+    icon: Icon(icon, size: 16),
+    label: Text(
+      label,
+      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+    ),
   );
 }
 

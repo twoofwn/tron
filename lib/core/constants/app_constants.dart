@@ -8,6 +8,12 @@ abstract final class AppConstants {
   static const maxAudioBytes = AppConfig.maxAudioBytes;
   static const maxVideoBytes = AppConfig.maxVideoBytes;
   static const maxPackageBytes = AppConfig.maxPackageBytes;
+
+  /// Ảnh đại diện người gọi (khớp giới hạn ảnh của server).
+  static const maxAvatarBytes = 2 * 1024 * 1024;
+
+  /// Cạnh dài nhất của ảnh đại diện sau khi thu nhỏ (điểm ảnh).
+  static const avatarMaxSide = 512.0;
 }
 
 String delayLabel(Duration duration) => duration.inSeconds < 60

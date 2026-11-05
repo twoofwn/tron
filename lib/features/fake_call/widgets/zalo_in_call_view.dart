@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../shared/widgets/avatar_photo.dart';
 import 'call_action_button.dart';
 
 /// Màn đang gọi của Zalo, dựng theo ảnh chụp app thật: nền xanh, nút quay lại,
@@ -17,6 +18,7 @@ class ZaloInCallView extends StatelessWidget {
     required this.onHangUp,
     this.onSos,
     this.statusHint,
+    this.avatarPath,
   });
   final String caller;
   final Duration elapsed;
@@ -29,6 +31,9 @@ class ZaloInCallView extends StatelessWidget {
   /// Giữ nút Kết thúc 2 giây: gửi SOS (không có chữ nào gợi ý).
   final VoidCallback? onSos;
   final Widget? statusHint;
+
+  /// Ảnh đại diện người gọi (`media:...`); không có thì hiện chữ cái đầu.
+  final String? avatarPath;
 
   static const background = Color(0xFF1068FE);
   static const _button = Color(0xFF0353CC);
@@ -53,6 +58,7 @@ class ZaloInCallView extends StatelessWidget {
           Positioned.fill(
             child: ZaloCallHeader(
               caller: caller,
+              avatarPath: avatarPath,
               status: Column(
                 children: [
                   Text(
@@ -121,8 +127,16 @@ class ZaloInCallView extends StatelessWidget {
 /// Phần trên chung của màn gọi Zalo (gọi đến và đang gọi): nút quay lại,
 /// "Zalo" + HD, nút video, avatar viền xanh, tên và một dòng trạng thái.
 class ZaloCallHeader extends StatelessWidget {
-  const ZaloCallHeader({super.key, required this.caller, required this.status});
+  const ZaloCallHeader({
+    super.key,
+    required this.caller,
+    required this.status,
+    this.avatarPath,
+  });
   final String caller;
+
+  /// Ảnh đại diện người gọi (`media:...`); không có thì hiện chữ cái đầu.
+  final String? avatarPath;
 
   /// Dưới tên: đồng hồ khi đang gọi, "Cuộc gọi thoại đến" khi gọi đến.
   final Widget status;
@@ -202,21 +216,25 @@ class ZaloCallHeader extends StatelessWidget {
               color: _ring,
               shape: BoxShape.circle,
             ),
-            child: Container(
-              alignment: Alignment.center,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFF8CC2FF), Color(0xFF3D86FF)],
+            child: AvatarPhoto(
+              path: avatarPath,
+              size: 150,
+              fallback: Container(
+                alignment: Alignment.center,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF8CC2FF), Color(0xFF3D86FF)],
+                  ),
                 ),
-              ),
-              child: Text(
-                _initials,
-                style: const TextStyle(
-                  fontSize: 52,
-                  fontWeight: FontWeight.w500,
+                child: Text(
+                  _initials,
+                  style: const TextStyle(
+                    fontSize: 52,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),

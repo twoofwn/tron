@@ -21,6 +21,7 @@ import '../../settings/models/app_settings.dart';
 import '../../settings/providers/settings_provider.dart';
 import '../models/combo_model.dart';
 import '../providers/combo_provider.dart';
+import '../widgets/avatar_picker_card.dart';
 import '../widgets/background_preview_controls.dart';
 import '../widgets/background_sound_selector.dart';
 import '../widgets/call_interface_selector.dart';
@@ -50,12 +51,13 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
   String? _voicePath;
   late CallType _callType;
   String? _videoPath;
+  String? _avatarPath;
   late VideoEndAction _videoEndAction;
   bool _isSaving = false;
   bool _isPicking = false;
   bool _isRecording = false;
 
-  /// Bản thu giọng và video tạo ra trong lần sửa này. Bản nào không được lưu thì xoá file.
+  /// Bản thu giọng, video và ảnh tạo ra trong lần sửa này. Bản nào không được lưu thì xoá file.
   final _takes = <String>{};
   bool _committed = false;
   late final FileService _files;
@@ -87,6 +89,7 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
     _voicePath = combo?.voicePath;
     _callType = combo?.callType ?? CallType.voice;
     _videoPath = combo?.videoPath;
+    _avatarPath = combo?.avatarPath;
     _videoEndAction = combo?.videoEndAction ?? VideoEndAction.hangUp;
     _files = ref.read(fileServiceProvider);
     _backgroundPreview = ref.read(backgroundPreviewProvider.notifier);
@@ -118,6 +121,52 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
     final previous = _videoPath;
     _change(() => _videoPath = path);
     _replaceTake(previous, path);
+  }
+
+  void _onAvatarChanged(String? path) {
+    final previous = _avatarPath;
+    _change(() => _avatarPath = path);
+    _replaceTake(previous, path);
+  }
+
+  Future<void> _pickAvatar(AvatarSource source) async {
+    if (source == AvatarSource.remove) {
+      _onAvatarChanged(null);
+      return;
+    }
+    if (_isPicking) {
+      return;
+    }
+    setState(() => _isPicking = true);
+    try {
+      final path = await _files.pickAvatar(
+        fromCamera: source == AvatarSource.camera,
+      );
+      if (path != null) {
+        if (mounted) {
+          _onAvatarChanged(path);
+        } else {
+          await _files.deleteAudio(path);
+        }
+      }
+    } on FormatException catch (error) {
+      if (mounted) {
+        showMessage(context, error.message);
+      }
+    } catch (_) {
+      if (mounted) {
+        showMessage(
+          context,
+          source == AvatarSource.camera
+              ? 'Không mở được camera. Kiểm tra quyền camera của TRỐN.'
+              : 'Không chọn được ảnh. Hãy chọn ảnh JPG hoặc PNG khác.',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isPicking = false);
+      }
+    }
   }
 
   /// Bản thu/quay của lần sửa này bị thay hoặc xoá trước khi lưu: xoá file luôn.
@@ -155,9 +204,20 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
         : null,
     callerName: ComboModel.cleanCallerName(_callerController.text),
     videoEndAction: _videoEndAction,
+    avatarPath: _avatarPath,
+    avatarMediaId:
+        _avatarPath != null && _avatarPath == widget.combo?.avatarPath
+        ? widget.combo?.avatarMediaId
+        : null,
   );
 
   bool get _isVideo => _callType == CallType.video;
+
+  /// Chữ cái đầu của tên combo, giống thẻ combo ở màn Home.
+  static String _initialOf(String name) {
+    final trimmed = name.trim();
+    return trimmed.isEmpty ? '?' : trimmed.characters.first.toUpperCase();
+  }
 
   void _change(VoidCallback change) {
     setState(() {
@@ -434,6 +494,16 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
                 validator: (value) => value == null || value.trim().isEmpty
                     ? 'Hãy đặt tên cho combo của bạn'
                     : null,
+              ),
+              const SizedBox(height: 12),
+              ValueListenableBuilder(
+                valueListenable: _nameController,
+                builder: (context, name, _) => AvatarPickerCard(
+                  avatarPath: _avatarPath,
+                  initial: _initialOf(name.text),
+                  enabled: !_isPicking && !_isRecording,
+                  onSelected: _pickAvatar,
+                ),
               ),
               const SizedBox(height: 18),
               const _FieldLabel('Loại cuộc gọi'),

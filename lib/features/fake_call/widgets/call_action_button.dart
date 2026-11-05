@@ -1,6 +1,8 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import '../../../shared/widgets/avatar_photo.dart';
+
 /// Nút tròn của màn cuộc gọi, có nhãn bên dưới (có thể ẩn nhãn).
 class CallButton extends StatelessWidget {
   const CallButton({
@@ -105,7 +107,8 @@ class CallButton extends StatelessWidget {
   );
 }
 
-/// Avatar chữ cái đầu dùng chung cho các màn cuộc gọi.
+/// Avatar dùng chung cho các màn cuộc gọi: ảnh đại diện nếu có, không thì chữ
+/// cái đầu.
 class CallAvatar extends StatelessWidget {
   const CallAvatar({
     super.key,
@@ -115,6 +118,7 @@ class CallAvatar extends StatelessWidget {
     required this.size,
     required this.fontSize,
     this.fontWeight = FontWeight.w400,
+    this.photoPath,
   });
   final String initial;
   final Color color;
@@ -123,18 +127,25 @@ class CallAvatar extends StatelessWidget {
   final double fontSize;
   final FontWeight fontWeight;
 
+  /// Ảnh đại diện người gọi (`media:...`).
+  final String? photoPath;
+
   @override
-  Widget build(BuildContext context) => Container(
-    width: size,
-    height: size,
-    alignment: Alignment.center,
-    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-    child: Text(
-      initial,
-      style: TextStyle(
-        color: textColor,
-        fontSize: fontSize,
-        fontWeight: fontWeight,
+  Widget build(BuildContext context) => AvatarPhoto(
+    path: photoPath,
+    size: size,
+    fallback: Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      child: Text(
+        initial,
+        style: TextStyle(
+          color: textColor,
+          fontSize: fontSize,
+          fontWeight: fontWeight,
+        ),
       ),
     ),
   );

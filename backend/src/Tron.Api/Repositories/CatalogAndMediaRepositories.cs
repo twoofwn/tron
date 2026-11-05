@@ -81,7 +81,7 @@ public class MediaRepository(TronDbContext db, ILogger<MediaRepository> logger)
     /// <summary>File còn được combo, kịch bản, âm nền hoặc gói chia sẻ nào dùng không.</summary>
     public static async Task<bool> IsMediaReferencedAsync(TronDbContext db, Guid mediaId, CancellationToken ct = default) =>
         await db.Combos.AnyAsync(c => c.RingtoneMediaId == mediaId || c.CustomBackgroundMediaId == mediaId
-            || c.VoiceMediaId == mediaId || c.VideoMediaId == mediaId, ct)
+            || c.VoiceMediaId == mediaId || c.VideoMediaId == mediaId || c.AvatarMediaId == mediaId, ct)
         || await db.DialogueSteps.AnyAsync(s => s.MediaFileId == mediaId, ct)
         || await db.AmbientSounds.AnyAsync(a => a.MediaFileId == mediaId, ct)
         || await db.SharePackageMedia.AnyAsync(sm => sm.MediaFileId == mediaId, ct);
