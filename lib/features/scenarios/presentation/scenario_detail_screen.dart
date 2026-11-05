@@ -1,7 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
+import '../../../core/network/api_client.dart';
+import '../../../core/services/file_service.dart';
+import '../../../core/services/storage_service.dart';
+import '../../../shared/enums/call_interface.dart';
+import '../../sharing/repositories/sharing_repository.dart';
 import '../data/scenario_repository.dart';
 import '../models/scenario.dart';
 import '../services/scenario_preview_player.dart';
@@ -72,6 +79,18 @@ class _ScenarioDetailScreenState extends State<ScenarioDetailScreen>
     if (mounted && updated != null) setState(() => _scenarioId = updated.id);
   }
 
+  Future<void> _shareScenario(Scenario scenario) async {
+    await _preview.stop();
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) =>
+          _ShareScenarioSheet(scenario: scenario, api: widget.repository.api),
+    );
+  }
+
   Future<void> _delete(Scenario scenario) async {
     await _preview.stop();
     if (!mounted) return;
@@ -140,7 +159,7 @@ class _ScenarioDetailScreenState extends State<ScenarioDetailScreen>
                           onPressed: () => Navigator.of(context).pop(),
                           icon: const Icon(Icons.arrow_back_ios_new),
                         ),
-                        const SizedBox(width: 5),
+                        const SizedBox(width: 4),
                         Expanded(
                           child: Text(
                             scenario.title,
@@ -148,6 +167,11 @@ class _ScenarioDetailScreenState extends State<ScenarioDetailScreen>
                             overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.headlineMedium,
                           ),
+                        ),
+                        IconButton(
+                          tooltip: 'Chia sẻ mã / QR kịch bản',
+                          onPressed: () => _shareScenario(scenario),
+                          icon: const Icon(Icons.qr_code_2_rounded),
                         ),
                         OutlinedButton(
                           onPressed: () => _edit(scenario),
@@ -408,6 +432,202 @@ class _ScenarioDetailScreenState extends State<ScenarioDetailScreen>
             style: const TextStyle(fontWeight: FontWeight.w700),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ShareScenarioSheet extends StatefulWidget {
+  const _ShareScenarioSheet({required this.scenario, this.api});
+  final Scenario scenario;
+  final ApiClient? api;
+
+  @override
+  State<_ShareScenarioSheet> createState() => _ShareScenarioSheetState();
+}
+
+class _ShareScenarioSheetState extends State<_ShareScenarioSheet> {
+  String? _offlineCode;
+  String? _onlineCode;
+
+  @override
+  void initState() {
+    super.initState();
+    _prepareCodes();
+  }
+
+  Future<void> _prepareCodes() async {
+    final sharing = SharingRepository(FileService());
+    final shareableScenario = widget.scenario.copyWith(
+      id: widget.scenario.source == ScenarioSource.user
+          ? widget.scenario.id
+          : 'user-${widget.scenario.id}-${DateTime.now().millisecondsSinceEpoch}',
+      source: ScenarioSource.user,
+    );
+    final pkg = await sharing.create(
+      const [],
+      scenarios: [shareableScenario],
+      includeAudio: false,
+    );
+    final offline = sharing.code(pkg);
+    if (mounted) {
+      setState(() => _offlineCode = offline);
+    }
+
+    try {
+      final api = widget.api ?? ApiClient(storage: StorageService());
+      final stepPayloads = shareableScenario.steps
+          .map(
+            (st) => {
+              'id': st.id,
+              'type': st.type.name,
+              'text': st.text,
+              'audioPath':
+                  st.audioPath != null &&
+                      ScenarioRepository.isBundledAudio(st.audioPath!)
+                  ? st.audioPath
+                  : null,
+              'mediaFileId': null,
+              'seconds': st.seconds,
+            },
+          )
+          .toList();
+      final scenarioDto = {
+        'id': shareableScenario.id,
+        'title': shareableScenario.title,
+        'category': shareableScenario.category.name,
+        'source': 'user',
+        'callerName': shareableScenario.callerName,
+        'initial': shareableScenario.initial,
+        'estimatedSeconds': shareableScenario.estimatedSeconds,
+        'defaultBackgroundId': shareableScenario.defaultBackgroundId,
+        'isPro': false,
+        'steps': stepPayloads,
+      };
+      final res = await api.postJson('/shares', {
+        'combos': [
+          {
+            'id': '00000000-0000-0000-0000-000000000001',
+            'name': '__TRON_SCENARIO_ONLY__',
+            'scenarioId': shareableScenario.id,
+            'callInterface': CallInterface.phone.name,
+            'ringtoneType': RingtoneType.interfaceDefault.name,
+            'ringtoneMediaId': null,
+            'backgroundSoundIds': const <String>[],
+            'customBackgroundMediaId': null,
+            'voiceMediaId': null,
+            'callType': 'voice',
+            'callerName': shareableScenario.callerName,
+            'videoEndAction': 'hangUp',
+            'videoMediaId': null,
+            'backgroundVolume': 0.3,
+            'backgroundOverridden': false,
+            'createdAt': DateTime.now().toUtc().toIso8601String(),
+          },
+        ],
+        'customScenarios': [scenarioDto],
+        'customAmbientSounds': const <Map<String, dynamic>>[],
+        'includeAudio': false,
+        'expiresInDays': 7,
+      });
+      if (mounted) {
+        setState(() => _onlineCode = res['code'] as String?);
+      }
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final offlineCode = _offlineCode;
+    final qrData = offlineCode != null && offlineCode.length <= 2300
+        ? offlineCode
+        : (_onlineCode ?? offlineCode);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Chia sẻ kịch bản “${widget.scenario.title}”',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 14),
+            if (qrData != null && qrData.length <= 2300)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: QrImageView(
+                  data: qrData,
+                  size: 200,
+                  backgroundColor: Colors.white,
+                  errorCorrectionLevel: QrErrorCorrectLevel.L,
+                ),
+              ),
+            const SizedBox(height: 12),
+            if (_onlineCode != null) ...[
+              Text(
+                _onlineCode!,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
+            const Text(
+              'Bạn bè mở Kho kịch bản hoặc mục Nhập → Quét QR hoặc dán mã bên dưới để nhận.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12),
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: WrapAlignment.center,
+              children: [
+                if (_onlineCode != null)
+                  FilledButton.tonalIcon(
+                    onPressed: () async {
+                      await Clipboard.setData(
+                        ClipboardData(text: _onlineCode!),
+                      );
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Đã sao chép mã $_onlineCode.'),
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.tag_rounded, size: 16),
+                    label: Text('Sao chép mã $_onlineCode'),
+                  ),
+                if (offlineCode != null)
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      await Clipboard.setData(ClipboardData(text: offlineCode));
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Đã sao chép mã kịch bản đầy đủ.'),
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.copy_rounded, size: 16),
+                    label: const Text('Sao chép mã đầy đủ (TRON1)'),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

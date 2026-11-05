@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_text_styles.dart';
@@ -8,6 +9,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/widgets/app_button.dart';
 import '../../../core/widgets/app_loading.dart';
 import '../../../core/widgets/glass_card.dart';
+import '../../../shared/enums/call_interface.dart';
 import '../../../shared/widgets/screen_shell.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../combo/models/combo_model.dart';
@@ -29,7 +31,6 @@ class MarketPackageItem {
     required this.title,
     required this.description,
     required this.categoryTag,
-    required this.priceVnd,
     required this.comboCount,
     required this.scenarioCount,
     required this.downloadCount,
@@ -48,7 +49,6 @@ class MarketPackageItem {
   final String title;
   final String description;
   final String categoryTag;
-  final int priceVnd;
   final int comboCount;
   final int scenarioCount;
   final int downloadCount;
@@ -68,7 +68,6 @@ class MarketPackageItem {
         title: (json['title'] as String?) ?? '',
         description: (json['description'] as String?) ?? '',
         categoryTag: (json['categoryTag'] as String?) ?? 'Tình huống',
-        priceVnd: (json['priceVnd'] as num?)?.toInt() ?? 0,
         comboCount: (json['comboCount'] as num?)?.toInt() ?? 0,
         scenarioCount: (json['scenarioCount'] as num?)?.toInt() ?? 0,
         downloadCount: (json['downloadCount'] as num?)?.toInt() ?? 0,
@@ -82,19 +81,6 @@ class MarketPackageItem {
             .map((e) => Map<String, dynamic>.from(e as Map))
             .toList(),
       );
-}
-
-String _formatVnd(int amount) {
-  if (amount <= 0) return 'Miễn phí';
-  final str = amount.toString();
-  final buffer = StringBuffer();
-  for (var i = 0; i < str.length; i++) {
-    if (i > 0 && (str.length - i) % 3 == 0) {
-      buffer.write('.');
-    }
-    buffer.write(str[i]);
-  }
-  return '${buffer.toString()}đ';
 }
 
 enum SharingScreenTab { export, import, market }
@@ -167,88 +153,84 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
   }
 
   Future<void> _buyOrClaim(MarketPackageItem pkg) async {
-    if (!pkg.isPurchased && pkg.priceVnd > 0) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Mua gói tình huống'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                pkg.title,
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Đăng bởi: ${pkg.sellerName}',
-                style: const TextStyle(fontSize: 12, color: AppColors.muted),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Bao gồm ${pkg.comboCount} combo${pkg.scenarioCount > 0 ? ' và ${pkg.scenarioCount} kịch bản hội thoại mới' : ''}. Sau khi thanh toán, toàn bộ gói sẽ được lưu thẳng vào tài khoản của bạn.',
-                style: const TextStyle(fontSize: 13),
-              ),
-              const SizedBox(height: 14),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.accent.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Tổng thanh toán:',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    Text(
-                      _formatVnd(pkg.priceVnd),
-                      style: const TextStyle(
-                        color: AppColors.accent,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Hủy'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text('Thanh toán ${_formatVnd(pkg.priceVnd)}'),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true || !mounted) return;
-    }
-
     setState(() => _buyingId = pkg.id);
     try {
       final api = ref.read(apiClientProvider);
       final res = await api.postJson('/market/packages/${pkg.id}/buy', {});
-      final addedCombos = (res['addedCombosCount'] as num?)?.toInt() ?? 0;
+      var addedCombos = (res['addedCombosCount'] as num?)?.toInt() ?? 0;
+
+      // Lưu kịch bản và combo về máy ngay lập tức kể cả khi chưa đăng nhập tài khoản riêng
+      try {
+        final scenarioRepo = await ref.read(scenarioLibraryProvider.future);
+        for (final rawSc in pkg.customScenarios) {
+          final sc = Scenario.fromJson(rawSc);
+          final sanitizedSteps = sc.steps
+              .map(
+                (st) => DialogueStep(
+                  id: st.id,
+                  type: st.type,
+                  text: st.text,
+                  audioPath:
+                      st.audioPath != null &&
+                          ScenarioRepository.isBundledAudio(st.audioPath!)
+                      ? st.audioPath
+                      : null,
+                  seconds: st.seconds,
+                ),
+              )
+              .toList();
+          await scenarioRepo.saveUserScenario(
+            sc.copyWith(source: ScenarioSource.user, steps: sanitizedSteps),
+          );
+        }
+
+        if (!await api.hasToken() && pkg.combos.isNotEmpty) {
+          final localCombos = <ComboModel>[];
+          for (final map in pkg.combos) {
+            final bgList = ((map['backgroundSoundIds'] as List?) ?? const [])
+                .map((e) => e.toString())
+                .where(
+                  (key) =>
+                      BackgroundSound.values.any((sound) => sound.name == key),
+                )
+                .toList();
+            final rawInterface = map['callInterface'] as String? ?? 'phone';
+            final callInterface = CallInterface.values.firstWhere(
+              (v) => v.name.toLowerCase() == rawInterface.toLowerCase(),
+              orElse: () => CallInterface.phone,
+            );
+            final rawRingtone =
+                map['ringtoneType'] as String? ?? 'interfaceDefault';
+            final ringtoneType = RingtoneType.values.firstWhere(
+              (v) => v.name.toLowerCase() == rawRingtone.toLowerCase(),
+              orElse: () => RingtoneType.interfaceDefault,
+            );
+            localCombos.add(
+              ComboModel(
+                id: (map['id'] as String?) ?? const Uuid().v4(),
+                name: (map['name'] as String?) ?? 'Combo',
+                scenarioId: (map['scenarioId'] as String?) ?? 'mom_urgent_home',
+                callInterface: callInterface,
+                ringtoneType: ringtoneType,
+                backgroundSoundPaths: bgList,
+                createdAt: DateTime.now(),
+              ),
+            );
+          }
+          addedCombos = await ref
+              .read(comboListProvider.notifier)
+              .importCombos(localCombos, copyDuplicates: false);
+        }
+      } catch (_) {}
 
       if (mounted) {
         showMessage(
           context,
-          'Đã nhận gói “${pkg.title}” (+$addedCombos combo đã lưu vào CSDL).',
+          'Đã nhận gói “${pkg.title}” (+$addedCombos combo đã lưu).',
         );
       }
 
-      // Safely refresh local providers and package listing from DB without masking purchase success
+      // Safely refresh local providers and package listing from DB without masking claim success
       try {
         ref.invalidate(comboListProvider);
         ref.invalidate(scenarioLibraryProvider);
@@ -263,7 +245,7 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
       if (mounted) {
         showMessage(
           context,
-          e is ApiException ? e.message : 'Không thể mua gói lúc này.',
+          e is ApiException ? e.message : 'Không thể nhận gói lúc này.',
         );
       }
     } finally {
@@ -329,15 +311,6 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
                       style: const TextStyle(
                         fontSize: 12,
                         color: AppColors.muted,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      _formatVnd(pkg.priceVnd),
-                      style: const TextStyle(
-                        color: AppColors.accent,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 16,
                       ),
                     ),
                   ],
@@ -440,13 +413,11 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
                 const SizedBox(height: 14),
                 AppButton(
                   label: pkg.isPurchased
-                      ? 'Đã sở hữu · Tải lại combo vào máy'
-                      : pkg.priceVnd <= 0
-                      ? 'Nhận gói miễn phí ngay'
-                      : 'Mua gói · ${_formatVnd(pkg.priceVnd)}',
+                      ? 'Đã sở hữu · Tải lại vào máy'
+                      : 'Nhận gói vào máy',
                   icon: pkg.isPurchased
                       ? Icons.download_done_rounded
-                      : Icons.shopping_bag_outlined,
+                      : Icons.download_rounded,
                   onPressed: () {
                     Navigator.pop(ctx);
                     _buyOrClaim(pkg);
@@ -672,7 +643,7 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
                       const SizedBox(height: 12),
                       Text(
                         _tab == 'mine'
-                            ? 'Bạn chưa mua hoặc đăng gói tình huống nào.'
+                            ? 'Bạn chưa nhận hoặc đăng gói tình huống nào.'
                             : 'Chưa có gói tình huống nào khớp tìm kiếm.',
                         textAlign: TextAlign.center,
                       ),
@@ -721,31 +692,6 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
                                   child: Text(
                                     pkg.categoryTag,
                                     style: const TextStyle(fontSize: 11),
-                                  ),
-                                ),
-                                const Spacer(),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: pkg.priceVnd <= 0
-                                        ? Colors.green.withValues(alpha: 0.16)
-                                        : AppColors.accent.withValues(
-                                            alpha: 0.18,
-                                          ),
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  child: Text(
-                                    _formatVnd(pkg.priceVnd),
-                                    style: TextStyle(
-                                      color: pkg.priceVnd <= 0
-                                          ? Colors.greenAccent
-                                          : AppColors.accent,
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 12,
-                                    ),
                                   ),
                                 ),
                               ],
@@ -798,7 +744,7 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
                                     icon: Icon(
                                       pkg.isPurchased
                                           ? Icons.check_circle_outline
-                                          : Icons.shopping_cart_checkout,
+                                          : Icons.download_rounded,
                                       size: 16,
                                     ),
                                     label: Text(
@@ -806,9 +752,7 @@ class _SharingScreenState extends ConsumerState<SharingScreen> {
                                           ? 'Đang xử lý...'
                                           : pkg.isPurchased
                                           ? 'Đã sở hữu · Tải về'
-                                          : pkg.priceVnd <= 0
-                                          ? 'Nhận miễn phí'
-                                          : 'Mua ${_formatVnd(pkg.priceVnd)}',
+                                          : 'Nhận gói',
                                     ),
                                   ),
                                 ),
@@ -885,7 +829,6 @@ class _PublishPackageSheetState extends ConsumerState<_PublishPackageSheet> {
   final _titleCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   String _category = 'Công việc';
-  int _priceVnd = 0;
   late final Set<String> _selectedIds = {widget.userCombos.first.id};
   bool _submitting = false;
 
@@ -963,7 +906,7 @@ class _PublishPackageSheetState extends ConsumerState<_PublishPackageSheet> {
         'title': title,
         'description': descText.isEmpty ? null : descText,
         'categoryTag': _category,
-        'priceVnd': _priceVnd,
+        'priceVnd': 0,
         'combos': selectedCombos.map(ComboRepository.toServerMap).toList(),
         'customScenarios': customScenarios,
         'customAmbientSounds': const <Map<String, dynamic>>[],
@@ -1002,7 +945,7 @@ class _PublishPackageSheetState extends ConsumerState<_PublishPackageSheet> {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Chia sẻ miễn phí hoặc đặt giá bán cho bộ combo và kịch bản của bạn.',
+              'Chia sẻ bộ combo và kịch bản của bạn cho cộng đồng.',
               style: TextStyle(fontSize: 12, color: AppColors.muted),
             ),
             const SizedBox(height: 14),
@@ -1025,59 +968,22 @@ class _PublishPackageSheetState extends ConsumerState<_PublishPackageSheet> {
               ),
             ),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _category,
-                    decoration: const InputDecoration(
-                      labelText: 'Chủ đề',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'Công việc',
-                        child: Text('Công việc'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Gia đình',
-                        child: Text('Gia đình'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Tiệc tùng',
-                        child: Text('Tiệc tùng'),
-                      ),
-                      DropdownMenuItem(value: 'Hẹn hò', child: Text('Hẹn hò')),
-                      DropdownMenuItem(
-                        value: 'Cộng đồng',
-                        child: Text('Cộng đồng'),
-                      ),
-                    ],
-                    onChanged: (v) {
-                      if (v != null) setState(() => _category = v);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: DropdownButtonFormField<int>(
-                    initialValue: _priceVnd,
-                    decoration: const InputDecoration(
-                      labelText: 'Giá bán',
-                      border: OutlineInputBorder(),
-                    ),
-                    items: const [
-                      DropdownMenuItem(value: 0, child: Text('Miễn phí (0đ)')),
-                      DropdownMenuItem(value: 15000, child: Text('15.000đ')),
-                      DropdownMenuItem(value: 29000, child: Text('29.000đ')),
-                      DropdownMenuItem(value: 49000, child: Text('49.000đ')),
-                    ],
-                    onChanged: (v) {
-                      if (v != null) setState(() => _priceVnd = v);
-                    },
-                  ),
-                ),
+            DropdownButtonFormField<String>(
+              initialValue: _category,
+              decoration: const InputDecoration(
+                labelText: 'Chủ đề',
+                border: OutlineInputBorder(),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'Công việc', child: Text('Công việc')),
+                DropdownMenuItem(value: 'Gia đình', child: Text('Gia đình')),
+                DropdownMenuItem(value: 'Tiệc tùng', child: Text('Tiệc tùng')),
+                DropdownMenuItem(value: 'Hẹn hò', child: Text('Hẹn hò')),
+                DropdownMenuItem(value: 'Cộng đồng', child: Text('Cộng đồng')),
               ],
+              onChanged: (v) {
+                if (v != null) setState(() => _category = v);
+              },
             ),
             const SizedBox(height: 14),
             Text(

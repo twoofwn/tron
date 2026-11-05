@@ -302,7 +302,7 @@ public static class DbInitializer
 
     private static async Task SeedMarketPackagesAsync(TronDbContext db, CancellationToken ct)
     {
-        if (await db.MarketPackages.AnyAsync(ct))
+        if (await db.MarketPackages.AnyAsync(ct)) { await db.Database.ExecuteSqlRawAsync("UPDATE [dbo].[MarketPackages] SET [PriceVnd] = 0 WHERE [PriceVnd] <> 0; UPDATE [dbo].[MarketPurchases] SET [PricePaidVnd] = 0 WHERE [PricePaidVnd] <> 0;", ct); return; }
         {
             return;
         }
@@ -319,7 +319,7 @@ public static class DbInitializer
                 Title = "Gói Thoát Họp & Tăng Ca Khẩn Cấp",
                 Description = "Bộ combo cứu nguy công sở chính hãng: Sếp gọi xử lý sự cố Server gấp và Khách hàng VIP yêu cầu hỗ trợ ngay lập tức.",
                 CategoryTag = "Công việc",
-                PriceVnd = 29000,
+                PriceVnd = 0,
                 ComboCount = 2,
                 ScenarioCount = 1,
                 DownloadCount = 412,
@@ -338,7 +338,7 @@ public static class DbInitializer
                 Title = "Gói Giải Cứu Tiệc Rượu & Hẹn Hò",
                 Description = "Dành cho các buổi tiệc kéo dài hoặc cuộc hẹn khó xử: Mẹ gọi về nhà gấp kèm âm nền TV gia đình và Bạn thân nhờ ra đón.",
                 CategoryTag = "Tiệc tùng",
-                PriceVnd = 19000,
+                PriceVnd = 0,
                 ComboCount = 2,
                 ScenarioCount = 0,
                 DownloadCount = 589,
@@ -376,7 +376,7 @@ public static class DbInitializer
                 Title = "Combo Ra Khỏi Cuộc Nhậu Êm Đẹp",
                 Description = "Kịch bản vợ/người yêu gọi về đón gấp kèm tiếng mưa và còi xe cực chân thật do người dùng chia sẻ.",
                 CategoryTag = "Cộng đồng",
-                PriceVnd = 15000,
+                PriceVnd = 0,
                 ComboCount = 1,
                 ScenarioCount = 1,
                 DownloadCount = 196,

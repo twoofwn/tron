@@ -380,7 +380,7 @@ public class BackupAndShareService(
         CreateShareRequest request,
         CancellationToken ct = default)
     {
-        if (request.Combos.Count == 0)
+        if (request.Combos.Count == 0 && request.CustomScenarios.Count == 0)
         {
             return ServiceResult<ShareSummaryDto>.Failed("SHARE_EMPTY", "Vui lòng chọn ít nhất 1 combo để chia sẻ.", 400);
         }

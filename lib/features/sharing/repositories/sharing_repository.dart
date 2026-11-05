@@ -8,6 +8,8 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/services/file_service.dart';
 import '../../combo/models/combo_model.dart';
 import '../../scenarios/data/scenario_lookup.dart';
+import '../../scenarios/data/scenario_repository.dart';
+import '../../scenarios/models/scenario.dart';
 import '../models/combo_package.dart';
 
 final sharingRepositoryProvider = Provider(
@@ -19,19 +21,30 @@ class SharingRepository {
     : _createId = createId ?? (() => const Uuid().v4());
   final FileService files;
   final String Function() _createId;
+
   Future<ComboPackage> create(
     List<ComboModel> combos, {
+    List<Scenario> scenarios = const [],
     required bool includeAudio,
   }) async {
-    if (combos.isEmpty) {
-      throw const FormatException('Chọn ít nhất một combo để xuất.');
+    if (combos.isEmpty && scenarios.isEmpty) {
+      throw const FormatException(
+        'Chọn ít nhất một combo hoặc kịch bản để xuất.',
+      );
     }
     if (combos.length > 100) {
       throw const FormatException('Mỗi gói có tối đa 100 combo.');
     }
+    if (scenarios.length > 100) {
+      throw const FormatException('Mỗi gói có tối đa 100 kịch bản.');
+    }
     // Ước tính trước khi đọc file: gói quá lớn bị từ chối ngay, không phải chờ
     // đọc và mã hoá hết âm thanh/video rồi mới báo.
-    final estimate = await estimateSize(combos, includeAudio: includeAudio);
+    final estimate = await estimateSize(
+      combos,
+      scenarios: scenarios,
+      includeAudio: includeAudio,
+    );
     if (estimate > AppConstants.maxPackageBytes) {
       throw FormatException(_tooLargeMessage(estimate));
     }
@@ -43,6 +56,9 @@ class SharingRepository {
         }
       }
     }
+    final normalizedScenarios = scenarios
+        .map((sc) => _sanitizeScenarioForShare(sc))
+        .toList();
     final package = ComboPackage(
       id: _createId(),
       combos: combos
@@ -52,6 +68,7 @@ class SharingRepository {
                 : combo.copyWith(stripCustomAudio: true),
           )
           .toList(),
+      scenarios: normalizedScenarios,
       audio: audio,
     );
     final size = encode(package).length;
@@ -59,6 +76,25 @@ class SharingRepository {
       throw FormatException(_tooLargeMessage(size));
     }
     return package;
+  }
+
+  static Scenario _sanitizeScenarioForShare(Scenario sc) {
+    final steps = sc.steps
+        .map(
+          (st) => DialogueStep(
+            id: st.id,
+            type: st.type,
+            text: st.text,
+            audioPath:
+                st.audioPath != null &&
+                    ScenarioRepository.isBundledAudio(st.audioPath!)
+                ? st.audioPath
+                : null,
+            seconds: st.seconds,
+          ),
+        )
+        .toList();
+    return sc.copyWith(source: ScenarioSource.user, steps: steps);
   }
 
   static String _tooLargeMessage(int bytes) =>
@@ -70,9 +106,10 @@ class SharingRepository {
   /// file đính kèm nặng thêm khoảng 1/3 vì được mã hoá base64.
   Future<int> estimateSize(
     List<ComboModel> combos, {
+    List<Scenario> scenarios = const [],
     required bool includeAudio,
   }) async {
-    var bytes = 512 + combos.length * 600;
+    var bytes = 512 + combos.length * 600 + scenarios.length * 800;
     if (includeAudio) {
       final paths = {for (final combo in combos) ...combo.customMediaPaths};
       for (final path in paths) {
@@ -89,17 +126,28 @@ class SharingRepository {
         'version': 1,
         'id': package.id,
         'combos': package.combos.map((combo) => combo.toJson()).toList(),
+        if (package.scenarios.isNotEmpty)
+          'scenarios': package.scenarios.map((s) => s.toJson()).toList(),
         'audio': package.audio.map(
           (key, bytes) => MapEntry(key, base64Encode(bytes)),
         ),
       }),
     ),
   );
+
   String code(ComboPackage package) =>
       'TRON1.${base64UrlEncode(encode(package))}';
+
   ComboPackage decodeCode(String code) {
-    final value = code.trim();
-    if (!value.startsWith('TRON1.')) {
+    var value = code.trim();
+    final match = RegExp(
+      r'TRON1\.[A-Za-z0-9_+=/\-]+',
+      caseSensitive: false,
+    ).firstMatch(value);
+    if (match != null) {
+      value = match.group(0)!;
+    }
+    if (!value.toUpperCase().startsWith('TRON1.')) {
       throw const FormatException('Mã chia sẻ TRỐN không hợp lệ.');
     }
     // Mã là gói mã hoá base64url: dài hơn gói gốc khoảng 1/3.
@@ -111,7 +159,10 @@ class SharingRepository {
       );
     }
     try {
-      return decode(base64Url.decode(value.substring(6)));
+      final payload = base64Url.normalize(
+        value.substring(6).replaceAll('+', '-').replaceAll('/', '_'),
+      );
+      return decode(base64Url.decode(payload));
     } catch (_) {
       throw const FormatException('Mã chia sẻ bị lỗi hoặc không được hỗ trợ.');
     }
@@ -133,10 +184,23 @@ class SharingRepository {
       if (json['format'] != 'tron.ehc' || json['version'] != 1) {
         throw const FormatException();
       }
-      final records = json['combos'] as List;
-      if (records.isEmpty || records.length > 100) {
+      final records = (json['combos'] as List?) ?? const [];
+      final rawScenarios =
+          (json['scenarios'] ?? json['customScenarios']) as List? ?? const [];
+      if ((records.isEmpty && rawScenarios.isEmpty) ||
+          records.length > 100 ||
+          rawScenarios.length > 100) {
         throw const FormatException();
       }
+      final scenarios = rawScenarios
+          .map(
+            (item) => _sanitizeScenarioForShare(
+              Scenario.fromJson(Map<String, dynamic>.from(item as Map)),
+            ),
+          )
+          .toList();
+      final scenarioIdsInPackage = scenarios.map((s) => s.id).toSet();
+
       final combos = records
           .map(
             (item) =>
@@ -146,7 +210,10 @@ class SharingRepository {
       if (combos.map((combo) => combo.id).toSet().length != combos.length) {
         throw const FormatException();
       }
-      final encodedAudio = Map<String, Object?>.from(json['audio'] as Map);
+      final rawAudio = json['audio'];
+      final encodedAudio = rawAudio is Map
+          ? Map<String, Object?>.from(rawAudio)
+          : const <String, Object?>{};
       final audio = <String, Uint8List>{};
       for (final entry in encodedAudio.entries) {
         if (!FileService.mediaPathPattern.hasMatch(entry.key)) {
@@ -166,8 +233,10 @@ class SharingRepository {
       }
       for (final combo in combos) {
         // Gọi video không dùng kịch bản nên không cần kiểm tra ID kịch bản.
+        // Gói chia sẻ cho phép kịch bản có sẵn hoặc kịch bản tuỳ chỉnh đi kèm trong gói.
         if (!combo.isVideoCall &&
-            !ScenarioLookup.isShareableId(combo.scenarioId)) {
+            !ScenarioLookup.isShareableId(combo.scenarioId) &&
+            !scenarioIdsInPackage.contains(combo.scenarioId)) {
           throw const FormatException();
         }
         for (final path in combo.customMediaPaths) {
@@ -179,6 +248,7 @@ class SharingRepository {
       return ComboPackage(
         id: json['id'] as String,
         combos: combos,
+        scenarios: scenarios,
         audio: audio,
       );
     } catch (_) {

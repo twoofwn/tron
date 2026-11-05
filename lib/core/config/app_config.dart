@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 /// Cấu hình mặc định cho toàn bộ ứng dụng TRỐN (EscapeHatch).
 /// Cho phép ghi đè linh hoạt qua `--dart-define` khi build hoặc chạy.
 /// Ví dụ:
@@ -14,20 +12,7 @@ abstract final class AppConfig {
   static String get apiBaseUrl {
     const defined = String.fromEnvironment('API_BASE_URL');
     if (defined.isNotEmpty) return defined.replaceAll(RegExp(r'/+$'), '');
-    if (kReleaseMode) {
-      return defaultProductionApiBaseUrl;
-    }
-    if (kIsWeb) {
-      final host = Uri.base.host;
-      if (host.isNotEmpty && host != 'localhost' && host != '127.0.0.1') {
-        return 'http://$host:5080';
-      }
-      return 'http://localhost:5080';
-    }
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      return 'http://10.0.2.2:5080';
-    }
-    return 'http://localhost:5080';
+    return defaultProductionApiBaseUrl;
   }
 
   static const int apiTimeoutSeconds = int.fromEnvironment(

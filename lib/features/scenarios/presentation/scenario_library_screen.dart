@@ -1,6 +1,13 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
+import '../../../core/network/api_client.dart';
+import '../../../core/services/file_service.dart';
+import '../../../core/services/storage_service.dart';
+import '../../backup/services/backup_service.dart';
+import '../../sharing/models/combo_package.dart';
+import '../../sharing/repositories/sharing_repository.dart';
+import '../../sharing/widgets/qr_scanner_screen.dart';
 import '../data/scenario_repository.dart';
 import '../data/scenario_search.dart';
 import '../models/scenario.dart';
@@ -75,6 +82,24 @@ class _ScenarioLibraryScreenState extends State<ScenarioLibraryScreen> {
     );
     if (!mounted || scenario == null) return;
     await _openDetail(scenario);
+  }
+
+  Future<void> _importScenarioSheet() async {
+    final imported = await showModalBottomSheet<List<Scenario>>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _ImportScenarioSheet(repository: widget.repository),
+    );
+    if (!mounted || imported == null || imported.isEmpty) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Đã nhận ${imported.length} kịch bản (“${imported.first.title}”).',
+        ),
+      ),
+    );
+    await _openDetail(imported.first);
   }
 
   Future<void> _addBackground() async {
@@ -163,6 +188,12 @@ class _ScenarioLibraryScreenState extends State<ScenarioLibraryScreen> {
                             style: Theme.of(context).textTheme.headlineMedium,
                           ),
                         ),
+                        IconButton.outlined(
+                          tooltip: 'Nhận kịch bản bằng mã / QR',
+                          onPressed: _importScenarioSheet,
+                          icon: const Icon(Icons.qr_code_scanner_rounded),
+                        ),
+                        const SizedBox(width: 6),
                         IconButton.filled(
                           tooltip: 'Thêm kịch bản',
                           style: IconButton.styleFrom(
@@ -313,6 +344,254 @@ class _ScenarioLibraryScreenState extends State<ScenarioLibraryScreen> {
                     ),
                   ],
                 ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ImportScenarioSheet extends StatefulWidget {
+  const _ImportScenarioSheet({required this.repository});
+  final ScenarioRepository repository;
+
+  @override
+  State<_ImportScenarioSheet> createState() => _ImportScenarioSheetState();
+}
+
+class _ImportScenarioSheetState extends State<_ImportScenarioSheet> {
+  final _codeCtrl = TextEditingController();
+  bool _isBusy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _codeCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _scanQr() async {
+    final result = await Navigator.of(
+      context,
+    ).push<String>(MaterialPageRoute(builder: (_) => const QrScannerScreen()));
+    if (result != null && mounted) {
+      _codeCtrl.text = result;
+      await _submitCode();
+    }
+  }
+
+  Future<void> _submitCode() async {
+    final raw = _codeCtrl.text.trim();
+    if (raw.isEmpty) {
+      setState(() => _error = 'Vui lòng nhập mã chia sẻ hoặc quét QR.');
+      return;
+    }
+
+    setState(() {
+      _isBusy = true;
+      _error = null;
+    });
+
+    try {
+      final sharingRepo = SharingRepository(FileService());
+      List<Scenario> importedScenarios = const [];
+
+      if (raw.toUpperCase().contains('TRON1.')) {
+        final ComboPackage pkg = sharingRepo.decodeCode(raw);
+        importedScenarios = _extractScenarios(pkg);
+      } else {
+        final onlineCode = BackupService.normalizeOnlineCode(raw);
+        if (onlineCode != null) {
+          final api =
+              widget.repository.api ?? ApiClient(storage: StorageService());
+          Map<String, dynamic> res;
+          if (onlineCode.startsWith('MKT-')) {
+            final list = await api.getList('/market/packages');
+            Map<String, dynamic>? found;
+            for (final item in list) {
+              final map = Map<String, dynamic>.from(item as Map);
+              if ((map['code'] as String? ?? '').toUpperCase() == onlineCode) {
+                found = map;
+                break;
+              }
+            }
+            if (found == null) {
+              throw const FormatException(
+                'Không tìm thấy gói kịch bản với mã này.',
+              );
+            }
+            res = found;
+          } else {
+            res = await api.postJson('/shares/$onlineCode/import', {});
+          }
+          importedScenarios = _extractScenariosFromServerMap(res);
+        } else {
+          final ComboPackage pkg = sharingRepo.decodeCode(raw);
+          importedScenarios = _extractScenarios(pkg);
+        }
+      }
+
+      if (importedScenarios.isEmpty) {
+        throw const FormatException(
+          'Mã chia sẻ này không chứa kịch bản hội thoại nào.',
+        );
+      }
+
+      for (final sc in importedScenarios) {
+        await widget.repository.saveUserScenario(
+          sc.copyWith(source: ScenarioSource.user),
+        );
+      }
+
+      if (mounted) {
+        Navigator.of(context).pop(importedScenarios);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e is FormatException
+              ? e.message
+              : e is ApiException
+              ? e.message
+              : 'Mã chia sẻ không hợp lệ hoặc không tải được kịch bản.';
+          _isBusy = false;
+        });
+      }
+    }
+  }
+
+  List<Scenario> _extractScenarios(ComboPackage pkg) {
+    if (pkg.scenarios.isNotEmpty) {
+      return pkg.scenarios;
+    }
+    final result = <Scenario>[];
+    for (final c in pkg.combos) {
+      final found = widget.repository.findScenario(c.scenarioId);
+      if (found != null) {
+        result.add(
+          found.copyWith(
+            id: 'user-${DateTime.now().microsecondsSinceEpoch}-${result.length}',
+            title: '${found.title} (${c.name})',
+            source: ScenarioSource.user,
+          ),
+        );
+      }
+    }
+    return result;
+  }
+
+  List<Scenario> _extractScenariosFromServerMap(Map<String, dynamic> res) {
+    final rawScenarios = (res['customScenarios'] as List?) ?? const [];
+    final scenarios = <Scenario>[];
+    for (final rawSc in rawScenarios) {
+      final map = Map<String, dynamic>.from(rawSc as Map);
+      final sc = Scenario.fromJson(map);
+      final steps = sc.steps
+          .map(
+            (st) => DialogueStep(
+              id: st.id,
+              type: st.type,
+              text: st.text,
+              audioPath:
+                  st.audioPath != null &&
+                      ScenarioRepository.isBundledAudio(st.audioPath!)
+                  ? st.audioPath
+                  : null,
+              seconds: st.seconds,
+            ),
+          )
+          .toList();
+      scenarios.add(sc.copyWith(source: ScenarioSource.user, steps: steps));
+    }
+    if (scenarios.isNotEmpty) return scenarios;
+
+    final rawCombos = (res['combos'] as List?) ?? const [];
+    for (final rawCombo in rawCombos) {
+      final map = Map<String, dynamic>.from(rawCombo as Map);
+      final scenarioId = map['scenarioId'] as String?;
+      if (scenarioId == null) continue;
+      final found = widget.repository.findScenario(scenarioId);
+      if (found != null) {
+        scenarios.add(
+          found.copyWith(
+            id: 'user-${DateTime.now().microsecondsSinceEpoch}-${scenarios.length}',
+            title: '${found.title} (${map['name'] ?? 'Bạn bè'})',
+            source: ScenarioSource.user,
+          ),
+        );
+      }
+    }
+    return scenarios;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          8,
+          20,
+          MediaQuery.of(context).viewInsets.bottom + 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Nhận kịch bản từ bạn bè',
+              style: Theme.of(context).textTheme.titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Quét mã QR hoặc nhập mã chia sẻ (EH-XXXXXX, MKT-XXXXXX, TRON1.…) để lưu kịch bản vào máy.',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _isBusy ? null : _scanQr,
+                icon: const Icon(Icons.qr_code_scanner_rounded),
+                label: const Text('Quét mã QR từ máy bạn bè'),
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _codeCtrl,
+              maxLines: 2,
+              decoration: const InputDecoration(
+                labelText: 'Mã chia sẻ kịch bản',
+                hintText: 'Nhập mã EH-XXXXXX hoặc dán mã TRON1.…',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _error!,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _isBusy ? null : _submitCode,
+                icon: _isBusy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.download_done_rounded),
+                label: Text(_isBusy ? 'Đang tải kịch bản...' : 'Nhận kịch bản'),
               ),
             ),
           ],

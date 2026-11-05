@@ -13,6 +13,8 @@ import '../../auth/providers/auth_provider.dart';
 import '../../combo/models/combo_model.dart';
 import '../../combo/providers/combo_provider.dart';
 import '../../combo/repositories/combo_repository.dart';
+import '../../scenarios/data/scenario_lookup.dart';
+import '../../scenarios/data/scenario_repository.dart';
 import '../../scenarios/models/scenario.dart';
 import '../../scenarios/providers/scenario_provider.dart';
 import '../../sharing/models/combo_package.dart';
@@ -62,6 +64,10 @@ class BackupStatusInfo {
 class BackupService {
   BackupService(this.ref);
   final Ref ref;
+
+  static const _scenarioOnlyMarkerComboId =
+      '00000000-0000-0000-0000-000000000001';
+  static const _scenarioOnlyMarkerComboName = '__TRON_SCENARIO_ONLY__';
 
   Future<BackupStatusInfo> fetchStatus() async {
     final json = await ref.read(apiClientProvider).getJson('/backup/status');
@@ -171,29 +177,7 @@ class BackupService {
 
     final scenarioPayloads = <Map<String, dynamic>>[];
     for (final sc in userScenarios) {
-      final stepPayloads = <Map<String, dynamic>>[];
-      for (final st in sc.steps) {
-        stepPayloads.add({
-          'id': st.id,
-          'type': st.type.name,
-          'text': st.text,
-          'audioPath': st.audioPath,
-          'mediaFileId': null,
-          'seconds': st.seconds,
-        });
-      }
-      scenarioPayloads.add({
-        'id': sc.id,
-        'title': sc.title,
-        'category': sc.category.name,
-        'source': 'user',
-        'callerName': sc.callerName,
-        'initial': sc.initial,
-        'estimatedSeconds': sc.estimatedSeconds,
-        'defaultBackgroundId': sc.defaultBackgroundId,
-        'isPro': false,
-        'steps': stepPayloads,
-      });
+      scenarioPayloads.add(_scenarioToPayload(sc));
     }
 
     final ambientPayloads = customAmbients
@@ -233,6 +217,36 @@ class BackupService {
 
     await ref.read(authStateProvider.notifier).refreshProfile();
     return BackupStatusInfo.fromJson(statusJson);
+  }
+
+  static Map<String, dynamic> _scenarioToPayload(Scenario sc) {
+    final stepPayloads = <Map<String, dynamic>>[];
+    for (final st in sc.steps) {
+      stepPayloads.add({
+        'id': st.id,
+        'type': st.type.name,
+        'text': st.text,
+        'audioPath':
+            st.audioPath != null &&
+                ScenarioRepository.isBundledAudio(st.audioPath!)
+            ? st.audioPath
+            : null,
+        'mediaFileId': null,
+        'seconds': st.seconds,
+      });
+    }
+    return {
+      'id': sc.id,
+      'title': sc.title,
+      'category': sc.category.name,
+      'source': 'user',
+      'callerName': sc.callerName,
+      'initial': sc.initial,
+      'estimatedSeconds': sc.estimatedSeconds,
+      'defaultBackgroundId': sc.defaultBackgroundId,
+      'isPro': false,
+      'steps': stepPayloads,
+    };
   }
 
   /// Downloads the backup snapshot and media files from server and restores local combos/scenarios.
@@ -343,27 +357,45 @@ class BackupService {
   /// Creates an online share code `EH-XXXXXX` on the server.
   Future<String> createOnlineShare(
     List<ComboModel> selectedCombos, {
+    List<Scenario> selectedScenarios = const [],
     required bool includeAudio,
   }) async {
     final api = ref.read(apiClientProvider);
-    if (!await api.hasToken()) {
-      throw const FormatException('Chưa đăng nhập tài khoản.');
-    }
-    await performBackup();
-
+    final scenarioRepo = await ref.read(scenarioLibraryProvider.future);
     final repository = ref.read(comboRepositoryProvider);
+
+    final scenariosById = <String, Scenario>{
+      for (final sc in selectedScenarios) sc.id: sc,
+    };
+    for (final c in selectedCombos) {
+      if (!c.isVideoCall && !ScenarioLookup.isShareableId(c.scenarioId)) {
+        final found = scenarioRepo.findScenario(c.scenarioId);
+        if (found != null) {
+          scenariosById[found.id] = found;
+        }
+      }
+    }
+
     final comboDtos = <Map<String, dynamic>>[];
     for (final c in selectedCombos) {
       // Kèm giọng tự thu khi người dùng chọn chia sẻ cả âm thanh.
       final voicePath = c.voicePath;
-      final voiceMediaId = !includeAudio || voicePath == null
-          ? null
-          : c.voiceMediaId ?? await repository.uploadVoice(voicePath);
+      String? voiceMediaId;
+      if (includeAudio && voicePath != null) {
+        try {
+          voiceMediaId =
+              c.voiceMediaId ?? await repository.uploadVoice(voicePath);
+        } catch (_) {}
+      }
       final videoPath = c.videoPath;
-      final videoMediaId = !includeAudio || videoPath == null
-          ? null
-          : c.videoMediaId ??
-                await repository.uploadMedia(videoPath, MediaTrack.video.kind);
+      String? videoMediaId;
+      if (includeAudio && videoPath != null) {
+        try {
+          videoMediaId =
+              c.videoMediaId ??
+              await repository.uploadMedia(videoPath, MediaTrack.video.kind);
+        } catch (_) {}
+      }
       comboDtos.add({
         'id': c.id,
         'name': c.name,
@@ -384,9 +416,35 @@ class BackupService {
       });
     }
 
+    final scenarioDtos = scenariosById.values
+        .map((sc) => _scenarioToPayload(sc))
+        .toList();
+
+    // Tương thích với bản server yêu cầu combos không rỗng khi người dùng chỉ chia sẻ kịch bản.
+    if (comboDtos.isEmpty && scenarioDtos.isNotEmpty) {
+      comboDtos.add({
+        'id': _scenarioOnlyMarkerComboId,
+        'name': _scenarioOnlyMarkerComboName,
+        'scenarioId': scenarioDtos.first['id'] as String,
+        'callInterface': CallInterface.phone.name,
+        'ringtoneType': RingtoneType.interfaceDefault.name,
+        'ringtoneMediaId': null,
+        'backgroundSoundIds': const <String>[],
+        'customBackgroundMediaId': null,
+        'voiceMediaId': null,
+        'callType': CallType.voice.name,
+        'callerName': scenarioDtos.first['callerName'] as String?,
+        'videoEndAction': VideoEndAction.hangUp.name,
+        'videoMediaId': null,
+        'backgroundVolume': 0.3,
+        'backgroundOverridden': false,
+        'createdAt': DateTime.now().toUtc().toIso8601String(),
+      });
+    }
+
     final res = await api.postJson('/shares', {
       'combos': comboDtos,
-      'customScenarios': const <Map<String, dynamic>>[],
+      'customScenarios': scenarioDtos,
       'customAmbientSounds': const <Map<String, dynamic>>[],
       'includeAudio': includeAudio,
       'expiresInDays': 7,
@@ -395,20 +453,102 @@ class BackupService {
     return res['code'] as String;
   }
 
-  /// Fetches an online share package by `EH-XXXXXX` code and converts it into a local `ComboPackage`.
+  static String? normalizeOnlineCode(String raw) {
+    final trimmed = raw.trim().toUpperCase();
+    final mktMatch = RegExp(r'MKT-[A-Z0-9\-]+').firstMatch(trimmed);
+    if (mktMatch != null) return mktMatch.group(0);
+    final ehMatch = RegExp(r'EH-[A-Z0-9]{6}').firstMatch(trimmed);
+    if (ehMatch != null) return ehMatch.group(0);
+    if (RegExp(r'^[A-Z0-9]{6}$').hasMatch(trimmed)) {
+      return 'EH-$trimmed';
+    }
+    return null;
+  }
+
+  /// Fetches an online share package by `EH-XXXXXX` or `MKT-XXXXXX` code and converts it into a local `ComboPackage`.
   Future<ComboPackage> fetchOnlineSharePackage(String code) async {
     final api = ref.read(apiClientProvider);
-    final shareCode = code.trim();
-    final res = await api.postJson('/shares/$shareCode/import', {});
+    final normalized = normalizeOnlineCode(code) ?? code.trim().toUpperCase();
+
+    if (normalized.startsWith('MKT-')) {
+      final list = await api.getList('/market/packages');
+      Map<String, dynamic>? found;
+      for (final item in list) {
+        final map = Map<String, dynamic>.from(item as Map);
+        if ((map['code'] as String? ?? '').toUpperCase() == normalized) {
+          found = map;
+          break;
+        }
+      }
+      if (found == null) {
+        throw const FormatException('Không tìm thấy gói chợ tình huống này.');
+      }
+      try {
+        await api.postJson('/market/packages/${found['id']}/purchase', {});
+      } catch (_) {}
+      return _parseRemotePackageMap(
+        found,
+        shareCode: normalized,
+        allowMediaDownload: false,
+      );
+    }
+
+    final res = await api.postJson('/shares/$normalized/import', {});
+    return _parseRemotePackageMap(
+      res,
+      shareCode: normalized,
+      allowMediaDownload: true,
+    );
+  }
+
+  Future<ComboPackage> _parseRemotePackageMap(
+    Map<String, dynamic> res, {
+    required String shareCode,
+    required bool allowMediaDownload,
+  }) async {
+    final api = ref.read(apiClientProvider);
+    final rawScenarios = (res['customScenarios'] as List?) ?? const [];
+    final scenarios = <Scenario>[];
+    for (final rawSc in rawScenarios) {
+      final map = Map<String, dynamic>.from(rawSc as Map);
+      final sc = Scenario.fromJson(map);
+      final sanitizedSteps = sc.steps
+          .map(
+            (st) => DialogueStep(
+              id: st.id,
+              type: st.type,
+              text: st.text,
+              audioPath:
+                  st.audioPath != null &&
+                      ScenarioRepository.isBundledAudio(st.audioPath!)
+                  ? st.audioPath
+                  : null,
+              seconds: st.seconds,
+            ),
+          )
+          .toList();
+      scenarios.add(
+        sc.copyWith(source: ScenarioSource.user, steps: sanitizedSteps),
+      );
+    }
+
     final rawCombos = (res['combos'] as List?) ?? const [];
     final audio = <String, Uint8List>{};
     final combos = <ComboModel>[];
     for (final raw in rawCombos) {
       final map = Map<String, dynamic>.from(raw as Map);
+      final id = map['id'] as String? ?? const Uuid().v4();
+      final name = map['name'] as String? ?? 'Combo chia sẻ';
+      if (id == _scenarioOnlyMarkerComboId ||
+          name == _scenarioOnlyMarkerComboName) {
+        continue;
+      }
       // Giọng tự thu đi kèm gói: tải về, gói nhập sẽ lưu thành file trên máy.
       String? voicePath;
       final voiceId = map['voiceMediaId'] as String?;
-      if (voiceId != null && voiceId != ComboRepository.clearVoiceId) {
+      if (allowMediaDownload &&
+          voiceId != null &&
+          voiceId != ComboRepository.clearVoiceId) {
         try {
           final bytes = await api.getBytes('/shares/$shareCode/media/$voiceId');
           voicePath = 'media:${const Uuid().v4()}.wav';
@@ -420,7 +560,9 @@ class BackupService {
       // Video người gọi đi kèm gói (khi chia sẻ cả âm thanh và video).
       String? videoPath;
       final videoId = map['videoMediaId'] as String?;
-      if (videoId != null && videoId != ComboRepository.clearVoiceId) {
+      if (allowMediaDownload &&
+          videoId != null &&
+          videoId != ComboRepository.clearVoiceId) {
         try {
           final bytes = await api.getBytes('/shares/$shareCode/media/$videoId');
           videoPath = 'media:${const Uuid().v4()}.mp4';
@@ -435,17 +577,23 @@ class BackupService {
             (key) => BackgroundSound.values.any((sound) => sound.name == key),
           )
           .toList();
+      final rawInterface = map['callInterface'] as String? ?? 'phone';
+      final callInterface = CallInterface.values.firstWhere(
+        (v) => v.name.toLowerCase() == rawInterface.toLowerCase(),
+        orElse: () => CallInterface.phone,
+      );
+      final rawRingtone = map['ringtoneType'] as String? ?? 'interfaceDefault';
+      final ringtoneType = RingtoneType.values.firstWhere(
+        (v) => v.name.toLowerCase() == rawRingtone.toLowerCase(),
+        orElse: () => RingtoneType.interfaceDefault,
+      );
       combos.add(
         ComboModel(
-          id: map['id'] as String,
-          name: map['name'] as String,
-          scenarioId: map['scenarioId'] as String,
-          callInterface: CallInterface.values.byName(
-            map['callInterface'] as String,
-          ),
-          ringtoneType: RingtoneType.values.byName(
-            map['ringtoneType'] as String,
-          ),
+          id: id,
+          name: name,
+          scenarioId: map['scenarioId'] as String? ?? 'mom_urgent_home',
+          callInterface: callInterface,
+          ringtoneType: ringtoneType,
           backgroundSoundPaths: bgList,
           voicePath: voicePath,
           callType: _callType(map['callType']),
@@ -460,8 +608,9 @@ class BackupService {
     }
 
     return ComboPackage(
-      id: (res['code'] as String? ?? 'EH-ONLINE').replaceFirst('EH-', ''),
+      id: (res['code'] as String? ?? shareCode).replaceFirst('EH-', ''),
       combos: combos,
+      scenarios: scenarios,
       audio: audio,
     );
   }

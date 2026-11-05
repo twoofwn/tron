@@ -384,7 +384,7 @@ class _AccountScreenState extends ConsumerState<AccountScreen> {
                     ),
                     const SizedBox(height: 10),
                     AppButton(
-                      label: 'Mở Chợ Tình Huống (Mua / Đăng gói)',
+                      label: 'Mở Chợ Tình Huống (Nhận / Đăng gói)',
                       icon: Icons.storefront_outlined,
                       onPressed: () =>
                           Navigator.pushNamed(context, RouteNames.sharing),
