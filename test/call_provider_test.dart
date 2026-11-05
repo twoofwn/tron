@@ -74,32 +74,44 @@ void main() {
     expect(container.read(callProvider).status, CallStatus.idle);
   });
 
-  test('Schedule arms a system alarm at the chosen time', () async {
+  test('Schedule arms a system alarm just after the chosen time', () async {
     final alarm = FakeAlarm();
     final container = ProviderContainer(
       overrides: [callAlarmServiceProvider.overrideWithValue(alarm)],
     );
     addTearDown(container.dispose);
+    final before = DateTime.now();
     final armed = await container
         .read(callProvider.notifier)
         .schedule(combo, const Duration(seconds: 30));
+    final after = DateTime.now();
     expect(armed, isTrue);
     expect(alarm.scheduled.single.$1, 'test');
+    // Báo thức đổ trễ hơn giờ hẹn [CallNotifier.alarmDelay].
+    final fireAt = alarm.scheduled.single.$2;
+    final expected = const Duration(seconds: 30) + CallNotifier.alarmDelay;
+    expect(fireAt.isBefore(before.add(expected)), isFalse);
+    expect(fireAt.isAfter(after.add(expected)), isFalse);
   });
 
-  test('Ringing from the timer cancels the system alarm', () async {
-    final alarm = FakeAlarm();
-    final container = ProviderContainer(
-      overrides: [callAlarmServiceProvider.overrideWithValue(alarm)],
-    );
-    addTearDown(container.dispose);
-    container
-        .read(callProvider.notifier)
-        .schedule(combo, const Duration(milliseconds: 10));
-    await Future<void>.delayed(const Duration(milliseconds: 250));
-    expect(container.read(callProvider).status, CallStatus.ringing);
-    expect(alarm.cancelled, greaterThanOrEqualTo(1));
-  });
+  test(
+    'With the app open, the call rings and cancels the alarm before it fires',
+    () async {
+      final alarm = FakeAlarm();
+      final container = ProviderContainer(
+        overrides: [callAlarmServiceProvider.overrideWithValue(alarm)],
+      );
+      addTearDown(container.dispose);
+      container
+          .read(callProvider.notifier)
+          .schedule(combo, const Duration(milliseconds: 10));
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      expect(container.read(callProvider).status, CallStatus.ringing);
+      expect(alarm.cancelled, greaterThanOrEqualTo(1));
+      // Huỷ xong khi báo thức hệ thống còn chưa tới giờ: không có thông báo.
+      expect(DateTime.now().isBefore(alarm.scheduled.single.$2), isTrue);
+    },
+  );
 
   test('Opening from an alarm rings immediately, only once', () async {
     final container = ProviderContainer(

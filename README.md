@@ -80,6 +80,11 @@ Dự án bao gồm hệ thống backend ASP.NET Core 9 Web API kết nối SQL S
   cd backend
   dotnet run --project src/Tron.Api
   ```
+- **Chạy trên điện thoại Android thật (cắm USB)**: bản debug trên Android mặc định gọi `10.0.2.2:5080`, địa chỉ này chỉ máy ảo dùng được. Script sau tự bật backend (cửa sổ "Tron backend") nếu chưa chạy, nối cổng 5080 của điện thoại về máy tính bằng `adb reverse`, rồi chạy `flutter run` với `API_BASE_URL=http://localhost:5080`:
+  ```sh
+  powershell -ExecutionPolicy Bypass -File tool/dev_phone.ps1
+  ```
+  Tham số thêm được chuyển cho `flutter run` (ví dụ `-d <mã thiết bị>`). Rút cáp rồi cắm lại thì chạy lại script. Trong VS Code, chọn cấu hình "Flutter (Điện thoại thật + backend)" để làm tương tự (dùng task trong `.vscode/tasks.json`).
 - **Chạy Flutter kèm cổng đăng nhập bắt buộc**:
   ```sh
   flutter run --dart-define=REQUIRE_AUTH=true --dart-define=API_BASE_URL=http://localhost:5080
