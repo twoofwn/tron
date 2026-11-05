@@ -25,6 +25,10 @@ Uint8List mp4(int fill) => Uint8List.fromList([
   ...List.filled(64, fill),
 ]);
 
+/// Ảnh JPG giả: 3 byte đầu FF D8 FF, phần sau đổi theo `fill`.
+Uint8List jpg(int fill) =>
+    Uint8List.fromList([0xFF, 0xD8, 0xFF, 0xE0, ...List.filled(32, fill)]);
+
 /// Âm thanh lưu trong bộ nhớ thay cho thư mục của app.
 class MemoryFiles extends FileService {
   final audio = <String, Uint8List>{};
@@ -43,6 +47,13 @@ class MemoryFiles extends FileService {
   @override
   Future<String> storeVideo(Uint8List bytes) async {
     final path = 'media:local-${_next++}.mp4';
+    audio[path] = bytes;
+    return path;
+  }
+
+  @override
+  Future<String> storeImage(Uint8List bytes) async {
+    final path = 'media:local-${_next++}.${FileService.imageExtension(bytes)}';
     audio[path] = bytes;
     return path;
   }
@@ -99,7 +110,7 @@ class FakeServer {
       posted.add(body);
       final stored = {...body};
       // Cùng quy ước cho giọng và video: thiếu = giữ, clearVoiceId = xoá.
-      for (final field in ['voiceMediaId', 'videoMediaId']) {
+      for (final field in ['voiceMediaId', 'videoMediaId', 'avatarMediaId']) {
         final value = body[field] as String?;
         if (value != null &&
             value != ComboRepository.clearVoiceId &&
@@ -135,9 +146,22 @@ class FakeServer {
       uploads++;
       final form = latin1.decode(request.bodyBytes);
       final isVideo = form.contains('\r\n\r\nVideo\r\n');
-      uploadKinds.add(isVideo ? 'Video' : 'Voice');
+      final isImage = form.contains('\r\n\r\nImage\r\n');
+      uploadKinds.add(
+        isVideo
+            ? 'Video'
+            : isImage
+            ? 'Image'
+            : 'Voice',
+      );
       return _json({
-        'mediaId': addMedia(isVideo ? mp4(uploads) : wav(uploads)),
+        'mediaId': addMedia(
+          isVideo
+              ? mp4(uploads)
+              : isImage
+              ? jpg(uploads)
+              : wav(uploads),
+        ),
       });
     }
     if (path.startsWith('/media/')) {
@@ -164,6 +188,8 @@ void main() {
     String? voiceMediaId,
     String? videoPath,
     String? videoMediaId,
+    String? avatarPath,
+    String? avatarMediaId,
     bool pending = false,
   }) => ComboModel(
     id: id,
@@ -178,6 +204,8 @@ void main() {
         : CallType.video,
     videoPath: videoPath,
     videoMediaId: videoMediaId,
+    avatarPath: avatarPath,
+    avatarMediaId: avatarMediaId,
     syncPending: pending,
   );
 
@@ -565,5 +593,65 @@ void main() {
         expect(server.downloads, 0);
       },
     );
+  });
+
+  group('Caller avatar', () {
+    void serverHasAvatar(String? avatarMediaId) => server.combos[id] = {
+      ...ComboRepository.toServerMap(combo()),
+      'avatarMediaId': avatarMediaId,
+    };
+
+    test(
+      'Saving uploads the photo as an Image file and records its id',
+      () async {
+        files.audio['media:me.jpg'] = jpg(5);
+        final synced = await repository.upsertRemote(
+          combo(avatarPath: 'media:me.jpg', pending: true),
+        );
+        expect(server.uploadKinds, ['Image']);
+        expect(synced!.avatarMediaId, server.combos[id]!['avatarMediaId']);
+        expect(synced.avatarPath, 'media:me.jpg');
+        expect(synced.syncPending, isFalse);
+      },
+    );
+
+    test('A photo set on another device is downloaded', () async {
+      final remoteId = server.addMedia(jpg(3));
+      serverHasAvatar(remoteId);
+      final loaded = (await repository.load()).single;
+      expect(loaded.avatarPath, endsWith('.jpg'));
+      expect(files.audio[loaded.avatarPath], jpg(3));
+      expect(loaded.avatarMediaId, remoteId);
+    });
+
+    test('Removing the photo tells the server to clear it', () async {
+      final remoteId = server.addMedia(jpg(1));
+      serverHasAvatar(remoteId);
+      await repository.upsertRemote(combo(pending: true));
+      expect(server.posted.last['avatarMediaId'], ComboRepository.clearVoiceId);
+      expect(server.combos[id]!['avatarMediaId'], isNull);
+    });
+
+    test('Saving the list deletes photos no combo uses', () async {
+      files.audio['media:me.jpg'] = jpg(1);
+      final local = ComboRepository(storage, files: files);
+      await local.save([combo(avatarPath: 'media:me.jpg')]);
+      await local.save([
+        combo(avatarPath: 'media:me.jpg').copyWith(clearAvatar: true),
+      ]);
+      expect(files.deleted, ['media:me.jpg']);
+    });
+
+    test('The photo survives JSON and sharing drops only its sync id', () {
+      final value = combo(avatarPath: 'media:me.jpg', avatarMediaId: 'srv');
+      final restored = ComboModel.fromJson(value.toJson());
+      expect(restored.avatarPath, 'media:me.jpg');
+      expect(restored.avatarMediaId, 'srv');
+      final shared = value.withoutSync();
+      expect(shared.avatarPath, 'media:me.jpg');
+      expect(shared.avatarMediaId, isNull);
+      // Bỏ âm thanh riêng khi chia sẻ vẫn giữ ảnh đại diện.
+      expect(value.copyWith(stripCustomAudio: true).avatarPath, 'media:me.jpg');
+    });
   });
 }

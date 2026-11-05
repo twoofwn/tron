@@ -10,7 +10,7 @@ public enum CallInterface { Phone, Zalo, Messenger }
 public enum CallType { Voice, Video }
 public enum VideoEndAction { HangUp, Loop }
 public enum RingtoneType { InterfaceDefault, Classic, Custom }
-public enum MediaKind { Voice, Ambient, Ringtone, Video }
+public enum MediaKind { Voice, Ambient, Ringtone, Video, Image }
 public enum ThemePreference { Dark, Light }
 
 public static class DomainLimits
@@ -22,6 +22,7 @@ public static class DomainLimits
     public static int MaxDialogueStepsPerScenario { get; set; } = 50;
     public static long MaxMediaFileBytes { get; set; } = 10L * 1024 * 1024; // 10 MB
     public static long MaxVideoFileBytes { get; set; } = 20L * 1024 * 1024; // 20 MB
+    public static long MaxImageFileBytes { get; set; } = 2L * 1024 * 1024; // 2 MB
     public static long MaxSharePackageBytes { get; set; } = 25L * 1024 * 1024; // 25 MB
     public static int MaxSharePackageCombos { get; set; } = 100;
     public static int MaxUserCombos { get; set; } = 200;
@@ -29,14 +30,21 @@ public static class DomainLimits
     public static long MaxUserMediaQuotaBytes { get; set; } = 200L * 1024 * 1024; // 200 MB
     public static string[] AllowedAudioExtensions { get; set; } = ["mp3", "m4a", "wav"];
     public static string[] AllowedVideoExtensions { get; set; } = ["mp4"];
+    public static string[] AllowedImageExtensions { get; set; } = ["jpg", "png"];
     public static int[] AllowedCallDelaySeconds { get; set; } = [10, 30, 60, 300];
 
     public static bool IsVideoExtension(string extension) =>
         AllowedVideoExtensions.Contains(extension.TrimStart('.').ToLowerInvariant());
 
-    /// <summary>Giới hạn dung lượng theo loại file: video cuộc gọi được phép lớn hơn âm thanh.</summary>
+    /// <summary>Ảnh đại diện người gọi của combo.</summary>
+    public static bool IsImageExtension(string extension) =>
+        AllowedImageExtensions.Contains(extension.TrimStart('.').ToLowerInvariant());
+
+    /// <summary>Giới hạn dung lượng theo loại file: video cuộc gọi được phép lớn hơn âm thanh, ảnh nhỏ hơn.</summary>
     public static long MaxBytesForExtension(string extension) =>
-        IsVideoExtension(extension) ? MaxVideoFileBytes : MaxMediaFileBytes;
+        IsVideoExtension(extension) ? MaxVideoFileBytes
+        : IsImageExtension(extension) ? MaxImageFileBytes
+        : MaxMediaFileBytes;
 
     /// <summary>Giới hạn lớn nhất của mọi loại file, dùng khi chưa biết định dạng.</summary>
     public static long MaxAnyMediaFileBytes => Math.Max(MaxMediaFileBytes, MaxVideoFileBytes);
@@ -51,6 +59,7 @@ public static class DomainLimits
         MaxDialogueStepsPerScenario = options.MaxDialogueStepsPerScenario;
         MaxMediaFileBytes = options.MaxMediaFileBytes;
         MaxVideoFileBytes = options.MaxVideoFileBytes;
+        MaxImageFileBytes = options.MaxImageFileBytes;
         MaxSharePackageBytes = options.MaxSharePackageBytes;
         MaxSharePackageCombos = options.MaxSharePackageCombos;
         MaxUserCombos = options.MaxUserCombos;
@@ -63,6 +72,10 @@ public static class DomainLimits
         if (options.AllowedVideoExtensions is { Length: > 0 })
         {
             AllowedVideoExtensions = options.AllowedVideoExtensions;
+        }
+        if (options.AllowedImageExtensions is { Length: > 0 })
+        {
+            AllowedImageExtensions = options.AllowedImageExtensions;
         }
         if (options.AllowedCallDelaySeconds is { Length: > 0 })
         {

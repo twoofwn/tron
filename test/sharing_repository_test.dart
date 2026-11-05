@@ -31,7 +31,24 @@ class MemoryFileService extends FileService {
     audio[path] = bytes;
     return path;
   }
+
+  @override
+  Future<String> storeImage(Uint8List bytes) async {
+    final path =
+        'media:copied-${audio.length}.${FileService.imageExtension(bytes)}';
+    audio[path] = bytes;
+    return path;
+  }
 }
+
+/// Ảnh JPG giả (đủ dài để nhận ra loại ảnh).
+final _jpg = Uint8List.fromList([
+  0xFF,
+  0xD8,
+  0xFF,
+  0xE0,
+  ...List.filled(20, 7),
+]);
 
 void main() {
   late SharingRepository repository;
@@ -112,6 +129,36 @@ void main() {
         .decodeCode(repository.code(comboWithScenarioPkg));
     expect(comboDecoded.combos.single.scenarioId, friendScenario.id);
     expect(comboDecoded.scenarios.single.id, friendScenario.id);
+  });
+  test('Caller photo travels with the package even without audio', () async {
+    files.audio['media:face.jpg'] = _jpg;
+    final withPhoto = combo.copyWith(
+      id: 'photo-combo',
+      avatarPath: 'media:face.jpg',
+      avatarMediaId: 'server-id',
+    );
+    final package = await repository.create([withPhoto], includeAudio: false);
+    expect(package.audio.keys, ['media:face.jpg']);
+    final receiver = MemoryFileService();
+    final other = SharingRepository(receiver);
+    final decoded = other.decodeCode(repository.code(package));
+    final imported = (await other.materialize(decoded, {withPhoto.id})).single;
+    // Âm thanh riêng bị bỏ, ảnh vẫn còn và được lưu thành file mới trên máy nhận.
+    expect(imported.ringtonePath, isNull);
+    expect(imported.avatarPath, isNot('media:face.jpg'));
+    expect(imported.avatarPath, endsWith('.jpg'));
+    expect(receiver.audio[imported.avatarPath], _jpg);
+    expect(imported.avatarMediaId, isNull);
+  });
+  test('A package whose photo is not an image is rejected', () async {
+    files.audio['media:face.jpg'] = Uint8List.fromList(List.filled(24, 1));
+    final package = await repository.create([
+      combo.copyWith(id: 'bad-photo', avatarPath: 'media:face.jpg'),
+    ], includeAudio: false);
+    expect(
+      () => repository.decode(repository.encode(package)),
+      throwsFormatException,
+    );
   });
   test(
     'Audio file package restores bytes and rewrites local references',

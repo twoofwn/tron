@@ -49,11 +49,9 @@ class SharingRepository {
       throw FormatException(_tooLargeMessage(estimate));
     }
     final audio = <String, Uint8List>{};
-    if (includeAudio) {
-      for (final combo in combos) {
-        for (final path in combo.customMediaPaths) {
-          audio[path] = await files.readMedia(path);
-        }
+    for (final combo in combos) {
+      for (final path in _packedPaths(combo, includeAudio: includeAudio)) {
+        audio[path] = await files.readMedia(path);
       }
     }
     final normalizedScenarios = scenarios
@@ -97,6 +95,13 @@ class SharingRepository {
     return sc.copyWith(source: ScenarioSource.user, steps: steps);
   }
 
+  /// File đi kèm combo trong gói. Ảnh đại diện nhẹ nên luôn đi theo combo;
+  /// âm thanh và video chỉ đi kèm khi người dùng chọn.
+  static List<String> _packedPaths(
+    ComboModel combo, {
+    required bool includeAudio,
+  }) => includeAudio ? combo.customMediaPaths : [?combo.avatarPath];
+
   static String _tooLargeMessage(int bytes) =>
       'Gói nặng khoảng ${sizeLabel(bytes)}, vượt giới hạn '
       '${sizeLabel(AppConstants.maxPackageBytes)}. Hãy chọn ít combo hơn '
@@ -110,11 +115,12 @@ class SharingRepository {
     required bool includeAudio,
   }) async {
     var bytes = 512 + combos.length * 600 + scenarios.length * 800;
-    if (includeAudio) {
-      final paths = {for (final combo in combos) ...combo.customMediaPaths};
-      for (final path in paths) {
-        bytes += (await files.mediaSize(path)) * 4 ~/ 3 + 64;
-      }
+    final paths = {
+      for (final combo in combos)
+        ..._packedPaths(combo, includeAudio: includeAudio),
+    };
+    for (final path in paths) {
+      bytes += (await files.mediaSize(path)) * 4 ~/ 3 + 64;
     }
     return bytes;
   }
@@ -138,15 +144,30 @@ class SharingRepository {
   String code(ComboPackage package) =>
       'TRON1.${base64UrlEncode(encode(package))}';
 
-  ComboPackage decodeCode(String code) {
-    var value = code.trim();
-    final match = RegExp(
-      r'TRON1\.[A-Za-z0-9_+=/\-]+',
-      caseSensitive: false,
-    ).firstMatch(value);
-    if (match != null) {
-      value = match.group(0)!;
+  /// Lấy mã `TRON1.…` nằm trong đoạn chữ được dán (ví dụ cả tin nhắn).
+  /// Không dùng RegExp vì mã dài hàng chục MB làm RegExp tràn stack.
+  static String _extractCode(String text) {
+    final start = text.toUpperCase().indexOf('TRON1.');
+    if (start < 0) return text;
+    var end = start + 6;
+    while (end < text.length && _isCodeChar(text.codeUnitAt(end))) {
+      end++;
     }
+    return text.substring(start, end);
+  }
+
+  static bool _isCodeChar(int c) =>
+      (c >= 0x30 && c <= 0x39) || // 0-9
+      (c >= 0x41 && c <= 0x5A) || // A-Z
+      (c >= 0x61 && c <= 0x7A) || // a-z
+      c == 0x5F || // _
+      c == 0x2D || // -
+      c == 0x2B || // +
+      c == 0x2F || // /
+      c == 0x3D; // =
+
+  ComboPackage decodeCode(String code) {
+    final value = _extractCode(code.trim());
     if (!value.toUpperCase().startsWith('TRON1.')) {
       throw const FormatException('Mã chia sẻ TRỐN không hợp lệ.');
     }
@@ -221,12 +242,16 @@ class SharingRepository {
         }
         final data = base64Decode(entry.value as String);
         final isVideo = FileService.isVideoPath(entry.key);
+        final isImage = FileService.isImagePath(entry.key);
         final limit = isVideo
             ? AppConstants.maxVideoBytes
+            : isImage
+            ? AppConstants.maxAvatarBytes
             : AppConstants.maxAudioBytes;
         if (data.isEmpty ||
             data.length > limit ||
-            (isVideo && !FileService.isMp4(data))) {
+            (isVideo && !FileService.isMp4(data)) ||
+            (isImage && FileService.imageExtension(data) == null)) {
           throw const FormatException();
         }
         audio[entry.key] = data;
@@ -284,6 +309,7 @@ class SharingRepository {
                 customBackgroundPath: paths[combo.customBackgroundPath],
                 voicePath: paths[combo.voicePath],
                 videoPath: paths[combo.videoPath],
+                avatarPath: paths[combo.avatarPath],
               )
               .withoutSync(),
         )

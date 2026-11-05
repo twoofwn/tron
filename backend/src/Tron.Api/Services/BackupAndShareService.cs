@@ -73,7 +73,7 @@ public class BackupAndShareService(
 
         // Kiểm tra file của combo TRƯỚC khi xoá dữ liệu cũ, để request bị từ chối không làm mất gì.
         var comboMediaIds = request.Combos
-            .SelectMany(c => new[] { c.RingtoneMediaId, c.CustomBackgroundMediaId, c.VoiceMediaId, c.VideoMediaId })
+            .SelectMany(c => new[] { c.RingtoneMediaId, c.CustomBackgroundMediaId, c.VoiceMediaId, c.VideoMediaId, c.AvatarMediaId })
             .Where(id => id.HasValue && id.Value != Guid.Empty)
             .Select(id => id!.Value)
             .ToHashSet();
@@ -90,6 +90,8 @@ public class BackupAndShareService(
         var previousVoices = await backupRepo.GetComboVoiceIdsAsync(userId, ct);
         // Tương tự cho loại cuộc gọi và video người gọi.
         var previousVideos = await backupRepo.GetComboVideosAsync(userId, ct);
+        // Và ảnh đại diện: app bản cũ không gửi avatarMediaId thì giữ ảnh đang có.
+        var previousAvatars = await backupRepo.GetComboAvatarIdsAsync(userId, ct);
 
         // 2. Replace existing custom Combos, Scenarios, AmbientSounds for this user
         await backupRepo.ClearUserSnapshotEntitiesAsync(userId, ct);
@@ -213,6 +215,17 @@ public class BackupAndShareService(
                 referencedMediaIds.Add(videoMediaId.Value);
             }
 
+            var avatarMediaId = dto.AvatarMediaId switch
+            {
+                null => previousAvatars.GetValueOrDefault(comboId),
+                var id when id == Guid.Empty => null,
+                var id => id,
+            };
+            if (avatarMediaId.HasValue)
+            {
+                referencedMediaIds.Add(avatarMediaId.Value);
+            }
+
             var combo = new Combo
             {
                 Id = comboId,
@@ -227,6 +240,7 @@ public class BackupAndShareService(
                 CallType = UserDataService.ParseCallType(dto.CallType)
                     ?? (hadCombo ? previousVideo.CallType : CallType.Voice),
                 VideoMediaId = videoMediaId,
+                AvatarMediaId = avatarMediaId,
                 // App bản cũ không gửi VideoEndAction: giữ tên người gọi và cách kết thúc đang có.
                 CallerName = UserDataService.ParseVideoEndAction(dto.VideoEndAction) is null && hadCombo
                     ? previousVideo.CallerName
@@ -371,7 +385,8 @@ public class BackupAndShareService(
                 UserDataService.MapCallTypeString(c.CallType),
                 c.VideoMediaId,
                 c.CallerName,
-                UserDataService.MapVideoEndActionString(c.VideoEndAction))).ToList(),
+                UserDataService.MapVideoEndActionString(c.VideoEndAction),
+                c.AvatarMediaId)).ToList(),
             mediaFiles.Select(m => new MediaCheckItemDto(m.Sha256, m.Id, m.Extension, m.SizeBytes)).ToList());
     }
 
@@ -391,6 +406,11 @@ public class BackupAndShareService(
         }
 
         var mediaIds = new HashSet<Guid>();
+        // Ảnh đại diện luôn đi theo combo (nhẹ), kể cả khi không kèm âm thanh và video.
+        foreach (var c in request.Combos)
+        {
+            if (c.AvatarMediaId is { } avatarId && avatarId != Guid.Empty) mediaIds.Add(avatarId);
+        }
         if (request.IncludeAudio)
         {
             foreach (var c in request.Combos)

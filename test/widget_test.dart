@@ -143,7 +143,7 @@ void main() {
     tester,
   ) async {
     await start(tester);
-    expect(find.text('Cần lối thoát?'), findsOneWidget);
+    expect(find.text('COMBO CỦA BẠN'), findsOneWidget);
     final context = tester.element(find.byType(TronApp));
     final container = ProviderScope.containerOf(context);
     await tester.tap(find.text('Mẹ gọi về nhà'));
@@ -186,7 +186,7 @@ void main() {
         ),
       ],
     );
-    await tester.tap(find.text('+ Tạo combo'));
+    await tester.tap(find.text('Tạo combo'));
     await tester.pumpAndSettle();
     expect(find.text('Tên người gọi'), findsNothing);
     await tester.tap(find.text('Gọi video'));
@@ -242,7 +242,7 @@ void main() {
     tester,
   ) async {
     await start(tester);
-    await tester.tap(find.text('+ Tạo combo'));
+    await tester.tap(find.text('Tạo combo'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Lưu combo'));
     await tester.pumpAndSettle();
@@ -267,7 +267,7 @@ void main() {
       size: const Size(390, 2400),
       overrides: [backgroundPreviewLoopProvider.overrideWithValue(loops.call)],
     );
-    await tester.tap(find.text('+ Tạo combo'));
+    await tester.tap(find.text('Tạo combo'));
     await tester.pumpAndSettle();
     // Chưa chọn âm nền thì chưa nghe thử được.
     expect(find.text('Chọn ít nhất một âm nền để nghe thử.'), findsOneWidget);
@@ -359,7 +359,7 @@ void main() {
     (tester) async {
       await start(tester, size: const Size(320, 640), textScale: 1.15);
       expect(tester.takeException(), isNull);
-      await tester.tap(find.text('+ Tạo combo'));
+      await tester.tap(find.text('Tạo combo'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       await tester.tap(find.byTooltip('Quay lại'));
@@ -396,7 +396,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(container.read(callProvider).status, CallStatus.idle);
-    expect(find.text('Cần lối thoát?'), findsOneWidget);
+    expect(find.text('COMBO CỦA BẠN'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -406,7 +406,7 @@ void main() {
       find.byKey(const ValueKey('app-preview')),
       matchesGoldenFile('goldens/home_dark.png'),
     );
-    await tester.tap(find.text('+ Tạo combo'));
+    await tester.tap(find.text('Tạo combo'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField), 'Sếp gọi gấp');
     await tester.testTextInput.receiveAction(TextInputAction.done);

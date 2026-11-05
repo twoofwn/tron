@@ -115,6 +115,10 @@ String _mimeType(String name) => name.endsWith('.mp3')
     ? 'audio/mpeg'
     : name.endsWith('.mp4')
     ? 'video/mp4'
+    : name.endsWith('.jpg')
+    ? 'image/jpeg'
+    : name.endsWith('.png')
+    ? 'image/png'
     : 'audio/wav';
 
 Future<String> mediaFileUri(String name) async => Uri.dataFromBytes(

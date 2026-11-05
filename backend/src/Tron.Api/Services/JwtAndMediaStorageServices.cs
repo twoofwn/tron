@@ -114,7 +114,8 @@ public class DiskMediaStorage : IMediaStorage
         CancellationToken ct = default)
     {
         var cleanExt = extension.TrimStart('.').ToLowerInvariant();
-        if (!DomainLimits.AllowedAudioExtensions.Contains(cleanExt) && !DomainLimits.IsVideoExtension(cleanExt))
+        if (!DomainLimits.AllowedAudioExtensions.Contains(cleanExt) && !DomainLimits.IsVideoExtension(cleanExt)
+            && !DomainLimits.IsImageExtension(cleanExt))
         {
             throw new ApiDomainException("MEDIA_INVALID_EXTENSION", "Định dạng file không được hỗ trợ.");
         }
@@ -223,21 +224,24 @@ public class DiskMediaStorage : IMediaStorage
     }
 }
 
-/// <summary>Kiểm tra đuôi file và magic bytes của âm thanh (MP3, M4A, WAV) và video cuộc gọi (MP4).</summary>
+/// <summary>Kiểm tra đuôi file và magic bytes của âm thanh (MP3, M4A, WAV), video cuộc gọi (MP4) và ảnh đại diện (JPG, PNG).</summary>
 public static class AudioValidator
 {
     public static string TooLargeMessage(string extension) =>
         DomainLimits.IsVideoExtension(extension)
             ? $"File video vượt quá giới hạn {DomainLimits.MaxVideoFileBytes / (1024 * 1024)} MB."
+            : DomainLimits.IsImageExtension(extension)
+            ? $"Ảnh vượt quá giới hạn {DomainLimits.MaxImageFileBytes / (1024 * 1024)} MB."
             : $"File âm thanh vượt quá giới hạn {DomainLimits.MaxMediaFileBytes / (1024 * 1024)} MB.";
 
     public static (string Extension, string ContentType) ValidateFormat(string fileName, ReadOnlySpan<byte> headerBytes)
     {
         var ext = Path.GetExtension(fileName).TrimStart('.').ToLowerInvariant();
         var isVideoExt = DomainLimits.IsVideoExtension(ext);
-        if (!DomainLimits.AllowedAudioExtensions.Contains(ext) && !isVideoExt)
+        var isImageExt = DomainLimits.IsImageExtension(ext);
+        if (!DomainLimits.AllowedAudioExtensions.Contains(ext) && !isVideoExt && !isImageExt)
         {
-            throw new ApiDomainException("MEDIA_INVALID_EXTENSION", "Chỉ hỗ trợ âm thanh MP3, M4A, WAV hoặc video MP4.");
+            throw new ApiDomainException("MEDIA_INVALID_EXTENSION", "Chỉ hỗ trợ âm thanh MP3, M4A, WAV, video MP4 hoặc ảnh JPG, PNG.");
         }
 
         if (headerBytes.Length < 12)
@@ -258,12 +262,18 @@ public static class AudioValidator
         var isMpegFrame = headerBytes[0] == 0xFF && (headerBytes[1] & 0xE0) == 0xE0;
         var isMp3 = isId3 || isMpegFrame;
 
+        var isJpeg = headerBytes[0] == 0xFF && headerBytes[1] == 0xD8 && headerBytes[2] == 0xFF;
+        var isPng = headerBytes[0] == 0x89 && headerBytes[1] == (byte)'P' &&
+                    headerBytes[2] == (byte)'N' && headerBytes[3] == (byte)'G';
+
         return ext switch
         {
             "wav" when isWav => ("wav", "audio/wav"),
             "m4a" when isM4a => ("m4a", "audio/mp4"),
             "mp3" when isMp3 => ("mp3", "audio/mpeg"),
             "mp4" when isM4a => ("mp4", "video/mp4"),
+            "jpg" when isJpeg => ("jpg", "image/jpeg"),
+            "png" when isPng => ("png", "image/png"),
             _ => throw new ApiDomainException(
                 "MEDIA_SIGNATURE_MISMATCH",
                 $"Nội dung file không khớp với định dạng .{ext}.")

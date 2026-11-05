@@ -152,6 +152,8 @@ public class Combo
     public Guid? VoiceMediaId { get; set; }
     /// <summary>Video người gọi do người dùng tự quay (MP4); null thì cuộc gọi video hiện như người gọi tắt camera.</summary>
     public Guid? VideoMediaId { get; set; }
+    /// <summary>Ảnh đại diện người gọi (JPG/PNG) hiện ở danh sách combo và màn cuộc gọi; null thì app hiện chữ cái đầu.</summary>
+    public Guid? AvatarMediaId { get; set; }
     /// <summary>Tên người gọi của cuộc gọi video (gọi video không dùng kịch bản thoại).</summary>
     public string? CallerName { get; set; }
     /// <summary>Hết video thì tắt máy hay phát lại.</summary>
@@ -167,6 +169,7 @@ public class Combo
     public MediaFile? CustomBackgroundMedia { get; set; }
     public MediaFile? VoiceMedia { get; set; }
     public MediaFile? VideoMedia { get; set; }
+    public MediaFile? AvatarMedia { get; set; }
     public ICollection<ComboBackground> Backgrounds { get; set; } = new List<ComboBackground>();
 }
 

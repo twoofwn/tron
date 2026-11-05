@@ -4,6 +4,7 @@ import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_text_styles.dart';
 import '../../../core/widgets/glass_card.dart';
 import '../../../shared/enums/call_interface.dart';
+import '../../../shared/widgets/avatar_photo.dart';
 import '../../combo/models/combo_model.dart';
 
 class ComboCard extends StatelessWidget {
@@ -32,15 +33,19 @@ class ComboCard extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 22,
-            backgroundColor: color.withValues(alpha: 0.1),
-            child: Text(
-              combo.name.characters.first.toUpperCase(),
-              style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.w800,
-                fontSize: 17,
+          AvatarPhoto(
+            path: combo.avatarPath,
+            size: 44,
+            fallback: CircleAvatar(
+              radius: 22,
+              backgroundColor: color.withValues(alpha: 0.1),
+              child: Text(
+                combo.name.characters.first.toUpperCase(),
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 17,
+                ),
               ),
             ),
           ),

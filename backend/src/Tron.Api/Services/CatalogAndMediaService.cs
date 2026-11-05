@@ -126,6 +126,15 @@ public class CatalogAndMediaService(
         {
             throw new ApiDomainException("MEDIA_INVALID_EXTENSION", "Video cuộc gọi phải là file MP4.");
         }
+        // Ảnh đại diện cũng theo đuôi file: ảnh không được lưu thành âm thanh và ngược lại.
+        if (DomainLimits.IsImageExtension(ext))
+        {
+            kind = MediaKind.Image;
+        }
+        else if (kind == MediaKind.Image)
+        {
+            throw new ApiDomainException("MEDIA_INVALID_EXTENSION", "Ảnh đại diện phải là file JPG hoặc PNG.");
+        }
 
         var maxBytes = DomainLimits.MaxBytesForExtension(ext);
         await bufferStream.WriteAsync(header.AsMemory(0, headerRead), ct);

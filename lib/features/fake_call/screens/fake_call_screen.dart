@@ -405,6 +405,7 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
           theme: theme,
           elapsed: _elapsed,
           videoPath: combo.videoPath,
+          avatarPath: combo.avatarPath,
           loop: combo.videoEndAction == VideoEndAction.loop,
           isMuted: _isMuted,
           onToggleMute: () => setState(() => _isMuted = !_isMuted),
@@ -454,6 +455,7 @@ class _FakeCallScreenState extends ConsumerState<FakeCallScreen> {
         CallInterface.phone => PhoneIncomingView(
           caller: caller,
           initial: initial,
+          avatarPath: combo.avatarPath,
           theme: theme,
           isVideo: isVideo,
           onAnswer: _answer,
@@ -529,6 +531,7 @@ extension on _FakeCallScreenState {
       content = isZalo
           ? ZaloIncomingView(
               caller: caller,
+              avatarPath: _combo.avatarPath,
               initial: initial,
               theme: theme,
               isVideo: isVideo,
@@ -537,6 +540,7 @@ extension on _FakeCallScreenState {
             )
           : MessengerIncomingView(
               caller: caller,
+              avatarPath: _combo.avatarPath,
               initial: initial,
               theme: theme,
               isVideo: isVideo,
@@ -551,6 +555,7 @@ extension on _FakeCallScreenState {
         background = ZaloInCallView.background;
         content = ZaloInCallView(
           caller: caller,
+          avatarPath: _combo.avatarPath,
           elapsed: _elapsed,
           isMuted: _isMuted,
           isSpeaker: _isSpeaker,
@@ -566,6 +571,7 @@ extension on _FakeCallScreenState {
         backdrop = const _MessengerBackdrop();
         content = MessengerInCallView(
           caller: caller,
+          avatarPath: _combo.avatarPath,
           initial: initial,
           elapsed: _elapsed,
           isMuted: _isMuted,

@@ -9,11 +9,15 @@ class ScenarioCard extends StatelessWidget {
     required this.scenario,
     required this.selected,
     required this.onTap,
+    this.menu,
   });
 
   final Scenario scenario;
   final bool selected;
   final VoidCallback onTap;
+
+  /// Nút ⋮ (sửa, xoá...) ở cuối thẻ.
+  final Widget? menu;
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +32,7 @@ class ScenarioCard extends StatelessWidget {
           onTap: onTap,
           child: Ink(
             decoration: palette.cardDecoration(selected: selected),
-            padding: const EdgeInsets.all(15),
+            padding: EdgeInsets.fromLTRB(15, 15, menu == null ? 15 : 2, 15),
             child: Row(
               children: [
                 CircleAvatar(
@@ -82,8 +86,9 @@ class ScenarioCard extends StatelessWidget {
                       ),
                     ),
                   )
-                else
+                else if (menu == null)
                   Icon(Icons.chevron_right, color: palette.muted),
+                ?menu,
               ],
             ),
           ),

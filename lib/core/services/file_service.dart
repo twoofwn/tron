@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
 import '../constants/app_constants.dart';
@@ -100,9 +101,64 @@ class FileService {
       bytes[6] == 0x79 &&
       bytes[7] == 0x70;
 
-  /// Lưu file theo đuôi trong đường dẫn: video MP4 hoặc âm thanh.
+  /// Chọn ảnh đại diện người gọi từ thư viện ảnh hoặc chụp bằng camera.
+  /// Ảnh được thu nhỏ còn cạnh dài tối đa [AppConstants.avatarMaxSide] trước
+  /// khi lưu. Trả về `media:UUID.jpg` (hoặc `.png`), `null` nếu người dùng huỷ.
+  Future<String?> pickAvatar({required bool fromCamera}) async {
+    final file = await ImagePicker().pickImage(
+      source: fromCamera ? ImageSource.camera : ImageSource.gallery,
+      maxWidth: AppConstants.avatarMaxSide,
+      maxHeight: AppConstants.avatarMaxSide,
+      imageQuality: 85,
+      preferredCameraDevice: CameraDevice.front,
+    );
+    if (file == null) {
+      return null;
+    }
+    final length = await file.length();
+    ensureSize(length, limit: AppConstants.maxAvatarBytes, what: 'Ảnh');
+    return storeImage(await file.readAsBytes());
+  }
+
+  /// Lưu ảnh JPG/PNG vào thư mục media của app; đuôi file theo nội dung ảnh.
+  Future<String> storeImage(Uint8List bytes) async {
+    final extension = imageExtension(bytes);
+    if (extension == null) {
+      throw const FormatException(
+        'Ảnh phải là JPG hoặc PNG. Hãy chọn ảnh khác.',
+      );
+    }
+    ensureSize(bytes.length, limit: AppConstants.maxAvatarBytes, what: 'Ảnh');
+    final name = '${const Uuid().v4()}.$extension';
+    await media.writeMediaFile(name, bytes);
+    return 'media:$name';
+  }
+
+  /// `jpg` hoặc `png` theo vài byte đầu của ảnh (giống cách server kiểm tra);
+  /// không phải hai loại đó thì `null`.
+  static String? imageExtension(Uint8List bytes) {
+    if (bytes.length < 12) {
+      return null;
+    }
+    if (bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) {
+      return 'jpg';
+    }
+    if (bytes[0] == 0x89 &&
+        bytes[1] == 0x50 &&
+        bytes[2] == 0x4E &&
+        bytes[3] == 0x47) {
+      return 'png';
+    }
+    return null;
+  }
+
+  /// Lưu file theo đuôi trong đường dẫn: video MP4, ảnh hoặc âm thanh.
   Future<String> storeMedia(Uint8List bytes, String extension) =>
-      extension == 'mp4' ? storeVideo(bytes) : storeAudio(bytes, extension);
+      switch (extension) {
+        'mp4' => storeVideo(bytes),
+        'jpg' || 'jpeg' || 'png' => storeImage(bytes),
+        _ => storeAudio(bytes, extension),
+      };
 
   Future<String> storeAudio(Uint8List bytes, String extension) async {
     if (!['mp3', 'wav'].contains(extension) ||
@@ -115,11 +171,18 @@ class FileService {
     return 'media:$name';
   }
 
-  /// Đường dẫn file riêng của app: âm thanh (`.mp3`, `.wav`) hoặc video (`.mp4`).
-  static final mediaPathPattern = RegExp(r'^media:[a-f0-9-]+\.(mp3|wav|mp4)$');
+  /// Đường dẫn file riêng của app: âm thanh (`.mp3`, `.wav`), video (`.mp4`)
+  /// hoặc ảnh đại diện (`.jpg`, `.png`).
+  static final mediaPathPattern = RegExp(
+    r'^media:[a-f0-9-]+\.(mp3|wav|mp4|jpg|png)$',
+  );
 
   /// Đường dẫn trỏ tới video người gọi.
   static bool isVideoPath(String path) => path.endsWith('.mp4');
+
+  /// Đường dẫn trỏ tới ảnh đại diện.
+  static bool isImagePath(String path) =>
+      path.endsWith('.jpg') || path.endsWith('.png');
 
   String _name(String path) {
     if (!mediaPathPattern.hasMatch(path)) {

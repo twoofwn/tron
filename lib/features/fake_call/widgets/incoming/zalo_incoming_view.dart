@@ -16,6 +16,7 @@ class ZaloIncomingView extends StatelessWidget {
     required this.onAnswer,
     required this.onDecline,
     this.isVideo = false,
+    this.avatarPath,
   });
   final String caller;
   final String initial;
@@ -25,6 +26,9 @@ class ZaloIncomingView extends StatelessWidget {
 
   /// Cuộc gọi video: đổi dòng trạng thái và biểu tượng nút Trả lời.
   final bool isVideo;
+
+  /// Ảnh đại diện người gọi (`media:...`); không có thì hiện chữ cái đầu.
+  final String? avatarPath;
 
   static const _decline = Color(0xFFF2655E);
   static const _accept = Color(0xFF2DC76D);
@@ -44,6 +48,7 @@ class ZaloIncomingView extends StatelessWidget {
           Positioned.fill(
             child: ZaloCallHeader(
               caller: caller,
+              avatarPath: avatarPath,
               status: Text(
                 isVideo ? 'Cuộc gọi video đến' : 'Cuộc gọi thoại đến',
                 style: TextStyle(

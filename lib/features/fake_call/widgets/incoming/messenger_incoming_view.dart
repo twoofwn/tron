@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../themes/call_theme.dart';
+import '../../../../shared/widgets/avatar_photo.dart';
 import '../call_action_button.dart';
 
 /// 7c — Cuộc gọi Messenger đến trên Android: Messenger tự vẽ màn gọi đến cùng
@@ -15,6 +16,7 @@ class MessengerIncomingView extends StatelessWidget {
     required this.onAnswer,
     required this.onDecline,
     this.isVideo = false,
+    this.avatarPath,
   });
   final String caller;
   final String initial;
@@ -24,6 +26,9 @@ class MessengerIncomingView extends StatelessWidget {
 
   /// Cuộc gọi video: đổi dòng trạng thái và biểu tượng nút Trả lời.
   final bool isVideo;
+
+  /// Ảnh đại diện người gọi (`media:...`); không có thì hiện chữ cái đầu.
+  final String? avatarPath;
 
   static const _decline = Color(0xFFFF3B30);
   static const _accept = Color(0xFF34C759);
@@ -66,19 +71,23 @@ class MessengerIncomingView extends StatelessWidget {
             top: 120,
             child: Column(
               children: [
-                Container(
-                  width: 112,
-                  height: 112,
-                  alignment: Alignment.center,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF6D55D9),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    initial,
-                    style: const TextStyle(
-                      fontSize: 44,
-                      fontWeight: FontWeight.w600,
+                AvatarPhoto(
+                  path: avatarPath,
+                  size: 112,
+                  fallback: Container(
+                    width: 112,
+                    height: 112,
+                    alignment: Alignment.center,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF6D55D9),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      initial,
+                      style: const TextStyle(
+                        fontSize: 44,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),

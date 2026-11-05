@@ -192,6 +192,10 @@ public class TronDbContext(DbContextOptions<TronDbContext> options) : DbContext(
                 .WithMany()
                 .HasForeignKey(x => x.VideoMediaId)
                 .OnDelete(DeleteBehavior.NoAction);
+            b.HasOne(x => x.AvatarMedia)
+                .WithMany()
+                .HasForeignKey(x => x.AvatarMediaId)
+                .OnDelete(DeleteBehavior.NoAction);
         });
 
         modelBuilder.Entity<ComboBackground>(b =>

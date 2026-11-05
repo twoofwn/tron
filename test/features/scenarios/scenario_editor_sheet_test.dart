@@ -121,6 +121,7 @@ class _Harness {
 Future<_Harness> _open(
   WidgetTester tester, {
   Scenario? original,
+  bool asCopy = false,
   bool allowed = true,
 }) async {
   tester.view.physicalSize = const Size(900, 3200);
@@ -142,6 +143,7 @@ Future<_Harness> _open(
                 context,
                 repository: harness.repository,
                 original: original,
+                asCopy: asCopy,
                 recorder: harness.recorder,
                 player: harness.player,
               );
@@ -179,7 +181,7 @@ void main() {
   testWidgets('a copied sample keeps its turns and sample voices', (
     tester,
   ) async {
-    final h = await _open(tester, original: _scenario());
+    final h = await _open(tester, original: _scenario(), asCopy: true);
     expect(find.text('Sao chép kịch bản'), findsOneWidget);
     expect(find.textContaining('Giọng mẫu của app'), findsNWidgets(4));
     // Câu 3 nói liền câu 4 nên không chờ; câu cuối không có ô chờ.
@@ -204,6 +206,28 @@ void main() {
     // Bản sao không bao giờ xoá audio của kịch bản mẫu.
     expect(h.repository.deleted, isEmpty);
     expect(h.result?.id, saved.id);
+  });
+
+  testWidgets('editing a sample keeps its id so combos use the edit', (
+    tester,
+  ) async {
+    final h = await _open(tester, original: _scenario());
+    expect(find.text('Sửa kịch bản'), findsOneWidget);
+    expect(
+      find.textContaining('Bản sửa thay cho kịch bản mẫu'),
+      findsOneWidget,
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Mẹ gọi về gấp'),
+      'Mẹ gọi về ăn cơm',
+    );
+    await _save(tester);
+    final saved = h.repository.saved!;
+    expect(saved.id, 'mother-urgent');
+    expect(saved.source, ScenarioSource.user);
+    expect(saved.title, 'Mẹ gọi về ăn cơm');
+    // Giọng mẫu của app không bao giờ bị xoá.
+    expect(h.repository.deleted, isEmpty);
   });
 
   testWidgets('recording a line replaces the sample voice', (tester) async {

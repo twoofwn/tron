@@ -151,6 +151,10 @@ class BackupService {
           ? ComboRepository.clearVoiceId
           : (reuseVoiceIds ? combo.videoMediaId : null) ??
                 await ensureUploaded(combo.videoPath, 'Video');
+      final avatarMediaId = combo.avatarPath == null
+          ? ComboRepository.clearVoiceId
+          : (reuseVoiceIds ? combo.avatarMediaId : null) ??
+                await ensureUploaded(combo.avatarPath, 'Image');
 
       comboPayloads.add({
         'id': combo.id,
@@ -169,6 +173,7 @@ class BackupService {
         'callerName': combo.callerName,
         'videoEndAction': combo.videoEndAction.name,
         'videoMediaId': videoMediaId,
+        'avatarMediaId': avatarMediaId,
         'backgroundVolume': 0.3,
         'backgroundOverridden': false,
         'createdAt': combo.createdAt.toUtc().toIso8601String(),
@@ -307,6 +312,11 @@ class BackupService {
           ? null
           : rawVideoId;
       final videoPath = await downloadMedia(videoMediaId);
+      final rawAvatarId = map['avatarMediaId'] as String?;
+      final avatarMediaId = rawAvatarId == ComboRepository.clearVoiceId
+          ? null
+          : rawAvatarId;
+      final avatarPath = await downloadMedia(avatarMediaId);
       final bgList = ((map['backgroundSoundIds'] as List?) ?? const [])
           .map((e) => e.toString())
           .where(
@@ -335,6 +345,8 @@ class BackupService {
           videoEndAction: VideoEndAction.parse(map['videoEndAction']),
           videoPath: videoPath,
           videoMediaId: videoPath == null ? null : videoMediaId,
+          avatarPath: avatarPath,
+          avatarMediaId: avatarPath == null ? null : avatarMediaId,
           createdAt:
               DateTime.tryParse(map['createdAt'] as String? ?? '') ??
               DateTime.now(),
@@ -396,6 +408,16 @@ class BackupService {
               await repository.uploadMedia(videoPath, MediaTrack.video.kind);
         } catch (_) {}
       }
+      // Ảnh đại diện luôn đi theo combo, kể cả khi không kèm âm thanh.
+      final avatarPath = c.avatarPath;
+      String? avatarMediaId;
+      if (avatarPath != null) {
+        try {
+          avatarMediaId =
+              c.avatarMediaId ??
+              await repository.uploadMedia(avatarPath, MediaTrack.avatar.kind);
+        } catch (_) {}
+      }
       comboDtos.add({
         'id': c.id,
         'name': c.name,
@@ -410,6 +432,7 @@ class BackupService {
         'callerName': c.callerName,
         'videoEndAction': c.videoEndAction.name,
         'videoMediaId': videoMediaId,
+        'avatarMediaId': avatarMediaId,
         'backgroundVolume': 0.3,
         'backgroundOverridden': false,
         'createdAt': c.createdAt.toUtc().toIso8601String(),
@@ -571,6 +594,23 @@ class BackupService {
           // Không tải được video: cuộc gọi video hiện như người gọi tắt camera.
         }
       }
+      // Ảnh đại diện người gọi: lưu theo đúng loại ảnh (JPG/PNG).
+      String? avatarPath;
+      final avatarId = map['avatarMediaId'] as String?;
+      if (avatarId != null && avatarId != ComboRepository.clearVoiceId) {
+        try {
+          final bytes = await api.getBytes(
+            '/shares/$shareCode/media/$avatarId',
+          );
+          final extension = FileService.imageExtension(bytes);
+          if (extension != null) {
+            avatarPath = 'media:${const Uuid().v4()}.$extension';
+            audio[avatarPath] = bytes;
+          }
+        } catch (_) {
+          // Không tải được ảnh: hiện chữ cái đầu.
+        }
+      }
       final bgList = ((map['backgroundSoundIds'] as List?) ?? const [])
           .map((e) => e.toString())
           .where(
@@ -600,6 +640,7 @@ class BackupService {
           callerName: ComboModel.cleanCallerName(map['callerName']),
           videoEndAction: VideoEndAction.parse(map['videoEndAction']),
           videoPath: videoPath,
+          avatarPath: avatarPath,
           createdAt:
               DateTime.tryParse(map['createdAt'] as String? ?? '') ??
               DateTime.now(),

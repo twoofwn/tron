@@ -101,7 +101,9 @@ public record BackupComboDto(
     // Tên người gọi và cách kết thúc của cuộc gọi video. App bản cũ không gửi
     // VideoEndAction: khi đó server giữ nguyên cả hai trường.
     string? CallerName = null,
-    string? VideoEndAction = null);
+    string? VideoEndAction = null,
+    // Ảnh đại diện người gọi, cùng quy ước với VoiceMediaId: null = giữ nguyên, Guid.Empty = xoá ảnh.
+    Guid? AvatarMediaId = null);
 
 public record BackupSnapshotRequest(
     string? DeviceName,
