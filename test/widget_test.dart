@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +13,7 @@ import 'package:tron/core/services/file_service.dart';
 import 'package:tron/core/services/video_recorder.dart';
 import 'package:tron/features/activation/providers/activation_provider.dart';
 import 'package:tron/features/activation/services/permission_service.dart';
+import 'package:tron/features/backup/services/backup_service.dart';
 import 'package:tron/features/combo/models/combo_model.dart';
 import 'package:tron/features/combo/providers/combo_provider.dart';
 import 'package:tron/features/fake_call/models/call_script.dart';
@@ -20,6 +23,9 @@ import 'package:tron/features/fake_call/providers/call_provider.dart';
 import 'package:tron/features/fake_call/screens/fake_call_screen.dart';
 import 'package:tron/features/fake_call/services/call_device_service.dart';
 import 'package:tron/features/settings/models/app_settings.dart';
+import 'package:tron/features/scenarios/data/scenario_repository.dart';
+import 'package:tron/features/scenarios/models/scenario.dart';
+import 'package:tron/features/scenarios/providers/scenario_provider.dart';
 import 'package:tron/features/settings/providers/settings_provider.dart';
 import 'package:tron/shared/enums/call_interface.dart';
 import 'package:tron/features/sharing/repositories/sharing_repository.dart';
@@ -64,6 +70,18 @@ class SilentAudioService extends AudioService {
 class PickedVideoFiles extends FileService {
   @override
   Future<String?> pickVideo() async => 'media:0f0f.mp4';
+}
+
+/// Server tạo mã ngắn `EH-` giả: trả về khi `reply` hoàn tất, không gọi mạng.
+class FakeOnlineShare extends BackupService {
+  FakeOnlineShare(super.ref, this.reply);
+  final Future<String> Function() reply;
+  @override
+  Future<String> createOnlineShare(
+    List<ComboModel> selectedCombos, {
+    List<Scenario> selectedScenarios = const [],
+    required bool includeAudio,
+  }) => reply();
 }
 
 /// Kênh Android thật không trả lời trong test, nên thay bằng bản không làm gì.
@@ -138,6 +156,13 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  /// Kho kịch bản thật đọc file, không tải xong trong thời gian giả của
+  /// testWidgets nên màn Xuất chờ mãi. Combo mặc định dùng kịch bản có sẵn,
+  /// nên test chia sẻ chỉ cần một kho rỗng.
+  final emptyScenarioLibrary = scenarioLibraryProvider.overrideWith(
+    (ref) async => ScenarioRepository(),
+  );
 
   testWidgets('Home selection, timer changes, cancellation and theme switch', (
     tester,
@@ -324,12 +349,26 @@ void main() {
           return null;
         },
       );
-      await start(tester);
+      // Server không trả lời được: mã offline vẫn dùng ngay.
+      await start(
+        tester,
+        overrides: [
+          emptyScenarioLibrary,
+          backupServiceProvider.overrideWith(
+            (ref) => FakeOnlineShare(
+              ref,
+              () => Future.error(const FormatException('offline')),
+            ),
+          ),
+        ],
+      );
       await tester.tap(find.text('Nhập / Xuất'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Tạo mã chia sẻ · 2 combo'));
       await tester.pumpAndSettle();
       expect(find.text('Sao chép mã đầy đủ'), findsOneWidget);
+      expect(find.textContaining('Chưa lấy được mã ngắn EH-'), findsOneWidget);
+      expect(find.textContaining('Sao chép mã EH-'), findsNothing);
       await tester.tap(find.text('Sao chép mã đầy đủ'));
       await tester.pumpAndSettle();
       final code = copiedCode!;
@@ -337,14 +376,14 @@ void main() {
       await tester.tap(find.text('Nhập'));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextFormField), code);
-      await tester.tap(find.text('Xem trước combo'));
+      await tester.tap(find.text('Xem trước gói chia sẻ'));
       await tester.pumpAndSettle();
       expect(find.text('2 combo trong gói'), findsOneWidget);
       await tester.ensureVisible(find.text('Tạo bản sao'));
       await tester.tap(find.text('Tạo bản sao'));
       await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Xác nhận nhập · 2 combo'));
-      await tester.tap(find.text('Xác nhận nhập · 2 combo'));
+      await tester.ensureVisible(find.text('Xác nhận nhập · 2 mục'));
+      await tester.tap(find.text('Xác nhận nhập · 2 mục'));
       await tester.pumpAndSettle();
       final container = ProviderScope.containerOf(
         tester.element(find.byType(TronApp)),
@@ -353,6 +392,52 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('Offline code shows at once, short EH- code arrives later', (
+    tester,
+  ) async {
+    final server = Completer<String>();
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String;
+        }
+        return null;
+      },
+    );
+    await start(
+      tester,
+      overrides: [
+        emptyScenarioLibrary,
+        backupServiceProvider.overrideWith(
+          (ref) => FakeOnlineShare(ref, () => server.future),
+        ),
+      ],
+    );
+    await tester.tap(find.text('Nhập / Xuất'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tạo mã chia sẻ · 2 combo'));
+    await tester.pumpAndSettle();
+
+    // Server chưa trả lời: QR và mã đầy đủ đã có.
+    expect(find.textContaining('Đang lấy mã ngắn EH-'), findsOneWidget);
+    await tester.tap(find.text('Sao chép mã đầy đủ'));
+    await tester.pumpAndSettle();
+    final fullBefore = copied;
+    expect(fullBefore, startsWith('TRON1.'));
+
+    server.complete('EH-ABC123');
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Đang lấy mã ngắn EH-'), findsNothing);
+    expect(find.text('Sao chép mã EH-ABC123'), findsOneWidget);
+    // Mã đầy đủ không đổi khi mã ngắn về.
+    await tester.tap(find.text('Sao chép mã đầy đủ'));
+    await tester.pumpAndSettle();
+    expect(copied, fullBefore);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'Three primary screens render without overflow on compact devices',

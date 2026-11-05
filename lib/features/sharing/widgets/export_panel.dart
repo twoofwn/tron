@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,6 +37,13 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
   ComboPackage? _package;
   String? _onlineCode;
 
+  /// Đang xin mã ngắn `EH-` từ server; mã offline đã dùng được trong lúc chờ.
+  bool _fetchingOnline = false;
+  bool _onlineFailed = false;
+
+  /// Tăng mỗi khi lựa chọn đổi, để bỏ mã `EH-` về muộn của lựa chọn cũ.
+  int _shareRun = 0;
+
   /// Dung lượng ước tính của gói theo lựa chọn hiện tại; `null` khi đang tính.
   int? _estimate;
   int _estimateRun = 0;
@@ -47,10 +56,13 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
   }
 
   void _invalidate(VoidCallback change) {
+    _shareRun++;
     setState(() {
       change();
       _package = null;
       _onlineCode = null;
+      _fetchingOnline = false;
+      _onlineFailed = false;
     });
     _refreshEstimate();
   }
@@ -97,7 +109,11 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
 
   bool get _isTooLarge => (_estimate ?? 0) > AppConstants.maxPackageBytes;
 
+  /// Tạo gói offline (QR, mã `TRON1.`, file .ehc) và hiện ngay; mã ngắn `EH-`
+  /// lấy từ server ở nền, nên không có mạng thì người dùng không phải chờ.
   Future<void> _generate() async {
+    final run = ++_shareRun;
+    final includeAudio = _includeAudio;
     setState(() => _isBusy = true);
     try {
       final selectedCombos = _selectedCombos;
@@ -110,33 +126,23 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
           .create(
             selectedCombos,
             scenarios: selectedScenarios,
-            includeAudio: _includeAudio,
+            includeAudio: includeAudio,
           );
-      String? onlineCode;
-      try {
-        onlineCode = await ref
-            .read(backupServiceProvider)
-            .createOnlineShare(
-              selectedCombos,
-              selectedScenarios: selectedScenarios,
-              includeAudio: _includeAudio,
-            );
-      } catch (_) {
-        // Fallback to local offline share code if server is unreachable
-      }
-      if (mounted) {
-        setState(() {
-          _package = onlineCode == null
-              ? package
-              : ComboPackage(
-                  id: onlineCode.replaceFirst('EH-', ''),
-                  combos: package.combos,
-                  scenarios: package.scenarios,
-                  audio: package.audio,
-                );
-          _onlineCode = onlineCode;
-        });
-      }
+      if (!mounted || run != _shareRun) return;
+      setState(() {
+        _package = package;
+        _onlineCode = null;
+        _fetchingOnline = true;
+        _onlineFailed = false;
+      });
+      unawaited(
+        _fetchOnlineCode(
+          run,
+          selectedCombos,
+          selectedScenarios,
+          includeAudio: includeAudio,
+        ),
+      );
     } catch (error) {
       if (mounted) {
         showMessage(
@@ -151,6 +157,32 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
         setState(() => _isBusy = false);
       }
     }
+  }
+
+  Future<void> _fetchOnlineCode(
+    int run,
+    List<ComboModel> combos,
+    List<Scenario> scenarios, {
+    required bool includeAudio,
+  }) async {
+    String? code;
+    try {
+      code = await ref
+          .read(backupServiceProvider)
+          .createOnlineShare(
+            combos,
+            selectedScenarios: scenarios,
+            includeAudio: includeAudio,
+          );
+    } catch (_) {
+      // Không có mạng hoặc server lỗi: vẫn dùng mã offline.
+    }
+    if (!mounted || run != _shareRun) return;
+    setState(() {
+      _onlineCode = code;
+      _fetchingOnline = false;
+      _onlineFailed = code == null;
+    });
   }
 
   Future<void> _deliver({required bool share}) async {
@@ -370,6 +402,17 @@ class _ExportPanelState extends ConsumerState<ExportPanel> {
             code: qrCode!,
             onlineCode: _onlineCode,
           ),
+          if (_fetchingOnline || _onlineFailed)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                _fetchingOnline
+                    ? 'Đang lấy mã ngắn EH-… QR và mã đầy đủ đã dùng được ngay.'
+                    : 'Chưa lấy được mã ngắn EH- (không có mạng hoặc server '
+                          'lỗi). QR, mã đầy đủ và file .ehc vẫn dùng được.',
+                style: const TextStyle(fontSize: 11, color: AppColors.muted),
+              ),
+            ),
           Wrap(
             alignment: WrapAlignment.end,
             spacing: 8,
