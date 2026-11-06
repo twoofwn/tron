@@ -252,5 +252,4 @@ Code nằm dưới `lib/features/scenarios/{models,data,presentation,services}/`
 - Repo `tron` là private nên tài khoản miễn phí không dùng được Pages. Trang được host ở repo public riêng `twoofwn/tron-landing` (https://twoofwn.github.io/tron-landing/), gốc repo đó là thư mục `landing/`. Workflow nằm ở `landing/.github/workflows/pages.yml` (trong `tron` không chạy, sang `tron-landing` thành `.github/workflows/`), đăng trang khi push vào `main` của `tron-landing`.
 - Đăng bản mới: commit thay đổi trong `landing/` ở `tron`, rồi chạy `git subtree push --prefix landing https://github.com/twoofwn/tron-landing.git main`.
 - Cập nhật APK: build release, chép đè `landing/downloads/tron.apk`, sửa dung lượng và SHA-256 trong `index.html`. Mỗi lần đổi APK làm repo nặng thêm ~90 MB; GitHub chặn file > 100 MB.
-- Có giao diện sáng/tối (2026-11-06): biến màu trong `:root`/`[data-theme]` của `styles.css`; tối theo `AppColors`, sáng theo bộ kem/nâu/vàng của slide. Mặc định theo máy, nút trên thanh điều hướng đổi và lưu vào `localStorage` (`tron-theme`). Mockup cuộc gọi luôn tối.
 - Trang không nhắc "Gõ lưng" vì đã bỏ; ảnh màn Home trong slide vẫn còn chữ "gõ lưng".
