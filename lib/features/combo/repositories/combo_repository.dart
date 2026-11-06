@@ -62,29 +62,27 @@ class ComboRepository {
     }
     final initial = [
       ComboModel(
-        id: 'f4b5d550-ec19-4d54-a744-111111111111',
-        name: 'Sếp gọi gấp',
-        scenarioId: 'boss',
+        id: 'f4b5d550-ec19-4d54-a744-333333333333',
+        name: 'Người yêu gọi',
+        scenarioId: 'friend',
         callInterface: CallInterface.zalo,
         createdAt: DateTime(2026),
-        backgroundSoundPaths: const ['office'],
       ),
       ComboModel(
         id: 'f4b5d550-ec19-4d54-a744-222222222222',
-        name: 'Mẹ gọi về nhà',
+        name: 'Bố gọi',
         scenarioId: 'mother',
-        callInterface: CallInterface.phone,
+        callInterface: CallInterface.zalo,
         createdAt: DateTime(2026),
-        ringtoneType: RingtoneType.classic,
         backgroundSoundPaths: const ['television'],
       ),
       ComboModel(
-        id: 'f4b5d550-ec19-4d54-a744-333333333333',
-        name: 'Lan nhờ ra đón',
-        scenarioId: 'friend',
-        callInterface: CallInterface.messenger,
+        id: 'f4b5d550-ec19-4d54-a744-111111111111',
+        name: 'Anh trai gọi (Tình huống đường vắng)',
+        scenarioId: 'boss',
+        callInterface: CallInterface.zalo,
         createdAt: DateTime(2026),
-        backgroundSoundPaths: const ['traffic', 'cafe'],
+        backgroundSoundPaths: const ['traffic'],
       ),
     ];
     await save(initial);

@@ -20,7 +20,7 @@ void main() {
           documentsDirectory: () async => documents,
         );
         await first.load();
-        expect(first.scenarios.length, greaterThanOrEqualTo(4));
+        expect(first.scenarios.length, greaterThanOrEqualTo(3));
         for (final scenario in first.scenarios) {
           for (final step in scenario.steps) {
             if (step.type == DialogueStepType.speech) {
@@ -151,6 +151,28 @@ void main() {
       }
     },
   );
+
+  test('a hidden sample that no longer ships is not counted', () async {
+    // Máy từng xoá kịch bản Chủ trọ, nay không còn trong app.
+    SharedPreferences.setMockInitialValues({
+      'tron.scenarios.hiddenBuiltIns': ['landlord-rent', 'mother-urgent'],
+    });
+    final documents = await Directory.systemTemp.createTemp('tron-hidden-');
+    try {
+      final repository = ScenarioRepository(
+        documentsDirectory: () async => documents,
+      );
+      await repository.load();
+      expect(repository.hiddenBuiltInCount, 1);
+      expect(
+        repository.scenarios.any((item) => item.id == 'mother-urgent'),
+        isFalse,
+      );
+      repository.dispose();
+    } finally {
+      await documents.delete(recursive: true);
+    }
+  });
 
   test('bundled audio is told apart from user audio', () {
     expect(

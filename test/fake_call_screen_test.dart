@@ -205,7 +205,7 @@ void main() {
     ) async {
       final audio = await open(tester, callInterface);
       expect(audio.events, ['ring:${callInterface.name}']);
-      expect(find.text('Sếp Hùng'), findsOneWidget);
+      expect(find.text('Khọm già'), findsOneWidget);
       expect(find.text('Từ chối'), findsOneWidget);
       await tester.tap(find.text('Trả lời'));
       await tester.pump();
@@ -404,7 +404,7 @@ void main() {
       expect(find.text(ringing), findsOneWidget);
       // Gọi video dùng tên người gọi của combo, không dùng kịch bản.
       expect(find.textContaining('Mẹ yêu'), findsWidgets);
-      expect(find.textContaining('Sếp Hùng'), findsNothing);
+      expect(find.textContaining('Khọm già'), findsNothing);
       // Nút Trả lời là camera (Zalo còn có nút video ở thanh trên).
       expect(find.byIcon(Icons.videocam_rounded), findsWidgets);
       await tester.tap(find.text('Trả lời'));

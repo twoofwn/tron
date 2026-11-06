@@ -236,3 +236,12 @@ Code nằm dưới `lib/features/scenarios/{models,data,presentation,services}/`
 - Nhánh `codex/no-pre-call-notification`. Trước đây báo thức hệ thống (`CallAlarmService.scheduleCall`) đặt đúng giờ hẹn, còn đồng hồ trong app kiểm tra mỗi 0,2 giây, nên khi đang mở app thông báo "Cuộc gọi đến · Chạm để nghe" thường hiện ra trước khi app kịp huỷ.
 - Nay báo thức đặt trễ `CallNotifier.alarmDelay` (1,5 giây): app đang mở thì tự đổ chuông đúng giờ và huỷ báo thức trước khi nó chạy. Khoá máy hoặc app ở nền thì vẫn dùng thông báo (full-screen intent) như cũ, chỉ trễ 1,5 giây. Người dùng chọn giữ thông báo cho trường hợp khoá máy/nền.
 - Kiểm tra: `flutter analyze` sạch; `flutter test` 261 đạt, 1 lỗi có sẵn (golden). Chưa thử trên máy thật.
+
+### 3 kịch bản mặc định mới, bản thu thật (2026-11-06)
+
+- Nhánh `codex/default-scenarios-family`. Kho kịch bản chỉ còn 3 kịch bản, giữ ID cũ để combo đã lưu tự dùng nội dung mới: `friend-lan-demo` = "Người yêu gọi" (hiển thị "Bà chã húi <3", không âm nền), `mother-urgent` = "Bố gọi" (TV), `boss-server` = "Anh trai gọi (Tình huống đường vắng)" (hiển thị "Khọm già", xe cộ). Mỗi kịch bản 2 câu, chờ người dùng đáp sau câu 1. Đã bỏ "Chủ trọ đòi tiền nhà" (`landlord-rent`).
+- Giọng là bản thu của người dùng: `assets/audio/voice/KB<n>_C<m>.m4a` (nguồn `D:\HocTap\Semester\Ky8\PRM393\Nhac chuong\Default`). Lời thoại sửa chính tả ("ko" → "không", "m/t" → "mày/tao", "5p" → "5 phút"), giữ "lai" (= chở).
+- 3 combo mặc định (app và `CreateStarterCombos` ở server) cùng tên kịch bản, đều giao diện Zalo. Dữ liệu mẫu backend (`DbInitializer`, 2 file `trondb.sql`, `backend/seed/scenarios.json`) đã khớp; `backend/trondb.sql` vẫn là bản cũ.
+- Chợ chia sẻ giữ nguyên theo yêu cầu: gói vẫn trỏ `boss-server`/`mother-urgent`/`friend-lan-demo` (nay phát lời thoại mới), gói Chủ trọ trỏ `landlord-rent` nên phát nhầm kịch bản đầu. Giữ `boss_1/2`, `mother_1/2`, `friend_1/2` vì kịch bản riêng của gói chợ dùng; đã xoá 13 file giọng cũ khác. Kịch bản cá nhân cũ còn trỏ file đã xoá thì khi gọi chuyển sang giọng đọc tự động.
+- `hiddenBuiltInCount` chỉ đếm kịch bản mẫu còn trong app (máy từng ẩn Chủ trọ không còn hiện "Hiện lại 1 kịch bản mẫu").
+- Kiểm tra: `flutter analyze` sạch; bộ test liên quan đạt (trừ golden có sẵn); `dotnet build` sạch. Chưa chạy lại toàn bộ test lần cuối và chưa build APK vì ổ C hết chỗ. `tool/generate_demo_audio.py` vẫn tạo giọng máy cũ, đừng chạy nếu không muốn ghi đè.
