@@ -416,8 +416,8 @@ public class UserDataService(
         {
             Id = Guid.NewGuid(),
             OwnerId = userId,
-            Name = "Sếp gọi gấp",
-            ScenarioId = "boss",
+            Name = "Người yêu gọi",
+            ScenarioId = "friend",
             CallInterface = CallInterface.Zalo,
             RingtoneType = RingtoneType.InterfaceDefault,
             BackgroundVolume = 0.30m,
@@ -425,16 +425,15 @@ public class UserDataService(
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        c1.Backgrounds.Add(new ComboBackground { OwnerId = userId, ComboId = c1.Id, AmbientSoundId = "office", Order = 1 });
 
         var c2 = new Combo
         {
             Id = Guid.NewGuid(),
             OwnerId = userId,
-            Name = "Mẹ gọi về nhà",
+            Name = "Bố gọi",
             ScenarioId = "mother",
-            CallInterface = CallInterface.Phone,
-            RingtoneType = RingtoneType.Classic,
+            CallInterface = CallInterface.Zalo,
+            RingtoneType = RingtoneType.InterfaceDefault,
             BackgroundVolume = 0.30m,
             SortOrder = 2,
             CreatedAt = DateTime.UtcNow,
@@ -446,9 +445,9 @@ public class UserDataService(
         {
             Id = Guid.NewGuid(),
             OwnerId = userId,
-            Name = "Lan rủ đi gấp",
-            ScenarioId = "friend",
-            CallInterface = CallInterface.Messenger,
+            Name = "Anh trai gọi (Tình huống đường vắng)",
+            ScenarioId = "boss",
+            CallInterface = CallInterface.Zalo,
             RingtoneType = RingtoneType.InterfaceDefault,
             BackgroundVolume = 0.30m,
             SortOrder = 3,
@@ -456,7 +455,6 @@ public class UserDataService(
             UpdatedAt = DateTime.UtcNow
         };
         c3.Backgrounds.Add(new ComboBackground { OwnerId = userId, ComboId = c3.Id, AmbientSoundId = "traffic", Order = 1 });
-        c3.Backgrounds.Add(new ComboBackground { OwnerId = userId, ComboId = c3.Id, AmbientSoundId = "cafe", Order = 2 });
 
         return [c1, c2, c3];
     }

@@ -171,7 +171,7 @@ void main() {
     expect(find.text('COMBO CỦA BẠN'), findsOneWidget);
     final context = tester.element(find.byType(TronApp));
     final container = ProviderScope.containerOf(context);
-    await tester.tap(find.text('Mẹ gọi về nhà'));
+    await tester.tap(find.text('Bố gọi'));
     await tester.pump();
     expect(container.read(selectedComboIdProvider), endsWith('222222222222'));
     await tester.tap(find.text('10 giây'));

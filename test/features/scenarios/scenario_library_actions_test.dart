@@ -76,7 +76,9 @@ void main() {
     tester,
   ) async {
     await open(tester);
-    await tester.tap(find.byTooltip('Tuỳ chọn Sếp cần file gấp'));
+    await tester.tap(
+      find.byTooltip('Tuỳ chọn Anh trai gọi (Tình huống đường vắng)'),
+    );
     await tester.pumpAndSettle();
     expect(find.text('Sửa'), findsOneWidget);
     expect(find.text('Tạo bản sao'), findsOneWidget);
@@ -87,8 +89,10 @@ void main() {
     tester,
   ) async {
     await open(tester);
-    expect(find.text('Sếp cần file gấp'), findsOneWidget);
-    await tester.tap(find.byTooltip('Tuỳ chọn Sếp cần file gấp'));
+    expect(find.text('Anh trai gọi (Tình huống đường vắng)'), findsOneWidget);
+    await tester.tap(
+      find.byTooltip('Tuỳ chọn Anh trai gọi (Tình huống đường vắng)'),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Xoá'));
     await tester.pumpAndSettle();
@@ -98,7 +102,7 @@ void main() {
     await settleIo(tester, () => restore.evaluate().isNotEmpty);
     await tester.pumpAndSettle();
 
-    expect(find.text('Sếp cần file gấp'), findsNothing);
+    expect(find.text('Anh trai gọi (Tình huống đường vắng)'), findsNothing);
     // Combo đang dùng kịch bản này vẫn tìm thấy nó.
     expect(repository.findScenario('boss-server'), isNotNull);
     expect(restore, findsOneWidget);
@@ -106,7 +110,7 @@ void main() {
     await tester.tap(restore);
     await settleIo(tester, () => restore.evaluate().isEmpty);
     await tester.pumpAndSettle();
-    expect(find.text('Sếp cần file gấp'), findsOneWidget);
+    expect(find.text('Anh trai gọi (Tình huống đường vắng)'), findsOneWidget);
     expect(restore, findsNothing);
   });
 

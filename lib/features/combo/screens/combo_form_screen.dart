@@ -490,7 +490,7 @@ class _ComboFormScreenState extends ConsumerState<ComboFormScreen> {
               const _FieldLabel('Tên combo'),
               AppTextField(
                 controller: _nameController,
-                hint: 'Ví dụ: Sếp gọi gấp',
+                hint: 'Ví dụ: Bố gọi',
                 validator: (value) => value == null || value.trim().isEmpty
                     ? 'Hãy đặt tên cho combo của bạn'
                     : null,

@@ -98,8 +98,18 @@ class ScenarioRepository extends ChangeNotifier {
     return null;
   }
 
-  /// Số kịch bản mẫu đang bị ẩn khỏi kho.
-  int get hiddenBuiltInCount => _hidden.length;
+  /// Số kịch bản mẫu đang bị ẩn khỏi kho. Bỏ qua ID đã lưu của kịch bản mẫu
+  /// không còn trong app (ví dụ Chủ trọ cũ) và bản đã sửa vẫn đang hiện.
+  int get hiddenBuiltInCount {
+    final personalIds = {for (final scenario in _user) scenario.id};
+    return _bundled
+        .where(
+          (scenario) =>
+              _hidden.contains(scenario.id) &&
+              !personalIds.contains(scenario.id),
+        )
+        .length;
+  }
 
   /// Kịch bản cá nhân này là bản sửa của một kịch bản mẫu (cùng ID).
   bool isEditedBuiltIn(Scenario scenario) =>

@@ -537,49 +537,26 @@ IF NOT EXISTS (SELECT 1 FROM [dbo].[Scenarios] WHERE [OwnerId] IS NULL)
 BEGIN
     INSERT INTO [dbo].[Scenarios] ([Id], [OwnerId], [Title], [Category], [Source], [CallerName], [Initial], [EstimatedSeconds], [DefaultAmbientSoundId], [IsPro], [CopiedFromScenarioId], [CreatedAt], [UpdatedAt])
     VALUES
-        (N'mother-urgent', NULL, N'Mẹ gọi về ăn cơm', N'Family', N'BuiltIn', N'Mẹ', N'M', 45, N'television', 0, NULL, SYSUTCDATETIME(), SYSUTCDATETIME()),
-        (N'boss-server', NULL, N'Sếp cần file gấp', N'Work', N'BuiltIn', N'Sếp Hùng', N'S', 45, N'office', 0, NULL, SYSUTCDATETIME(), SYSUTCDATETIME()),
-        (N'landlord-rent', NULL, N'Chủ trọ đòi tiền nhà', N'Family', N'BuiltIn', N'Chủ trọ', N'C', 35, N'office', 0, NULL, SYSUTCDATETIME(), SYSUTCDATETIME()),
-        (N'friend-lan-demo', NULL, N'Lan nhờ ra đón', N'Personal', N'SampleUser', N'Lan', N'L', 40, N'cafe', 0, NULL, SYSUTCDATETIME(), SYSUTCDATETIME());
+        (N'friend-lan-demo', NULL, N'Người yêu gọi', N'Personal', N'SampleUser', N'Bà chã húi <3', N'B', 20, NULL, 0, NULL, SYSUTCDATETIME(), SYSUTCDATETIME()),
+        (N'mother-urgent', NULL, N'Bố gọi', N'Family', N'BuiltIn', N'Bố', N'B', 25, N'television', 0, NULL, SYSUTCDATETIME(), SYSUTCDATETIME()),
+        (N'boss-server', NULL, N'Anh trai gọi (Tình huống đường vắng)', N'Family', N'BuiltIn', N'Khọm già', N'K', 20, N'car', 0, NULL, SYSUTCDATETIME(), SYSUTCDATETIME());
 
     INSERT INTO [dbo].[DialogueSteps] ([ScenarioId], [Id], [Order], [Type], [Text], [MediaFileId], [AssetAudioPath], [Seconds])
     VALUES
+        -- friend-lan-demo
+        (N'friend-lan-demo', N'f1', 1, N'Speech', N'Alo, anh đang đâu đấy?', NULL, N'audio/voice/KB1_C1.m4a', 3),
+        (N'friend-lan-demo', N'fw1', 2, N'Wait', N'Bạn trả lời · chạm để tiếp tục', NULL, NULL, 0),
+        (N'friend-lan-demo', N'f2', 3, N'Speech', N'Anh về lai em ra viện với, em đau bụng quá.', NULL, N'audio/voice/KB1_C2.m4a', 4),
+
         -- mother-urgent
-        (N'mother-urgent', N'm1', 1, N'Speech', N'Alo, con à? Con đang ở đâu đấy?', NULL, N'audio/voice/mother_1.wav', 3),
+        (N'mother-urgent', N'm1', 1, N'Speech', N'Alo, mày đang đâu đấy?', NULL, N'audio/voice/KB2_C1.m4a', 3),
         (N'mother-urgent', N'mw1', 2, N'Wait', N'Bạn trả lời · chạm để tiếp tục', NULL, NULL, 0),
-        (N'mother-urgent', N'm2', 3, N'Speech', N'Ông bà nội vừa lên chơi, đang ngồi ở nhà mình đây này.', NULL, N'audio/voice/mother_2.wav', 4),
-        (N'mother-urgent', N'mw2', 4, N'Wait', N'Bạn trả lời · chạm để tiếp tục', NULL, NULL, 0),
-        (N'mother-urgent', N'm3', 5, N'Speech', N'Ông bà cứ hỏi con mãi. Con về ăn cơm với cả nhà luôn nhé.', NULL, N'audio/voice/mother_3.wav', 4),
-        (N'mother-urgent', N'mw3', 6, N'Wait', N'Bạn trả lời · chạm để tiếp tục', NULL, NULL, 0),
-        (N'mother-urgent', N'm4', 7, N'Speech', N'Ừ, mẹ nấu cơm rồi đấy, về sớm nhé.', NULL, N'audio/voice/mother_4.wav', 3),
-        (N'mother-urgent', N'm5', 8, N'Speech', N'À, tiện đường mua giúp mẹ chai nước mắm ở đầu ngõ nhé con.', NULL, N'audio/voice/mother_5.wav', 4),
+        (N'mother-urgent', N'm2', 3, N'Speech', N'Nhà đang bao việc mà không lo, tao cho mày 5 phút về ngay cho tao.', NULL, N'audio/voice/KB2_C2.m4a', 7),
 
         -- boss-server
-        (N'boss-server', N'b1', 1, N'Speech', N'Alo, em đang ở đâu đấy?', NULL, N'audio/voice/boss_1.wav', 2),
+        (N'boss-server', N'b1', 1, N'Speech', N'Alo, đi đến đâu rồi?', NULL, N'audio/voice/KB3_C1.m4a', 3),
         (N'boss-server', N'bw1', 2, N'Wait', N'Bạn trả lời · chạm để tiếp tục', NULL, NULL, 0),
-        (N'boss-server', N'b2', 3, N'Speech', N'Anh đang ngồi với khách, họ muốn xem lại cái file báo giá em làm hôm qua.', NULL, N'audio/voice/boss_2.wav', 4),
-        (N'boss-server', N'bw2', 4, N'Wait', N'Bạn trả lời · chạm để tiếp tục', NULL, NULL, 0),
-        (N'boss-server', N'b3', 5, N'Speech', N'Trên máy anh mở không được. Em về máy gửi lại cho anh bản mới nhất nhé?', NULL, N'audio/voice/boss_3.wav', 5),
-        (N'boss-server', N'bw3', 6, N'Wait', N'Bạn trả lời · chạm để tiếp tục', NULL, NULL, 0),
-        (N'boss-server', N'b4', 7, N'Speech', N'Ừ, khoảng mười lăm phút nữa là được đúng không? Anh đợi.', NULL, N'audio/voice/boss_4.wav', 4),
-        (N'boss-server', N'b5', 8, N'Speech', N'Gửi xong nhắn anh một tiếng nhé. Thế nhé.', NULL, N'audio/voice/boss_5.wav', 3),
-
-        -- landlord-rent
-        (N'landlord-rent', N'l1', 1, N'Speech', N'Alo, cô gọi về tiền phòng tháng này.', NULL, N'audio/voice/landlord_1.wav', 3),
-        (N'landlord-rent', N'lw1', 2, N'Wait', N'Bạn trả lời · chạm để tiếp tục', NULL, NULL, 0),
-        (N'landlord-rent', N'l2', 3, N'Speech', N'Con thu xếp về gặp cô hôm nay nhé.', NULL, N'audio/voice/landlord_2.wav', 3),
-        (N'landlord-rent', N'l3', 4, N'Speech', N'Cô cần nói chuyện trực tiếp một chút.', NULL, N'audio/voice/landlord_3.wav', 3),
-        (N'landlord-rent', N'l4', 5, N'Speech', N'Cô đợi con ở nhà trọ.', NULL, N'audio/voice/landlord_4.wav', 2),
-
-        -- friend-lan-demo
-        (N'friend-lan-demo', N'f1', 1, N'Speech', N'Ê, cậu đang ở đâu thế?', NULL, N'audio/voice/friend_1.wav', 2),
-        (N'friend-lan-demo', N'fw1', 2, N'Wait', N'Bạn trả lời · chạm để tiếp tục', NULL, NULL, 0),
-        (N'friend-lan-demo', N'f2', 3, N'Speech', N'Xe tớ bị thủng săm rồi, đang ngồi ở quán cà phê gần nhà cậu nè.', NULL, N'audio/voice/friend_2.wav', 4),
-        (N'friend-lan-demo', N'fw2', 4, N'Wait', N'Bạn trả lời · chạm để tiếp tục', NULL, NULL, 0),
-        (N'friend-lan-demo', N'f3', 5, N'Speech', N'Điện thoại tớ cũng sắp hết pin. Cậu ra đây với tớ một lát được không?', NULL, N'audio/voice/friend_3.wav', 5),
-        (N'friend-lan-demo', N'fw3', 6, N'Wait', N'Bạn trả lời · chạm để tiếp tục', NULL, NULL, 0),
-        (N'friend-lan-demo', N'f4', 7, N'Speech', N'Ừ, cậu ra nhanh nhé, tớ ngồi bàn ngay ngoài cửa.', NULL, N'audio/voice/friend_4.wav', 3),
-        (N'friend-lan-demo', N'f5', 8, N'Speech', N'Đến nơi thì gọi tớ nha.', NULL, N'audio/voice/friend_5.wav', 2);
+        (N'boss-server', N'b2', 3, N'Speech', N'Đợi tí, tao sắp đến nơi rồi.', NULL, N'audio/voice/KB3_C2.m4a', 4);
 END
 GO
 

@@ -1,79 +1,47 @@
 [
   {
+    "id": "friend-lan-demo",
+    "title": "Người yêu gọi",
+    "category": "personal",
+    "source": "sampleUser",
+    "callerName": "Bà chã húi <3",
+    "initial": "B",
+    "estimatedSeconds": 20,
+    "defaultBackgroundId": null,
+    "steps": [
+      {"id": "f1", "type": "speech", "text": "Alo, anh đang đâu đấy?", "audioPath": "audio/voice/KB1_C1.m4a", "seconds": 3},
+      {"id": "fw1", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
+      {"id": "f2", "type": "speech", "text": "Anh về lai em ra viện với, em đau bụng quá.", "audioPath": "audio/voice/KB1_C2.m4a", "seconds": 4}
+    ]
+  },
+  {
     "id": "mother-urgent",
-    "title": "Mẹ gọi về ăn cơm",
+    "title": "Bố gọi",
     "category": "family",
     "source": "builtIn",
-    "callerName": "Mẹ",
-    "initial": "M",
-    "estimatedSeconds": 45,
+    "callerName": "Bố",
+    "initial": "B",
+    "estimatedSeconds": 25,
     "defaultBackgroundId": "television",
     "steps": [
-      {"id": "m1", "type": "speech", "text": "Alo, con à? Con đang ở đâu đấy?", "audioPath": "audio/voice/mother_1.wav", "seconds": 3},
+      {"id": "m1", "type": "speech", "text": "Alo, mày đang đâu đấy?", "audioPath": "audio/voice/KB2_C1.m4a", "seconds": 3},
       {"id": "mw1", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
-      {"id": "m2", "type": "speech", "text": "Ông bà nội vừa lên chơi, đang ngồi ở nhà mình đây này.", "audioPath": "audio/voice/mother_2.wav", "seconds": 4},
-      {"id": "mw2", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
-      {"id": "m3", "type": "speech", "text": "Ông bà cứ hỏi con mãi. Con về ăn cơm với cả nhà luôn nhé.", "audioPath": "audio/voice/mother_3.wav", "seconds": 4},
-      {"id": "mw3", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
-      {"id": "m4", "type": "speech", "text": "Ừ, mẹ nấu cơm rồi đấy, về sớm nhé.", "audioPath": "audio/voice/mother_4.wav", "seconds": 3},
-      {"id": "m5", "type": "speech", "text": "À, tiện đường mua giúp mẹ chai nước mắm ở đầu ngõ nhé con.", "audioPath": "audio/voice/mother_5.wav", "seconds": 4}
+      {"id": "m2", "type": "speech", "text": "Nhà đang bao việc mà không lo, tao cho mày 5 phút về ngay cho tao.", "audioPath": "audio/voice/KB2_C2.m4a", "seconds": 7}
     ]
   },
   {
     "id": "boss-server",
-    "title": "Sếp cần file gấp",
-    "category": "work",
-    "source": "builtIn",
-    "callerName": "Sếp Hùng",
-    "initial": "S",
-    "estimatedSeconds": 45,
-    "defaultBackgroundId": "office",
-    "steps": [
-      {"id": "b1", "type": "speech", "text": "Alo, em đang ở đâu đấy?", "audioPath": "audio/voice/boss_1.wav", "seconds": 2},
-      {"id": "bw1", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
-      {"id": "b2", "type": "speech", "text": "Anh đang ngồi với khách, họ muốn xem lại cái file báo giá em làm hôm qua.", "audioPath": "audio/voice/boss_2.wav", "seconds": 4},
-      {"id": "bw2", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
-      {"id": "b3", "type": "speech", "text": "Trên máy anh mở không được. Em về máy gửi lại cho anh bản mới nhất nhé?", "audioPath": "audio/voice/boss_3.wav", "seconds": 5},
-      {"id": "bw3", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
-      {"id": "b4", "type": "speech", "text": "Ừ, khoảng mười lăm phút nữa là được đúng không? Anh đợi.", "audioPath": "audio/voice/boss_4.wav", "seconds": 4},
-      {"id": "b5", "type": "speech", "text": "Gửi xong nhắn anh một tiếng nhé. Thế nhé.", "audioPath": "audio/voice/boss_5.wav", "seconds": 3}
-    ]
-  },
-  {
-    "id": "landlord-rent",
-    "title": "Chủ trọ đòi tiền nhà",
+    "title": "Anh trai gọi (Tình huống đường vắng)",
     "category": "family",
     "source": "builtIn",
-    "callerName": "Chủ trọ",
-    "initial": "C",
-    "estimatedSeconds": 35,
-    "defaultBackgroundId": "office",
+    "callerName": "Khọm già",
+    "initial": "K",
+    "estimatedSeconds": 20,
+    "defaultBackgroundId": "car",
     "steps": [
-      {"id": "l1", "type": "speech", "text": "Alo, cô gọi về tiền phòng tháng này.", "audioPath": "audio/voice/landlord_1.wav", "seconds": 3},
-      {"id": "lw1", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
-      {"id": "l2", "type": "speech", "text": "Con thu xếp về gặp cô hôm nay nhé.", "audioPath": "audio/voice/landlord_2.wav", "seconds": 3},
-      {"id": "l3", "type": "speech", "text": "Cô cần nói chuyện trực tiếp một chút.", "audioPath": "audio/voice/landlord_3.wav", "seconds": 3},
-      {"id": "l4", "type": "speech", "text": "Cô đợi con ở nhà trọ.", "audioPath": "audio/voice/landlord_4.wav", "seconds": 2}
-    ]
-  },
-  {
-    "id": "friend-lan-demo",
-    "title": "Lan nhờ ra đón",
-    "category": "personal",
-    "source": "sampleUser",
-    "callerName": "Lan",
-    "initial": "L",
-    "estimatedSeconds": 40,
-    "defaultBackgroundId": "cafe",
-    "steps": [
-      {"id": "f1", "type": "speech", "text": "Ê, cậu đang ở đâu thế?", "audioPath": "audio/voice/friend_1.wav", "seconds": 2},
-      {"id": "fw1", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
-      {"id": "f2", "type": "speech", "text": "Xe tớ bị thủng săm rồi, đang ngồi ở quán cà phê gần nhà cậu nè.", "audioPath": "audio/voice/friend_2.wav", "seconds": 4},
-      {"id": "fw2", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
-      {"id": "f3", "type": "speech", "text": "Điện thoại tớ cũng sắp hết pin. Cậu ra đây với tớ một lát được không?", "audioPath": "audio/voice/friend_3.wav", "seconds": 5},
-      {"id": "fw3", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
-      {"id": "f4", "type": "speech", "text": "Ừ, cậu ra nhanh nhé, tớ ngồi bàn ngay ngoài cửa.", "audioPath": "audio/voice/friend_4.wav", "seconds": 3},
-      {"id": "f5", "type": "speech", "text": "Đến nơi thì gọi tớ nha.", "audioPath": "audio/voice/friend_5.wav", "seconds": 2}
+      {"id": "b1", "type": "speech", "text": "Alo, đi đến đâu rồi?", "audioPath": "audio/voice/KB3_C1.m4a", "seconds": 3},
+      {"id": "bw1", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
+      {"id": "b2", "type": "speech", "text": "Đợi tí, tao sắp đến nơi rồi.", "audioPath": "audio/voice/KB3_C2.m4a", "seconds": 4}
     ]
   }
 ]
