@@ -248,7 +248,8 @@ Code nằm dưới `lib/features/scenarios/{models,data,presentation,services}/`
 
 ### Landing page và tải APK (2026-11-06)
 
-- Nhánh `codex/landing-page`. Trang tĩnh ở `landing/` (`index.html`, `styles.css`, ảnh mascot/màn hình lấy từ slide thuyết trình, font Be Vietnam Pro và màu của `AppColors`). APK là `landing/downloads/tron.apk` (bản release build ngày 2026-11-06 từ `main`, ký bằng khoá debug, ~89 MB, SHA-256 ghi trên trang). Mã QR `assets/img/qr.svg` trỏ tới `https://twoofwn.github.io/tron/#tai-app`.
-- `.github/workflows/pages.yml` đăng `landing/` lên GitHub Pages khi push vào `main` có đổi trong `landing/`, hoặc chạy tay. Lần đầu phải bật Settings → Pages → Source = "GitHub Actions".
+- Nhánh `codex/landing-page`. Trang tĩnh ở `landing/` (`index.html`, `styles.css`, ảnh mascot/màn hình lấy từ slide thuyết trình, font Be Vietnam Pro và màu của `AppColors`). APK là `landing/downloads/tron.apk` (bản release build ngày 2026-11-06 từ `main`, ký bằng khoá debug, ~89 MB, SHA-256 ghi trên trang). Mã QR `assets/img/qr.svg` trỏ tới `https://twoofwn.github.io/tron-landing/#tai-app`.
+- Repo `tron` là private nên tài khoản miễn phí không dùng được Pages. Trang được host ở repo public riêng `twoofwn/tron-landing` (https://twoofwn.github.io/tron-landing/), gốc repo đó là thư mục `landing/`. Workflow nằm ở `landing/.github/workflows/pages.yml` (trong `tron` không chạy, sang `tron-landing` thành `.github/workflows/`), đăng trang khi push vào `main` của `tron-landing`.
+- Đăng bản mới: commit thay đổi trong `landing/` ở `tron`, rồi chạy `git subtree push --prefix landing https://github.com/twoofwn/tron-landing.git main`.
 - Cập nhật APK: build release, chép đè `landing/downloads/tron.apk`, sửa dung lượng và SHA-256 trong `index.html`. Mỗi lần đổi APK làm repo nặng thêm ~90 MB; GitHub chặn file > 100 MB.
 - Trang không nhắc "Gõ lưng" vì đã bỏ; ảnh màn Home trong slide vẫn còn chữ "gõ lưng".
