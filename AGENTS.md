@@ -236,3 +236,10 @@ Code nằm dưới `lib/features/scenarios/{models,data,presentation,services}/`
 - Nhánh `codex/no-pre-call-notification`. Trước đây báo thức hệ thống (`CallAlarmService.scheduleCall`) đặt đúng giờ hẹn, còn đồng hồ trong app kiểm tra mỗi 0,2 giây, nên khi đang mở app thông báo "Cuộc gọi đến · Chạm để nghe" thường hiện ra trước khi app kịp huỷ.
 - Nay báo thức đặt trễ `CallNotifier.alarmDelay` (1,5 giây): app đang mở thì tự đổ chuông đúng giờ và huỷ báo thức trước khi nó chạy. Khoá máy hoặc app ở nền thì vẫn dùng thông báo (full-screen intent) như cũ, chỉ trễ 1,5 giây. Người dùng chọn giữ thông báo cho trường hợp khoá máy/nền.
 - Kiểm tra: `flutter analyze` sạch; `flutter test` 261 đạt, 1 lỗi có sẵn (golden). Chưa thử trên máy thật.
+
+### Landing page và tải APK (2026-11-06)
+
+- Nhánh `codex/landing-page`. Trang tĩnh ở `landing/` (`index.html`, `styles.css`, ảnh mascot/màn hình lấy từ slide thuyết trình, font Be Vietnam Pro và màu của `AppColors`). APK là `landing/downloads/tron.apk` (bản release build ngày 2026-11-06 từ `main`, ký bằng khoá debug, ~89 MB, SHA-256 ghi trên trang). Mã QR `assets/img/qr.svg` trỏ tới `https://twoofwn.github.io/tron/#tai-app`.
+- `.github/workflows/pages.yml` đăng `landing/` lên GitHub Pages khi push vào `main` có đổi trong `landing/`, hoặc chạy tay. Lần đầu phải bật Settings → Pages → Source = "GitHub Actions".
+- Cập nhật APK: build release, chép đè `landing/downloads/tron.apk`, sửa dung lượng và SHA-256 trong `index.html`. Mỗi lần đổi APK làm repo nặng thêm ~90 MB; GitHub chặn file > 100 MB.
+- Trang không nhắc "Gõ lưng" vì đã bỏ; ảnh màn Home trong slide vẫn còn chữ "gõ lưng".
