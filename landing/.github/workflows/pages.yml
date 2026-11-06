@@ -1,13 +1,10 @@
-# Đăng thư mục landing/ (trang giới thiệu + file APK) lên GitHub Pages.
-# Lần đầu: Settings → Pages → Build and deployment → Source = "GitHub Actions".
+# Chạy trong repo public twoofwn/tron-landing (thư mục landing/ của repo tron
+# được đẩy sang làm gốc). Đăng trang giới thiệu + file APK lên GitHub Pages.
 name: Deploy landing page
 
 on:
   push:
     branches: [main]
-    paths:
-      - "landing/**"
-      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:
@@ -30,14 +27,14 @@ jobs:
 
       - name: Check APK
         run: |
-          test -s landing/downloads/tron.apk
-          ls -lh landing/downloads/tron.apk
+          test -s downloads/tron.apk
+          ls -lh downloads/tron.apk
 
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: landing
+          path: .
 
       - id: deployment
         uses: actions/deploy-pages@v4
