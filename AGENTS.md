@@ -245,3 +245,10 @@ Code nằm dưới `lib/features/scenarios/{models,data,presentation,services}/`
 - Chợ chia sẻ giữ nguyên theo yêu cầu: gói vẫn trỏ `boss-server`/`mother-urgent`/`friend-lan-demo` (nay phát lời thoại mới), gói Chủ trọ trỏ `landlord-rent` nên phát nhầm kịch bản đầu. Giữ `boss_1/2`, `mother_1/2`, `friend_1/2` vì kịch bản riêng của gói chợ dùng; đã xoá 13 file giọng cũ khác. Kịch bản cá nhân cũ còn trỏ file đã xoá thì khi gọi chuyển sang giọng đọc tự động.
 - `hiddenBuiltInCount` chỉ đếm kịch bản mẫu còn trong app (máy từng ẩn Chủ trọ không còn hiện "Hiện lại 1 kịch bản mẫu").
 - Kiểm tra: `flutter analyze` sạch; bộ test liên quan đạt (trừ golden có sẵn); `dotnet build` sạch. Chưa chạy lại toàn bộ test lần cuối và chưa build APK vì ổ C hết chỗ. `tool/generate_demo_audio.py` vẫn tạo giọng máy cũ, đừng chạy nếu không muốn ghi đè.
+
+### Landing page và tải APK (2026-11-06)
+
+- Nhánh `codex/landing-page`. Trang tĩnh ở `landing/` (`index.html`, `styles.css`, ảnh mascot/màn hình lấy từ slide thuyết trình, font Be Vietnam Pro và màu của `AppColors`). APK là `landing/downloads/tron.apk` (bản release build ngày 2026-11-06 từ `main`, ký bằng khoá debug, ~89 MB, SHA-256 ghi trên trang). Mã QR `assets/img/qr.svg` trỏ tới `https://twoofwn.github.io/tron/#tai-app`.
+- `.github/workflows/pages.yml` đăng `landing/` lên GitHub Pages khi push vào `main` có đổi trong `landing/`, hoặc chạy tay. Lần đầu phải bật Settings → Pages → Source = "GitHub Actions".
+- Cập nhật APK: build release, chép đè `landing/downloads/tron.apk`, sửa dung lượng và SHA-256 trong `index.html`. Mỗi lần đổi APK làm repo nặng thêm ~90 MB; GitHub chặn file > 100 MB.
+- Trang không nhắc "Gõ lưng" vì đã bỏ; ảnh màn Home trong slide vẫn còn chữ "gõ lưng".
