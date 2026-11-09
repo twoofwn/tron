@@ -560,6 +560,48 @@ BEGIN
 END
 GO
 
+-- 2.4b Ba kịch bản mẫu thêm sau (Cá nhân, không âm nền); thêm riêng để DB cũ cũng có
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Scenarios] WHERE [Id] = N'debt-collector')
+BEGIN
+    INSERT INTO [dbo].[Scenarios] ([Id], [OwnerId], [Title], [Category], [Source], [CallerName], [Initial], [EstimatedSeconds], [DefaultAmbientSoundId], [IsPro], [CopiedFromScenarioId], [CreatedAt], [UpdatedAt])
+    VALUES (N'debt-collector', NULL, N'Chủ nợ gọi', N'Personal', N'BuiltIn', N'Thắng Cá Chép', N'T', 30, NULL, 0, NULL, SYSUTCDATETIME(), SYSUTCDATETIME());
+
+    INSERT INTO [dbo].[DialogueSteps] ([ScenarioId], [Id], [Order], [Type], [Text], [MediaFileId], [AssetAudioPath], [Seconds])
+    VALUES
+        (N'debt-collector', N'd1', 1, N'Speech', N'Alo, sợ cái gì mà không bắt máy? Mày tưởng mày cầm 50 triệu của tao mà mày chạy được à?', NULL, N'audio/voice/KB4_C1.m4a', 7),
+        (N'debt-collector', N'dw1', 2, N'Wait', N'Bạn trả lời · chạm để tiếp tục', NULL, NULL, 0),
+        (N'debt-collector', N'd2', 3, N'Speech', N'Giờ tao biết mày ở đâu rồi đấy, mày thấy mày chạy được thì chạy nhanh vào.', NULL, N'audio/voice/KB4_C2.m4a', 4),
+        (N'debt-collector', N'dw2', 4, N'Wait', N'Bạn trả lời · chạm để tiếp tục', NULL, NULL, 0),
+        (N'debt-collector', N'd3', 5, N'Speech', N'Mày cứ chạy đi, đừng để tao bắt được.', NULL, N'audio/voice/KB4_C3.m4a', 3);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Scenarios] WHERE [Id] = N'stranger-at-home')
+BEGIN
+    INSERT INTO [dbo].[Scenarios] ([Id], [OwnerId], [Title], [Category], [Source], [CallerName], [Initial], [EstimatedSeconds], [DefaultAmbientSoundId], [IsPro], [CopiedFromScenarioId], [CreatedAt], [UpdatedAt])
+    VALUES (N'stranger-at-home', NULL, N'Có người lạ vào trọ', N'Personal', N'BuiltIn', N'Roommate', N'R', 20, NULL, 0, NULL, SYSUTCDATETIME(), SYSUTCDATETIME());
+
+    INSERT INTO [dbo].[DialogueSteps] ([ScenarioId], [Id], [Order], [Type], [Text], [MediaFileId], [AssetAudioPath], [Seconds])
+    VALUES
+        (N'stranger-at-home', N'r1', 1, N'Speech', N'Ê, trọ mình có cái ông già già nào vào ý.', NULL, N'audio/voice/KB5_C1.m4a', 4),
+        (N'stranger-at-home', N'rw1', 2, N'Wait', N'Bạn trả lời · chạm để tiếp tục', NULL, NULL, 0),
+        (N'stranger-at-home', N'r2', 3, N'Speech', N'Mày ơi, tao sợ vãi, mày về đi.', NULL, N'audio/voice/KB5_C2.m4a', 3);
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM [dbo].[Scenarios] WHERE [Id] = N'friend-pickup')
+BEGIN
+    INSERT INTO [dbo].[Scenarios] ([Id], [OwnerId], [Title], [Category], [Source], [CallerName], [Initial], [EstimatedSeconds], [DefaultAmbientSoundId], [IsPro], [CopiedFromScenarioId], [CreatedAt], [UpdatedAt])
+    VALUES (N'friend-pickup', NULL, N'Bạn đến đón', N'Personal', N'BuiltIn', N'Cốt', N'C', 25, NULL, 0, NULL, SYSUTCDATETIME(), SYSUTCDATETIME());
+
+    INSERT INTO [dbo].[DialogueSteps] ([ScenarioId], [Id], [Order], [Type], [Text], [MediaFileId], [AssetAudioPath], [Seconds])
+    VALUES
+        (N'friend-pickup', N'p1', 1, N'Speech', N'Alo, tới chưa má, lâu vậy?', NULL, N'audio/voice/KB6_C1.m4a', 3),
+        (N'friend-pickup', N'pw1', 2, N'Wait', N'Bạn trả lời · chạm để tiếp tục', NULL, NULL, 0),
+        (N'friend-pickup', N'p2', 3, N'Speech', N'Ok, được rồi, giờ mày chụp cái biển số xe gửi qua đây đi, rồi tao xuống dưới nhà tao canh, tao đón mày nè.', NULL, N'audio/voice/KB6_C2.m4a', 7);
+END
+GO
+
 -- 2.5 Seed MarketPackages (Gói tình huống của Nhà sản xuất & Cộng đồng)
 IF NOT EXISTS (SELECT 1 FROM [dbo].[MarketPackages])
 BEGIN

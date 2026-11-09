@@ -31,7 +31,14 @@ abstract final class ScenarioLookup {
   };
 
   /// ID kịch bản có sẵn trong `assets/scenarios/scenarios.json`.
-  static const bundledIds = {'friend-lan-demo', 'mother-urgent', 'boss-server'};
+  static const bundledIds = {
+    'friend-lan-demo',
+    'mother-urgent',
+    'boss-server',
+    'debt-collector',
+    'stranger-at-home',
+    'friend-pickup',
+  };
 
   static String canonicalId(String id) => legacyIds[id] ?? id;
 

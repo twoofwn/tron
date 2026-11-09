@@ -24,6 +24,27 @@ abstract final class ScenarioRepository {
       '20 giây',
     ),
     ScenarioModel(
+      'debt-collector',
+      'Chủ nợ gọi',
+      'Thắng Cá Chép',
+      'Alo, sợ cái gì mà không bắt máy? Mày tưởng mày cầm 50 triệu của tao mà mày chạy được à? Giờ tao biết mày ở đâu rồi đấy, mày thấy mày chạy được thì chạy nhanh vào. Mày cứ chạy đi, đừng để tao bắt được.',
+      '30 giây',
+    ),
+    ScenarioModel(
+      'stranger-at-home',
+      'Có người lạ vào trọ',
+      'Roommate',
+      'Ê, trọ mình có cái ông già già nào vào ý. Mày ơi, tao sợ vãi, mày về đi.',
+      '20 giây',
+    ),
+    ScenarioModel(
+      'friend-pickup',
+      'Bạn đến đón',
+      'Cốt',
+      'Alo, tới chưa má, lâu vậy? Ok, được rồi, giờ mày chụp cái biển số xe gửi qua đây đi, rồi tao xuống dưới nhà tao canh, tao đón mày nè.',
+      '25 giây',
+    ),
+    ScenarioModel(
       'delivery',
       'Shipper đang chờ',
       'Giao hàng',

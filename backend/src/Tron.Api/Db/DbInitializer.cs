@@ -228,12 +228,13 @@ public static class DbInitializer
 
     private static async Task SeedScenariosAsync(TronDbContext db, CancellationToken ct)
     {
-        if (await db.Scenarios.AnyAsync(s => s.OwnerId == null, ct))
-        {
-            return;
-        }
+        // Chỉ thêm kịch bản mẫu còn thiếu, để DB cũ cũng có kịch bản mới;
+        // kịch bản đã có thì giữ nguyên.
+        var existing = await db.Scenarios
+            .Where(s => s.OwnerId == null)
+            .Select(s => s.Id)
+            .ToListAsync(ct);
 
-        Log.Information("Seeding default Scenarios and DialogueSteps...");
         var friend = new Scenario
         {
             Id = "friend-lan-demo",
@@ -297,8 +298,64 @@ public static class DbInitializer
             }
         };
 
-        db.Scenarios.AddRange(friend, mother, boss);
+        var debt = BuiltInScenario(
+            "debt-collector", "Chủ nợ gọi", "Thắng Cá Chép", "T", 30,
+            ("d1", "Alo, sợ cái gì mà không bắt máy? Mày tưởng mày cầm 50 triệu của tao mà mày chạy được à?", "audio/voice/KB4_C1.m4a", 7),
+            ("dw1", null, null, 0),
+            ("d2", "Giờ tao biết mày ở đâu rồi đấy, mày thấy mày chạy được thì chạy nhanh vào.", "audio/voice/KB4_C2.m4a", 4),
+            ("dw2", null, null, 0),
+            ("d3", "Mày cứ chạy đi, đừng để tao bắt được.", "audio/voice/KB4_C3.m4a", 3));
+
+        var stranger = BuiltInScenario(
+            "stranger-at-home", "Có người lạ vào trọ", "Roommate", "R", 20,
+            ("r1", "Ê, trọ mình có cái ông già già nào vào ý.", "audio/voice/KB5_C1.m4a", 4),
+            ("rw1", null, null, 0),
+            ("r2", "Mày ơi, tao sợ vãi, mày về đi.", "audio/voice/KB5_C2.m4a", 3));
+
+        var pickup = BuiltInScenario(
+            "friend-pickup", "Bạn đến đón", "Cốt", "C", 25,
+            ("p1", "Alo, tới chưa má, lâu vậy?", "audio/voice/KB6_C1.m4a", 3),
+            ("pw1", null, null, 0),
+            ("p2", "Ok, được rồi, giờ mày chụp cái biển số xe gửi qua đây đi, rồi tao xuống dưới nhà tao canh, tao đón mày nè.", "audio/voice/KB6_C2.m4a", 7));
+
+        var missing = new[] { friend, mother, boss, debt, stranger, pickup }
+            .Where(s => !existing.Contains(s.Id))
+            .ToList();
+        if (missing.Count == 0)
+        {
+            return;
+        }
+
+        Log.Information("Seeding {Count} default Scenarios and DialogueSteps...", missing.Count);
+        db.Scenarios.AddRange(missing);
         await db.SaveChangesAsync(ct);
+    }
+
+    /// Kịch bản mẫu nhóm Cá nhân, không âm nền. Bước có text null là bước chờ người dùng đáp.
+    private static Scenario BuiltInScenario(
+        string id, string title, string caller, string initial, int estimatedSeconds,
+        params (string StepId, string? Text, string? Audio, int Seconds)[] steps)
+    {
+        var order = 0;
+        return new Scenario
+        {
+            Id = id,
+            Title = title,
+            Category = ScenarioCategory.Personal,
+            Source = ScenarioSource.BuiltIn,
+            CallerName = caller,
+            Initial = initial,
+            EstimatedSeconds = estimatedSeconds,
+            DefaultAmbientSoundId = null,
+            IsPro = false,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            Steps = steps
+                .Select(step => step.Text == null
+                    ? new DialogueStep { Id = step.StepId, ScenarioId = id, Order = ++order, Type = DialogueStepType.Wait, Text = "Bạn trả lời · chạm để tiếp tục", Seconds = 0 }
+                    : new DialogueStep { Id = step.StepId, ScenarioId = id, Order = ++order, Type = DialogueStepType.Speech, Text = step.Text, AssetAudioPath = step.Audio!, Seconds = step.Seconds })
+                .ToList()
+        };
     }
 
     private static async Task SeedMarketPackagesAsync(TronDbContext db, CancellationToken ct)

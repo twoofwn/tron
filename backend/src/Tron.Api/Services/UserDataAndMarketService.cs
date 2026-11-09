@@ -456,7 +456,28 @@ public class UserDataService(
         };
         c3.Backgrounds.Add(new ComboBackground { OwnerId = userId, ComboId = c3.Id, AmbientSoundId = "traffic", Order = 1 });
 
-        return [c1, c2, c3];
+        // Ba combo sau không có âm nền, chuông theo giao diện Zalo.
+        Combo Quiet(string name, string scenarioId, int order) => new()
+        {
+            Id = Guid.NewGuid(),
+            OwnerId = userId,
+            Name = name,
+            ScenarioId = scenarioId,
+            CallInterface = CallInterface.Zalo,
+            RingtoneType = RingtoneType.InterfaceDefault,
+            BackgroundVolume = 0.30m,
+            SortOrder = order,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        return
+        [
+            c1, c2, c3,
+            Quiet("Chủ nợ gọi", "debt-collector", 4),
+            Quiet("Có người lạ vào trọ", "stranger-at-home", 5),
+            Quiet("Bạn đến đón", "friend-pickup", 6),
+        ];
     }
 
     internal static BackupComboDto MapComboDto(Combo c, string prefix) =>

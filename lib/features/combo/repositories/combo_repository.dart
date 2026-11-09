@@ -84,6 +84,27 @@ class ComboRepository {
         createdAt: DateTime(2026),
         backgroundSoundPaths: const ['traffic'],
       ),
+      ComboModel(
+        id: 'f4b5d550-ec19-4d54-a744-444444444444',
+        name: 'Chủ nợ gọi',
+        scenarioId: 'debt-collector',
+        callInterface: CallInterface.zalo,
+        createdAt: DateTime(2026),
+      ),
+      ComboModel(
+        id: 'f4b5d550-ec19-4d54-a744-555555555555',
+        name: 'Có người lạ vào trọ',
+        scenarioId: 'stranger-at-home',
+        callInterface: CallInterface.zalo,
+        createdAt: DateTime(2026),
+      ),
+      ComboModel(
+        id: 'f4b5d550-ec19-4d54-a744-666666666666',
+        name: 'Bạn đến đón',
+        scenarioId: 'friend-pickup',
+        callInterface: CallInterface.zalo,
+        createdAt: DateTime(2026),
+      ),
     ];
     await save(initial);
     return initial;
