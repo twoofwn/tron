@@ -1,6 +1,8 @@
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/constants/asset_paths.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/services/file_service.dart';
 import '../../../core/services/storage_service.dart';
@@ -12,7 +14,16 @@ final comboRepositoryProvider = Provider(
     ref.watch(storageServiceProvider),
     api: ref.watch(apiClientProvider),
     files: ref.watch(fileServiceProvider),
+    starterVideo: ref.watch(starterVideoProvider),
   ),
+);
+
+/// Đọc video đóng gói của combo gọi video mặc định. Test thay bằng hàm trả
+/// `null` vì đọc file thật không xong trong thời gian giả của testWidgets.
+final starterVideoProvider = Provider<Future<Uint8List?> Function()>(
+  (ref) =>
+      () async =>
+          (await rootBundle.load(AssetPaths.starterVideo)).buffer.asUint8List(),
 );
 final comboListProvider =
     AsyncNotifierProvider<ComboListNotifier, List<ComboModel>>(

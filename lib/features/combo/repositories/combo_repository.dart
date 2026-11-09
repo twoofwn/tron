@@ -1,5 +1,7 @@
 import 'dart:convert';
 
+import 'dart:typed_data';
+
 import 'package:crypto/crypto.dart';
 
 import '../../../core/config/app_config.dart';
@@ -10,9 +12,13 @@ import '../../../shared/enums/call_interface.dart';
 import '../models/combo_model.dart';
 
 class ComboRepository {
-  ComboRepository(this.storage, {this.api, this.files});
+  ComboRepository(this.storage, {this.api, this.files, this.starterVideo});
   final StorageService storage;
   final ApiClient? api;
+
+  /// Đọc video của combo gọi video mặc định (đóng gói trong app); `null` hoặc
+  /// trả về `null` thì không tạo combo đó.
+  final Future<Uint8List?> Function()? starterVideo;
 
   /// Dùng để đồng bộ giọng tự thu, video tự quay và ảnh đại diện với server;
   /// `null` thì bỏ qua.
@@ -60,6 +66,7 @@ class ComboRepository {
     if (stored != null) {
       return stored;
     }
+    final starterVideoPath = await _copyStarterVideo();
     final initial = [
       ComboModel(
         id: 'f4b5d550-ec19-4d54-a744-333333333333',
@@ -105,9 +112,41 @@ class ComboRepository {
         callInterface: CallInterface.zalo,
         createdAt: DateTime(2026),
       ),
+      // Gọi video: video đóng gói trong app, chép được mới có combo này.
+      if (starterVideoPath != null)
+        ComboModel(
+          id: 'f4b5d550-ec19-4d54-a744-777777777777',
+          name: 'Ae song sinh (Video)',
+          // Gọi video không dùng kịch bản; giữ kịch bản mặc định của form để
+          // đổi sang gọi thoại vẫn có kịch bản.
+          scenarioId: 'boss',
+          callInterface: CallInterface.zalo,
+          createdAt: DateTime(2026),
+          callType: CallType.video,
+          videoPath: starterVideoPath,
+          callerName: 'Anh em cùng cha khác bố',
+          videoEndAction: VideoEndAction.hangUp,
+        ),
     ];
     await save(initial);
     return initial;
+  }
+
+  /// Chép video của combo gọi video mặc định vào kho media (`media:UUID.mp4`)
+  /// để phát, sao lưu và chia sẻ như video tự quay. Không chép được (ví dụ
+  /// thiếu chỗ trống) thì trả `null` và bỏ combo đó.
+  Future<String?> _copyStarterVideo() async {
+    final files = this.files;
+    final readVideo = starterVideo;
+    if (files == null || readVideo == null) {
+      return null;
+    }
+    try {
+      final bytes = await readVideo();
+      return bytes == null ? null : await files.storeVideo(bytes);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<List<ComboModel>> _loadFromServer() async {

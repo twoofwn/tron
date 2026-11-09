@@ -114,6 +114,7 @@ flutter:
     - assets/scenarios/
     - assets/audio/voice/
     - assets/audio/ambient/
+    - assets/video/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

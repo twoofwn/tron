@@ -1,12 +1,13 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tron/core/config/app_config.dart';
+import 'package:tron/core/constants/asset_paths.dart';
 import 'package:tron/core/network/api_client.dart';
 import 'package:tron/core/services/file_service.dart';
 import 'package:tron/core/services/voice_recorder.dart';
@@ -34,6 +35,28 @@ void main() {
       expect(await repository.load(), isEmpty);
     },
   );
+  test('Seeds the starter video call with its bundled video', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    final files = _VideoFiles();
+    final seeded = await ComboRepository(
+      StorageService(),
+      files: files,
+      starterVideo: () async =>
+          (await rootBundle.load(AssetPaths.starterVideo)).buffer.asUint8List(),
+    ).load();
+    expect(seeded.length, 7);
+    final video = seeded.last;
+    expect(video.name, 'Ae song sinh (Video)');
+    expect(video.isVideoCall, isTrue);
+    expect(video.callerName, 'Anh em cùng cha khác bố');
+    expect(video.callInterface, CallInterface.zalo);
+    expect(video.videoEndAction, VideoEndAction.hangUp);
+    expect(video.backgroundSoundPaths, isEmpty);
+    expect(video.ringtoneType, RingtoneType.interfaceDefault);
+    expect(video.avatarPath, isNull);
+    expect(video.videoPath, files.stored.keys.single);
+    expect(FileService.isMp4(files.stored.values.single), isTrue);
+  });
   test(
     'Create, duplicate, import duplicate policy and delete persist',
     () async {
@@ -62,6 +85,16 @@ void main() {
       expect((await ComboRepository(StorageService()).load()).length, 8);
     },
   );
+}
+
+class _VideoFiles extends FileService {
+  final stored = <String, Uint8List>{};
+  @override
+  Future<String> storeVideo(Uint8List bytes) async {
+    const path = 'media:0a0a.mp4';
+    stored[path] = bytes;
+    return path;
+  }
 }
 
 class MemoryFiles extends FileService {
