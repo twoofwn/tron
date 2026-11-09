@@ -130,6 +130,8 @@ void main() {
           callDeviceServiceProvider.overrideWithValue(SilentCallDevice()),
           replyListenerProvider.overrideWithValue(FakeReplyListener()),
           deepLinkSourceProvider.overrideWithValue(NoDeepLinks()),
+          // Đọc video 5 MB không xong trong thời gian giả: bỏ combo video mặc định.
+          starterVideoProvider.overrideWithValue(() async => null),
           // Quyền thật phụ thuộc máy; cố định để giao diện và golden ổn định.
           permissionSnapshotProvider.overrideWith(
             (ref) => Future.value(
