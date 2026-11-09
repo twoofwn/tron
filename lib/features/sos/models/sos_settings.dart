@@ -57,9 +57,7 @@ class SosSettings {
         for (final item in json['contacts'] as List? ?? const [])
           SosContact.fromJson(Map<String, dynamic>.from(item as Map)),
       ],
-      template: (json['template'] as String?)?.trim().isNotEmpty == true
-          ? json['template'] as String
-          : defaultTemplate,
+      template: _migrateTemplate(json['template'] as String?),
       autoCall: json['autoCall'] as bool? ?? true,
       countdownSeconds: countdownOptions.contains(countdown)
           ? countdown as int
@@ -69,9 +67,27 @@ class SosSettings {
   }
 
   static const defaultTemplate =
-      '[SOS] Mình đang gặp nguy hiểm, cần giúp đỡ gấp! '
-      'Vị trí của mình: {vitri} (lúc {thoigian}). '
-      'Hãy gọi lại cho mình ngay.';
+      'SOS! Mình đang gặp nguy hiểm.\n'
+      '- Vị trí cuối cùng: {vitri}\n'
+      '- Lúc: {thoigian}\n'
+      'Vui lòng tìm cách liên lạc hoặc hỗ trợ khẩn cấp!';
+
+  /// Mẫu mặc định trước đây. Máy còn giữ đúng mẫu này (chưa tự sửa) thì
+  /// chuyển sang mẫu mới.
+  static const previousDefaultTemplates = [
+    '[SOS] Mình đang gặp nguy hiểm, cần giúp đỡ gấp! '
+        'Vị trí của mình: {vitri} (lúc {thoigian}). '
+        'Hãy gọi lại cho mình ngay.',
+  ];
+
+  static String _migrateTemplate(String? saved) {
+    if (saved == null ||
+        saved.trim().isEmpty ||
+        previousDefaultTemplates.contains(saved.trim())) {
+      return defaultTemplate;
+    }
+    return saved;
+  }
 
   /// Mỗi lần SOS gửi tin cho tất cả, nên giới hạn để không tốn quá nhiều tin.
   static const maxContacts = 5;

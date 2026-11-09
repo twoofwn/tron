@@ -34,6 +34,28 @@ void main() {
     expect(settings.template, SosSettings.defaultTemplate);
   });
 
+  test(
+    'The old default message moves to the new one, edits are kept',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        'flutter.${AppConfig.sosKey}': jsonEncode({
+          'template': SosSettings.previousDefaultTemplates.first,
+        }),
+      });
+      final settings = await container().read(sosSettingsProvider.future);
+      expect(settings.template, SosSettings.defaultTemplate);
+      expect(settings.template.split('\n'), [
+        'SOS! Mình đang gặp nguy hiểm.',
+        '- Vị trí cuối cùng: {vitri}',
+        '- Lúc: {thoigian}',
+        'Vui lòng tìm cách liên lạc hoặc hỗ trợ khẩn cấp!',
+      ]);
+
+      final edited = SosSettings.fromJson({'template': 'Giúp mình {vitri}'});
+      expect(edited.template, 'Giúp mình {vitri}');
+    },
+  );
+
   test('Damaged saved data falls back to defaults', () async {
     SharedPreferences.setMockInitialValues({
       'flutter.${AppConfig.sosKey}': '{not json',

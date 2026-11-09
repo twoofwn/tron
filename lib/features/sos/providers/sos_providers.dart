@@ -113,16 +113,19 @@ final checkInProvider = AsyncNotifierProvider<CheckInNotifier, CheckInStatus>(
 
 /// Hẹn giờ "Báo an toàn". Android giữ trạng thái thật; đây chỉ đọc lại và ra lệnh.
 class CheckInNotifier extends AsyncNotifier<CheckInStatus> {
-  static const durations = [
-    Duration(minutes: 15),
-    Duration(minutes: 30),
-    Duration(hours: 1),
-    Duration(hours: 2),
+  /// Các nấc của thanh trượt hẹn giờ, từ 30 giây tới 3 giờ. Nấc dày ở đầu để
+  /// chọn được mốc ngắn: dưới 5 phút cách 30 giây, tới 30 phút cách 1 phút,
+  /// sau đó cách 5 phút.
+  static final List<Duration> durations = [
+    for (var s = 30; s <= 300; s += 30) Duration(seconds: s),
+    for (var m = 6; m <= 30; m++) Duration(minutes: m),
+    for (var m = 35; m <= 180; m += 5) Duration(minutes: m),
   ];
+  static const defaultDuration = Duration(minutes: 30);
   static const extension = Duration(minutes: 15);
 
-  /// Android gửi xong thường trong vòng 40 giây sau khi hết giờ.
-  static const _afterDeadline = Duration(seconds: 45);
+  /// Sau khi hết giờ, hỏi lại Android theo nhịp này tới khi gửi xong.
+  static const pollInterval = Duration(seconds: 1);
 
   Timer? _expiry;
 
@@ -142,15 +145,33 @@ class CheckInNotifier extends AsyncNotifier<CheckInStatus> {
     return status;
   }
 
-  /// App đang mở lúc hết giờ: đọc lại để thấy kết quả tự gửi, không đứng ở 0:00.
+  /// App đang mở lúc hết giờ: đọc lại đúng lúc hết giờ để đổi sang "Đang gửi",
+  /// rồi đọc lại mỗi giây tới khi Android gửi xong.
   void _watchExpiry(CheckInStatus status) {
     _expiry?.cancel();
+    final now = DateTime.now();
+    if (status.isOverdue(now) || status.isSending(now)) {
+      _expiry = Timer(pollInterval, _poll);
+      return;
+    }
     final deadline = status.deadline;
     if (deadline != null) {
       _expiry = Timer(
-        deadline.difference(DateTime.now()) + _afterDeadline,
-        refresh,
+        deadline.difference(now) + const Duration(milliseconds: 50),
+        _poll,
       );
+    }
+  }
+
+  /// Lần đọc lại tự động: lỗi thì thử lại theo lịch cũ thay vì dừng hẳn.
+  Future<void> _poll() async {
+    try {
+      await refresh();
+    } catch (_) {
+      final last = state.value;
+      if (ref.mounted && last != null) {
+        _watchExpiry(last);
+      }
     }
   }
 
