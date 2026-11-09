@@ -24,7 +24,7 @@ void main() {
     () async {
       final repository = ComboRepository(StorageService());
       final seeded = await repository.load();
-      expect(seeded.length, 3);
+      expect(seeded.length, 6);
       await repository.save([seeded.first.copyWith(name: 'Tên đã sửa')]);
       expect(
         (await ComboRepository(StorageService()).load()).single.name,
@@ -51,7 +51,7 @@ void main() {
       await notifier.saveCombo(combo);
       expect(container.read(selectedComboIdProvider), combo.id);
       await notifier.duplicateCombo(combo);
-      expect((await container.read(comboListProvider.future)).length, 5);
+      expect((await container.read(comboListProvider.future)).length, 8);
       expect(await notifier.importCombos([combo], copyDuplicates: false), 0);
       expect(await notifier.importCombos([combo], copyDuplicates: true), 1);
       final combos = await container.read(comboListProvider.future);
@@ -59,7 +59,7 @@ void main() {
       container.read(selectedComboIdProvider.notifier).selectCombo(combo.id);
       await notifier.deleteCombo(combo.id);
       expect(container.read(selectedComboIdProvider), isNull);
-      expect((await ComboRepository(StorageService()).load()).length, 5);
+      expect((await ComboRepository(StorageService()).load()).length, 8);
     },
   );
 }

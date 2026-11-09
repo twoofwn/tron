@@ -37,6 +37,8 @@ object SosCheckIn {
     private const val KEY_SENT = "sent"
     private const val KEY_TOTAL = "total"
     private const val KEY_LOCATED = "located"
+    /** Đang lấy vị trí và gửi tin sau khi hết giờ. */
+    private const val KEY_SENDING = "sending"
 
     const val ACTION_WARN = "com.example.tron.SOS_CHECKIN_WARN"
     const val ACTION_FIRE = "com.example.tron.SOS_CHECKIN_FIRE"
@@ -66,6 +68,7 @@ object SosCheckIn {
             "sent" to prefs.getInt(KEY_SENT, 0),
             "total" to prefs.getInt(KEY_TOTAL, 0),
             "located" to prefs.getBoolean(KEY_LOCATED, false),
+            "sending" to prefs.getBoolean(KEY_SENDING, false),
         )
     }
 
@@ -226,14 +229,20 @@ object SosCheckIn {
             return
         }
         // Xóa hạn trước để không bao giờ gửi hai lần.
-        prefs.edit().putLong(KEY_DEADLINE, 0L).putLong(KEY_FIRED_AT, System.currentTimeMillis()).apply()
+        prefs.edit()
+            .putLong(KEY_DEADLINE, 0L)
+            .putLong(KEY_FIRED_AT, System.currentTimeMillis())
+            .putInt(KEY_SENT, 0)
+            .putInt(KEY_TOTAL, 0)
+            .putBoolean(KEY_SENDING, true)
+            .apply()
         notificationManager(app).cancel(NOTIFICATION_WARN)
         val wakeLock = (app.getSystemService(Context.POWER_SERVICE) as PowerManager)
             .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "tron:sos")
             .apply { acquire(LOCATION_TIMEOUT_MS + SMS_TIMEOUT_MS + 15_000L) }
         val payload = payload(app)
         if (payload == null || payload.contacts.isEmpty()) {
-            prefs.edit().putInt(KEY_SENT, 0).putInt(KEY_TOTAL, 0).apply()
+            prefs.edit().putInt(KEY_SENT, 0).putInt(KEY_TOTAL, 0).putBoolean(KEY_SENDING, false).apply()
             postSent(app, null, 0, 0, false)
             if (wakeLock.isHeld) wakeLock.release()
             done()
@@ -252,6 +261,7 @@ object SosCheckIn {
                             .putInt(KEY_SENT, sent)
                             .putInt(KEY_TOTAL, payload.contacts.size)
                             .putBoolean(KEY_LOCATED, location != null)
+                            .putBoolean(KEY_SENDING, false)
                             .apply()
                         val primary = payload.contacts.first().takeIf { payload.autoCall }
                         postSent(app, primary, sent, payload.contacts.size, location != null)
@@ -374,6 +384,10 @@ class SosCheckInService : Service() {
             firing = false
             stopNow()
         }
+        // Hạn đã bị xóa: thông báo thường trực đổi từ đếm ngược sang "Đang gửi SOS…".
+        if (firing) {
+            SosCheckIn.notificationManager(this).notify(SosCheckIn.NOTIFICATION_ONGOING, buildNotification())
+        }
     }
 
     private fun stopNow() {
@@ -421,7 +435,10 @@ class SosCheckInService : Service() {
             .setOnlyAlertOnce(true)
             .setContentIntent(SosCheckIn.openAppIntent(this))
         if (deadline == 0L) {
-            return builder.setContentTitle("Đang gửi SOS…").build()
+            return builder
+                .setContentTitle("Đang gửi SOS…")
+                .setContentText("Đang lấy vị trí và gửi tin cho người liên hệ.")
+                .build()
         }
         return builder
             .setContentTitle("Đang hẹn giờ báo an toàn")

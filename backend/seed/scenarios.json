@@ -43,5 +43,52 @@
       {"id": "bw1", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
       {"id": "b2", "type": "speech", "text": "Đợi tí, tao sắp đến nơi rồi.", "audioPath": "audio/voice/KB3_C2.m4a", "seconds": 4}
     ]
+  },
+  {
+    "id": "debt-collector",
+    "title": "Chủ nợ gọi",
+    "category": "personal",
+    "source": "builtIn",
+    "callerName": "Thắng Cá Chép",
+    "initial": "T",
+    "estimatedSeconds": 30,
+    "defaultBackgroundId": null,
+    "steps": [
+      {"id": "d1", "type": "speech", "text": "Alo, sợ cái gì mà không bắt máy? Mày tưởng mày cầm 50 triệu của tao mà mày chạy được à?", "audioPath": "audio/voice/KB4_C1.m4a", "seconds": 7},
+      {"id": "dw1", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
+      {"id": "d2", "type": "speech", "text": "Giờ tao biết mày ở đâu rồi đấy, mày thấy mày chạy được thì chạy nhanh vào.", "audioPath": "audio/voice/KB4_C2.m4a", "seconds": 4},
+      {"id": "dw2", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
+      {"id": "d3", "type": "speech", "text": "Mày cứ chạy đi, đừng để tao bắt được.", "audioPath": "audio/voice/KB4_C3.m4a", "seconds": 3}
+    ]
+  },
+  {
+    "id": "stranger-at-home",
+    "title": "Có người lạ vào trọ",
+    "category": "personal",
+    "source": "builtIn",
+    "callerName": "Roommate",
+    "initial": "R",
+    "estimatedSeconds": 20,
+    "defaultBackgroundId": null,
+    "steps": [
+      {"id": "r1", "type": "speech", "text": "Ê, trọ mình có cái ông già già nào vào ý.", "audioPath": "audio/voice/KB5_C1.m4a", "seconds": 4},
+      {"id": "rw1", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
+      {"id": "r2", "type": "speech", "text": "Mày ơi, tao sợ vãi, mày về đi.", "audioPath": "audio/voice/KB5_C2.m4a", "seconds": 3}
+    ]
+  },
+  {
+    "id": "friend-pickup",
+    "title": "Bạn đến đón",
+    "category": "personal",
+    "source": "builtIn",
+    "callerName": "Cốt",
+    "initial": "C",
+    "estimatedSeconds": 25,
+    "defaultBackgroundId": null,
+    "steps": [
+      {"id": "p1", "type": "speech", "text": "Alo, tới chưa má, lâu vậy?", "audioPath": "audio/voice/KB6_C1.m4a", "seconds": 3},
+      {"id": "pw1", "type": "wait", "text": "Bạn trả lời · chạm để tiếp tục"},
+      {"id": "p2", "type": "speech", "text": "Ok, được rồi, giờ mày chụp cái biển số xe gửi qua đây đi, rồi tao xuống dưới nhà tao canh, tao đón mày nè.", "audioPath": "audio/voice/KB6_C2.m4a", "seconds": 7}
+    ]
   }
 ]

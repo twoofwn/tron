@@ -1,6 +1,6 @@
-# Giọng thu cho 3 combo mặc định
+# Giọng thu cho 6 combo mặc định
 
-Ba combo có sẵn khi cài app dùng ba kịch bản dưới đây, cả ba đều gọi bằng giao diện Zalo. File giọng nằm trong `assets/audio/voice/`. Muốn thay giọng thì chép đè đúng tên file, không phải sửa code.
+Sáu combo có sẵn khi cài app dùng sáu kịch bản dưới đây, tất cả đều gọi bằng giao diện Zalo. File giọng nằm trong `assets/audio/voice/`. Muốn thay giọng thì chép đè đúng tên file, không phải sửa code.
 
 App phát từng câu một. Ở dòng *(người dùng trả lời)*, người gọi im lặng chờ người dùng nói xong rồi mới phát câu tiếp. Vì vậy **mỗi câu là một file riêng**, không gộp nhiều câu vào một file.
 
@@ -45,6 +45,38 @@ App phát từng câu một. Ở dòng *(người dùng trả lời)*, người 
 | `KB3_C1.m4a` | Alo, đi đến đâu rồi? |
 | | *(người dùng trả lời)* |
 | `KB3_C2.m4a` | Đợi tí, tao sắp đến nơi rồi. |
+
+## Kịch bản 4: "Chủ nợ gọi"
+
+**Tên hiển thị:** Thắng Cá Chép. **Nhóm:** Cá nhân. **Âm nền:** không có.
+
+| File | Câu thoại |
+| --- | --- |
+| `KB4_C1.m4a` | Alo, sợ cái gì mà không bắt máy? Mày tưởng mày cầm 50 triệu của tao mà mày chạy được à? |
+| | *(người dùng trả lời)* |
+| `KB4_C2.m4a` | Giờ tao biết mày ở đâu rồi đấy, mày thấy mày chạy được thì chạy nhanh vào. |
+| | *(người dùng trả lời)* |
+| `KB4_C3.m4a` | Mày cứ chạy đi, đừng để tao bắt được. |
+
+## Kịch bản 5: "Có người lạ vào trọ"
+
+**Tên hiển thị:** Roommate. **Nhóm:** Cá nhân. **Âm nền:** không có.
+
+| File | Câu thoại |
+| --- | --- |
+| `KB5_C1.m4a` | Ê, trọ mình có cái ông già già nào vào ý. |
+| | *(người dùng trả lời)* |
+| `KB5_C2.m4a` | Mày ơi, tao sợ vãi, mày về đi. |
+
+## Kịch bản 6: "Bạn đến đón"
+
+**Tên hiển thị:** Cốt. **Nhóm:** Cá nhân. **Âm nền:** không có.
+
+| File | Câu thoại |
+| --- | --- |
+| `KB6_C1.m4a` | Alo, tới chưa má, lâu vậy? |
+| | *(người dùng trả lời)* |
+| `KB6_C2.m4a` | Ok, được rồi, giờ mày chụp cái biển số xe gửi qua đây đi, rồi tao xuống dưới nhà tao canh, tao đón mày nè. |
 
 ## Sau khi chép file vào
 

@@ -174,14 +174,20 @@ void main() {
     await tester.tap(find.text('Bố gọi'));
     await tester.pump();
     expect(container.read(selectedComboIdProvider), endsWith('222222222222'));
+    // Sáu combo mặc định đẩy phần hẹn giờ xuống dưới màn hình.
+    await tester.ensureVisible(find.text('10 giây'));
     await tester.tap(find.text('10 giây'));
     await tester.pump();
+    await tester.ensureVisible(find.text('Hẹn giờ · gọi sau 10 giây'));
     await tester.tap(find.text('Hẹn giờ · gọi sau 10 giây'));
     await tester.pump();
     expect(container.read(callProvider).status, CallStatus.scheduled);
+    await tester.ensureVisible(find.text('Hủy cuộc gọi chờ'));
     await tester.tap(find.text('Hủy cuộc gọi chờ'));
     await tester.pump();
     expect(container.read(callProvider).status, CallStatus.idle);
+    await tester.ensureVisible(find.byTooltip('Cài đặt'));
+    await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Cài đặt'));
     await tester.pumpAndSettle();
     final themeSwitch = find.widgetWithText(SwitchListTile, 'Giao diện sáng');
@@ -279,7 +285,7 @@ void main() {
     final container = ProviderScope.containerOf(
       tester.element(find.byType(TronApp)),
     );
-    expect((await container.read(comboListProvider.future)).length, 4);
+    expect((await container.read(comboListProvider.future)).length, 7);
     expect(tester.takeException(), isNull);
   });
 
@@ -388,7 +394,7 @@ void main() {
       final container = ProviderScope.containerOf(
         tester.element(find.byType(TronApp)),
       );
-      expect((await container.read(comboListProvider.future)).length, 5);
+      expect((await container.read(comboListProvider.future)).length, 8);
       expect(tester.takeException(), isNull);
     },
   );

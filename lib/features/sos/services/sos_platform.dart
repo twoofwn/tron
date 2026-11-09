@@ -20,6 +20,7 @@ class CheckInStatus {
     this.sent = 0,
     this.total = 0,
     this.located = false,
+    this.sending = false,
   });
 
   factory CheckInStatus.fromMap(Map<Object?, Object?> map) {
@@ -34,8 +35,13 @@ class CheckInStatus {
       sent: (map['sent'] as num?)?.toInt() ?? 0,
       total: (map['total'] as num?)?.toInt() ?? 0,
       located: map['located'] as bool? ?? false,
+      sending: map['sending'] as bool? ?? false,
     );
   }
+
+  /// Android gửi xong (lấy vị trí 10 giây + chờ SMS 30 giây) trong vòng
+  /// khoảng 1 phút; quá lâu thì coi như tiến trình đã bị tắt giữa chừng.
+  static const sendingTimeout = Duration(minutes: 2);
 
   /// Hạn báo an toàn; null nếu không hẹn giờ.
   final DateTime? deadline;
@@ -46,7 +52,24 @@ class CheckInStatus {
   final int total;
   final bool located;
 
+  /// Android đang lấy vị trí và gửi tin sau khi hết giờ.
+  final bool sending;
+
   bool get isActive => deadline != null;
+
+  /// Đã hết giờ nhưng Android chưa bắt đầu gửi (báo thức có thể trễ vài giây,
+  /// hoặc vài phút nếu không có quyền báo thức chính xác). Vẫn huỷ được.
+  bool isOverdue([DateTime? now]) =>
+      deadline != null && !deadline!.isAfter(now ?? DateTime.now());
+
+  /// Đang gửi SOS. Cờ cũ quá [sendingTimeout] thì bỏ qua để không quay mãi.
+  bool isSending([DateTime? now]) =>
+      sending &&
+      firedAt != null &&
+      (now ?? DateTime.now()).difference(firedAt!) < sendingTimeout;
+
+  /// Có kết quả lần tự gửi để báo cho người dùng.
+  bool hasResult([DateTime? now]) => firedAt != null && !isSending(now);
 }
 
 /// Lệnh SOS cần code Android (`SosTools.kt`, `SosCheckIn.kt`).
